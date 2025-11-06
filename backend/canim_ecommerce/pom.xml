@@ -78,6 +78,13 @@
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
+		<!-- Jwt -->
+		<dependency>
+			<groupId>com.nimbusds</groupId>
+			<artifactId>nimbus-jose-jwt</artifactId>
+			<version>9.41.2</version>
+		</dependency>
+
 		<!-- OAuth2 -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
