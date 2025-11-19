@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -19,23 +20,34 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import lombok.AccessLevel;
+import lombok.Data;
 import lombok.experimental.FieldDefaults;
 
 @Component
+@Data
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class JwtTokenProvider {
 
     String secret;
     long accessTokenValidityMillis;
+    long refreshTokenValidityMillis;
 
-    public JwtTokenProvider(
-        @Value("${security.jwt.secret}") String secret,
-        @Value("${security.jwt.access-token-expiration-minutes}") long accessTokenValidityMillis
-    ) {
+     public JwtTokenProvider(
+            @Value("${security.jwt.secret}") String secret,
+            @Value("${security.jwt.access-token-expiration-minutes}") long accessTokenMinutes,
+            @Value("${security.jwt.refresh-token-expiration-days}") long refreshTokenDays) {
+
         this.secret = secret;
-        this.accessTokenValidityMillis = accessTokenValidityMillis * 60 * 1000;
+        this.accessTokenValidityMillis = accessTokenMinutes * 60 * 1000;   
+        this.refreshTokenValidityMillis = refreshTokenDays * 24 * 60 * 60 * 1000; 
     }
 
+    public long getAccessTokenValiditySeconds() {
+        return accessTokenValidityMillis / 1000;
+    }
+    public long getRefreshTokenValiditySeconds() {
+        return refreshTokenValidityMillis / 1000;
+    }
 
     public String generateAccessToken(String subject, Collection<String> roles) {
         try {
@@ -48,15 +60,41 @@ public class JwtTokenProvider {
                 .subject(subject)
                 .issueTime(now)
                 .expirationTime(exp)
+                .jwtID(UUID.randomUUID().toString())
                 .claim("roles", roles)
                 .build();
 
             SignedJWT signedJWT = new SignedJWT(new JWSHeader(JWSAlgorithm.HS512), claimsSet);
-
             signedJWT.sign(signer);
+
             return signedJWT.serialize();
+
         } catch (JOSEException e) {
             throw new RuntimeException("Error generating Jwt", e);
+        }
+    }
+
+    public String generateRefreshToken(String subject) {
+        try {
+            JWSSigner signer = new MACSigner(secret.getBytes());
+
+            Date now = new Date();
+            Date exp = new Date(now.getTime() + refreshTokenValidityMillis);
+
+            JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
+                    .subject(subject)
+                    .issueTime(now)
+                    .expirationTime(exp)
+                    .jwtID(UUID.randomUUID().toString())
+                    .build();
+
+            SignedJWT signedJWT = new SignedJWT(new JWSHeader(JWSAlgorithm.HS512), claimsSet);
+            signedJWT.sign(signer);
+
+            return signedJWT.serialize();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Error generating refresh token", e);
         }
     }
 
@@ -97,5 +135,21 @@ public class JwtTokenProvider {
             return Collections.emptyList();
         }
         return Collections.emptyList();
+    }
+
+    public String getJti(String token) {
+        try {
+            return SignedJWT.parse(token).getJWTClaimsSet().getJWTID();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public boolean validateAccessToken(String token) {
+        return validateToken(token);
+    }
+
+    public boolean validateRefreshToken(String token) {
+        return validateToken(token);
     }
 }
