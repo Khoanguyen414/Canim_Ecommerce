@@ -46,10 +46,8 @@ public class AuthController {
     @PostMapping("/logout")
     public ApiResponse<Void> logout(@RequestHeader("Authorization") String authorizationHeader) {
 
-        if (authorizationHeader == null 
-                || !authorizationHeader.startsWith("Bearer ") 
-                || authorizationHeader.length() <= 7) {
-            throw new ApiException(ApiStatus.UNAUTHORIZED, "Invalid or missing Authorization header");
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            throw new ApiException(ApiStatus.UNAUTHORIZED, "Missing or invalid Authorization header");
         }
 
         String refreshToken = authorizationHeader.substring(7);
