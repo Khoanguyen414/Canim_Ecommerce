@@ -32,16 +32,19 @@ public class InvalidatedToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
-    @Column(nullable = false, length = 512, unique = true)
+    @Column(name = "token", nullable = false, unique = true)
     String token;
 
+    @Column(name = "user_email")
     String userEmail;
+
+    @Column(name = "reason")
     String reason;
     
-    @Column(nullable = false)
-    LocalDateTime expiryTime;
+    @Column(name = "expired_at", nullable = false)
+    LocalDateTime expiredAt;
 
     @CreationTimestamp
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     LocalDateTime createdAt;
 }
