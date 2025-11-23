@@ -3,12 +3,13 @@ package com.example.canim_ecommerce.controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.canim_ecommerce.Entity.User;
 import com.example.canim_ecommerce.dto.request.AuthRequest;
 import com.example.canim_ecommerce.dto.request.RefreshTokenRequest;
 import com.example.canim_ecommerce.dto.request.RegisterRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.AuthResponse;
-import com.example.canim_ecommerce.entity.User;
+
 import com.example.canim_ecommerce.enums.ApiStatus;
 import com.example.canim_ecommerce.exception.ApiException;
 import com.example.canim_ecommerce.service.AuthService;

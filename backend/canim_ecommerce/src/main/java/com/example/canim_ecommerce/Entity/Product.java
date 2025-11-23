@@ -1,44 +1,33 @@
 package com.example.canim_ecommerce.Entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "products")
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class Product {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    private String sku;
     private String name;
-
-    @Column(nullable = false)
-    private Double price;
-
-    @Column
-    private String imageUrl;
-
-    @Column
-    private String description;
-
-    @Column(nullable = false)
-    private Integer stockQuantity;
+    private String slug;
+    private String shortDescription;
+    private String longDescription;
+    private BigDecimal price;
+    private String brand;
 
     @Enumerated(EnumType.STRING)
-    private ProductStatus status;
+    private Status status = Status.ACTIVE;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "category_id")
     private Category category;
 
-    public enum ProductStatus {
-        IN_STOCK, OUT_OF_STOCK, HIDDEN
+    public enum Status {
+        ACTIVE, INACTIVE
     }
 }

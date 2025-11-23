@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.entity;
+package com.example.canim_ecommerce.Entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

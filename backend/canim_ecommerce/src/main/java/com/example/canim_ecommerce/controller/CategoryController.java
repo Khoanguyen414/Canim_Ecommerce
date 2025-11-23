@@ -1,18 +1,15 @@
 package com.example.canim_ecommerce.controller;
 
-
+import com.example.canim_ecommerce.dto.request.CategoryRequest;
+import com.example.canim_ecommerce.dto.response.CategoryResponse;
+import com.example.canim_ecommerce.service.CategoryService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import com.example.canim_ecommerce.dto.CategoryDTO;
-import com.example.canim_ecommerce.dto.request.CategoryRequestDTO;
-import com.example.canim_ecommerce.service.CategoryService;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/categories")
@@ -20,31 +17,26 @@ import com.example.canim_ecommerce.service.CategoryService;
 public class CategoryController {
 
     @Autowired
-    private CategoryService categoryService;
-
-    @PostMapping
-    public ResponseEntity<CategoryDTO> createCategory(@Valid @RequestBody CategoryRequestDTO dto) {
-        return new ResponseEntity<>(categoryService.createCategory(dto), HttpStatus.CREATED);
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<CategoryDTO> getCategoryById(@PathVariable Long id) {
-        return ResponseEntity.ok(categoryService.getCategoryById(id));
-    }
+    private CategoryService service;
 
     @GetMapping
-    public ResponseEntity<Page<CategoryDTO>> getAllCategories(Pageable pageable) {
-        return ResponseEntity.ok(categoryService.getAllCategories(pageable));
+    public List<CategoryResponse> getAll() {
+        return service.getAll();
+    }
+
+    @PostMapping
+    public CategoryResponse create(@Valid @RequestBody CategoryRequest request) {
+        return service.create(request);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<CategoryDTO> updateCategory(@PathVariable Long id, @Valid @RequestBody CategoryRequestDTO dto) {
-        return ResponseEntity.ok(categoryService.updateCategory(id, dto));
+    public CategoryResponse update(@PathVariable Integer id, @Valid @RequestBody CategoryRequest request) {
+        return service.update(id, request);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteCategory(@PathVariable Long id) {
-        categoryService.deleteCategory(id);
+    public ResponseEntity<Void> delete(@PathVariable Integer id) {
+        service.delete(id);
         return ResponseEntity.noContent().build();
     }
 }

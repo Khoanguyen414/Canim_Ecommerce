@@ -1,43 +1,34 @@
 package com.example.canim_ecommerce.Entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
-
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "orders")
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class Order {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private String orderNo;
+    private Long userId;
+    private BigDecimal totalAmount;
+    private BigDecimal discountAmount = BigDecimal.ZERO;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private OrderStatus status;
+    private Status status = Status.PAID;
 
-    @Column(nullable = false)
-    private Double totalAmount;
-
-    @Column
-    private LocalDateTime orderDate;
+    private LocalDateTime createdAt = LocalDateTime.now();
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<OrderItem> orderItems = new HashSet<>();
+    private List<OrderItem> items = new ArrayList<>();
 
-    public enum OrderStatus {
-        PENDING, PREPARING, SHIPPED, DELIVERED, CANCELLED
+    public enum Status {
+        PAID, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
     }
 }

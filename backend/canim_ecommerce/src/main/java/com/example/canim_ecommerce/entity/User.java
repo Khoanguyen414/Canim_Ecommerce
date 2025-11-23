@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.entity;
+package com.example.canim_ecommerce.Entity;
 
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -60,7 +60,7 @@ public class User {
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "user_roles",
-        joinColumns = @JoinColumn(name = "user_id"),
+        joinColumns  = @JoinColumn(name = "user_id"),
         inverseJoinColumns = @JoinColumn(name = "role_id")
     )
     Set<Role> roles;

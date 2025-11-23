@@ -1,12 +1,11 @@
 package com.example.canim_ecommerce.repository;
-
-import com.example.canim_ecommerce.entity.Product;
+import com.example.canim_ecommerce.Entity.Product;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-
-import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
-    Optional<Product> findByNameAndCategoryId(String name, Long categoryId);
+    boolean existsBySku(String sku);
+    List<Product> findByCategoryId(Integer categoryId);
 }

@@ -5,7 +5,9 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import com.example.canim_ecommerce.entity.InvalidatedToken;
+import com.example.canim_ecommerce.Entity.InvalidatedToken;
+
+
 
 @Repository
 public interface InvalidatedTokenRepository extends JpaRepository<InvalidatedToken, Long>{

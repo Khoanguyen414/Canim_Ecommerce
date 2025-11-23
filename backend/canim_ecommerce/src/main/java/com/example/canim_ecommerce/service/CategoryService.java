@@ -1,66 +1,94 @@
 package com.example.canim_ecommerce.service;
 
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-
 import com.example.canim_ecommerce.Entity.Category;
-import com.example.canim_ecommerce.dto.CategoryDTO;
-import com.example.canim_ecommerce.dto.request.CategoryRequestDTO;
+import com.example.canim_ecommerce.dto.request.CategoryRequest;
+import com.example.canim_ecommerce.dto.response.CategoryResponse;
+import com.example.canim_ecommerce.exception.CustomException;
 import com.example.canim_ecommerce.mapper.CategoryMapper;
 import com.example.canim_ecommerce.repository.CategoryRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 public class CategoryService {
 
     @Autowired
-    private CategoryRepository categoryRepository;
+    private CategoryRepository categoryRepo;
 
     @Autowired
-    private CategoryMapper categoryMapper;
+    private ProductService productService;
 
-    public CategoryDTO createCategory(CategoryRequestDTO dto) {
-        if (categoryRepository.findByName(dto.getName()).isPresent()) {
-            throw new IllegalArgumentException("Category name already exists"); // Nghiệp vụ: Đảm bảo unique
+    @Autowired
+    private CategoryMapper mapper;
+
+    // Lấy tất cả danh mục (dạng cây hoặc list phẳng đều ok)
+    @Transactional(readOnly = true)
+    public List<CategoryResponse> getAll() {
+        return categoryRepo.findAll().stream()
+                .map(mapper::toResponse)
+                .toList();
+    }
+
+    // Tạo danh mục mới
+    @Transactional
+    public CategoryResponse create(CategoryRequest request) {
+        if (categoryRepo.existsBySlug(request.getSlug())) {
+            throw new CustomException("Slug đã tồn tại");
         }
-        Category category = categoryMapper.toEntity(dto);
-        category = categoryRepository.save(category);
-        return categoryMapper.toDTO(category);
-    }
 
-    /**
-     * @param id
-     * @return
-     */
-    public CategoryDTO getCategoryById(Long id) {
-        Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + id));
-        return categoryMapper.toDTO(category);
-    }
+        Category entity = mapper.toEntity(request);
 
-    public Page<CategoryDTO> getAllCategories(Pageable pageable) {
-        return categoryRepository.findAll(pageable).map(categoryMapper::toDTO); // Nghiệp vụ: Phân trang cho quản lý lớn
-    }
-
-    public CategoryDTO updateCategory(Long id, CategoryRequestDTO dto) {
-        Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + id));
-        if (!category.getName().equals(dto.getName()) && categoryRepository.findByName(dto.getName()).isPresent()) {
-            throw new IllegalArgumentException("Category name already exists");
+        if (request.getParentId() != null) {
+            Category parent = categoryRepo.findById(request.getParentId())
+                    .orElseThrow(() -> new CustomException("Danh mục cha không tồn tại"));
+            entity.setParent(parent);
         }
-        categoryMapper.updateFromDTO(dto, category);
-        category = categoryRepository.save(category);
-        return categoryMapper.toDTO(category);
+
+        categoryRepo.save(entity);
+        return mapper.toResponse(entity);
     }
 
-    public void deleteCategory(Long id) {
-        Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + id));
-        if (!category.getProducts().isEmpty()) {
-            throw new IllegalStateException("Cannot delete category with associated products. Reassign products first."); // Nghiệp vụ: Bảo vệ dữ liệu sản phẩm
+    // Cập nhật danh mục
+    @Transactional
+    public CategoryResponse update(Integer id, CategoryRequest request) {
+        Category entity = categoryRepo.findById(id)
+                .orElseThrow(() -> new CustomException("Danh mục không tồn tại"));
+
+        // Kiểm tra slug trùng (trừ chính nó)
+        if (!entity.getSlug().equals(request.getSlug()) && 
+            categoryRepo.existsBySlug(request.getSlug())) {
+            throw new CustomException("Slug đã tồn tại");
         }
-        categoryRepository.delete(category);
+
+        entity.setName(request.getName());
+        entity.setSlug(request.getSlug());
+        entity.setDescription(request.getDescription());
+
+        if (request.getParentId() != null) {
+            Category parent = categoryRepo.findById(request.getParentId())
+                    .orElseThrow(() -> new CustomException("Danh mục cha không tồn tại"));
+            entity.setParent(parent);
+        } else {
+            entity.setParent(null);
+        }
+
+        categoryRepo.save(entity);
+        return mapper.toResponse(entity);
+    }
+
+    // Xóa danh mục
+    @Transactional
+    public void delete(Integer id) {
+        Category category = categoryRepo.findById(id)
+                .orElseThrow(() -> new CustomException("Danh mục không tồn tại"));
+
+        if (productService.hasProductsInCategory(id)) {
+            throw new CustomException("Không thể xóa danh mục còn chứa sản phẩm");
+        }
+
+        categoryRepo.delete(category);
     }
 }

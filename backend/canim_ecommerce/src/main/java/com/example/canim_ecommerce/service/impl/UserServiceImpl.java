@@ -4,7 +4,7 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
-import com.example.canim_ecommerce.entity.User;
+import com.example.canim_ecommerce.Entity.User;
 import com.example.canim_ecommerce.repository.UserRepository;
 import com.example.canim_ecommerce.service.UserService;
 

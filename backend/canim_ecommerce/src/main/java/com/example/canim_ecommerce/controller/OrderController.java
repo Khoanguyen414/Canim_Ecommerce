@@ -1,19 +1,14 @@
 package com.example.canim_ecommerce.controller;
 
-
+import com.example.canim_ecommerce.dto.request.OrderRequest;
+import com.example.canim_ecommerce.dto.response.OrderResponse;
+import com.example.canim_ecommerce.service.OrderService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import com.example.canim_ecommerce.Entity.Order;
-import com.example.canim_ecommerce.dto.OrderDTO;
-import com.example.canim_ecommerce.dto.request.OrderRequestDTO;
-import com.example.canim_ecommerce.service.OrderService;
 
 @RestController
 @RequestMapping("/api/admin/orders")
@@ -21,31 +16,33 @@ import com.example.canim_ecommerce.service.OrderService;
 public class OrderController {
 
     @Autowired
-    private OrderService orderService;
+    private OrderService service;
 
-    @PostMapping
-    public ResponseEntity<OrderDTO> createOrder(@Valid @RequestBody OrderRequestDTO dto) {
-        return new ResponseEntity<>(orderService.createOrder(dto), HttpStatus.CREATED);
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<OrderDTO> getOrderById(@PathVariable Long id) {
-        return ResponseEntity.ok(orderService.getOrderById(id));
-    }
-
+    // Lấy danh sách đơn hàng có phân trang
     @GetMapping
-    public ResponseEntity<Page<OrderDTO>> getAllOrders(Pageable pageable) {
-        return ResponseEntity.ok(orderService.getAllOrders(pageable));
+    public Page<OrderResponse> getAll(Pageable pageable) {
+        return service.getAll(pageable);
     }
 
+    // Lọc đơn hàng theo trạng thái
+    @GetMapping("/status/{status}")
+    public Page<OrderResponse> getByStatus(
+            @PathVariable String status,
+            Pageable pageable) {
+        return service.getByStatus(status, pageable);
+    }
+
+    // Tạo đơn hàng mới (admin tạo hộ khách)
+    @PostMapping
+    public OrderResponse create(@Valid @RequestBody OrderRequest request) {
+        return service.create(request);
+    }
+
+    // Cập nhật trạng thái đơn hàng
     @PutMapping("/{id}/status")
-    public ResponseEntity<OrderDTO> updateOrderStatus(@PathVariable Long id, @RequestBody Order.OrderStatus newStatus) {
-        return ResponseEntity.ok(orderService.updateOrderStatus(id, newStatus));
-    }
-
-    @DeleteMapping("/{id}/cancel")
-    public ResponseEntity<Void> cancelOrder(@PathVariable Long id) {
-        orderService.cancelOrder(id);
-        return ResponseEntity.noContent().build();
+    public OrderResponse updateStatus(
+            @PathVariable Long id,
+            @RequestBody String newStatus) {  // ví dụ: "SHIPPED", "CANCELLED"
+        return service.updateStatus(id, newStatus);
     }
 }
