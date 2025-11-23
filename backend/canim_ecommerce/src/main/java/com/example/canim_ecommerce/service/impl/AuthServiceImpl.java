@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -26,18 +25,18 @@ import com.example.canim_ecommerce.security.jwt.JwtTokenProvider;
 import com.example.canim_ecommerce.service.AuthService;
 import com.example.canim_ecommerce.service.RoleService;
 import com.example.canim_ecommerce.service.UserService;
-import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.SignedJWT;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import lombok.experimental.FieldDefaults;
 
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class AuthServiceImpl implements AuthService{
+@Slf4j
+public class AuthServiceImpl implements AuthService {
     InvalidatedTokenRepository invalidatedTokenRepository;
     AuthenticationManager authenticationManager;
     JwtTokenProvider jwtTokenProvider;
@@ -45,76 +44,22 @@ public class AuthServiceImpl implements AuthService{
     UserService userService;
     RoleService roleService;
 
-    SignedJWT verifyToken(String token, boolean isRefresh) {
-        try {
-            SignedJWT signedJWT = SignedJWT.parse(token);
-            JWSVerifier verifier = new MACVerifier(jwtTokenProvider.getSecret().getBytes());
-
-            if (!signedJWT.verify(verifier)) {
-                throw new ApiException(ApiStatus.UNAUTHORIZED, "Invalid token signature");
-            }
-
-            var claims = signedJWT.getJWTClaimsSet();
-
-            Date now = new Date();
-
-            Date issueTime = claims.getIssueTime();
-            Date claimExp = claims.getExpirationTime();
-
-            Date expiration;
-            if (isRefresh) {
-                if (issueTime == null) {
-                    throw new ApiException(ApiStatus.UNAUTHORIZED, "Refresh token missing iat");
-                }
-                var expiryInstant = issueTime.toInstant().plusMillis(jwtTokenProvider.getRefreshTokenValidityMillis());
-                expiration = Date.from(expiryInstant);
-            } else {
-                if (claimExp == null) {
-                    throw new ApiException(ApiStatus.UNAUTHORIZED, "Token missing exp");
-                }
-                expiration = claimExp;
-            }
-
-            if (expiration.before(now)) {
-                throw new ApiException(ApiStatus.UNAUTHORIZED, "Token expired");
-            }
-
-            String jti = claims.getJWTID();
-            if (jti != null && invalidatedTokenRepository.existsByToken(jti)) {
-                throw new ApiException(ApiStatus.UNAUTHORIZED, "Token has been invalidated");
-            }
-
-            return signedJWT;
-
-        } catch (ApiException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ApiException(ApiStatus.UNAUTHORIZED, "Token verification failed: " + e.getMessage());
-        }
-    }
-
     @Override
     public AuthResponse login(AuthRequest request) {
         Authentication authentication = authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(
-                request.getEmail(), 
-                request.getPassword())
-        );
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 
-        String accessToken = jwtTokenProvider.generateAccessToken(
-            authentication.getName(), 
-            authentication.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.toList())
-        );
+        String accessToken = jwtTokenProvider.generateAccessToken(authentication.getName(),
+                authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList());
+
+        String refreshToken = jwtTokenProvider.generateRefreshToken(authentication.getName());
 
         return new AuthResponse(
-            accessToken,
-            (long) jwtTokenProvider.getAccessTokenValiditySeconds(),
-            "Bearer",
-            authentication.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .toList()
+                accessToken,
+                refreshToken,
+                jwtTokenProvider.getAccessTokenValiditySeconds(), // seconds
+                "Bearer",
+                authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList()
         );
     }
 
@@ -144,64 +89,80 @@ public class AuthServiceImpl implements AuthService{
 
     @Override
     public AuthResponse refreshToken(RefreshTokenRequest request) {
-        var signedJWT = verifyToken(request.getRefreshToken(), true);
+        String refreshToken = request.getRefreshToken();
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new ApiException(ApiStatus.UNAUTHORIZED, "Refresh token is required");
+        }
 
-        String email = null;
-        try {
-            email = signedJWT.getJWTClaimsSet().getSubject();
-        } catch (Exception e) {
-            throw new ApiException(ApiStatus.UNAUTHORIZED, "Cannot extract email from token");
+        if (!jwtTokenProvider.validateRefreshToken(refreshToken)) {
+            throw new ApiException(ApiStatus.UNAUTHORIZED, "Invalid or expired refresh token");
+        }
+
+        String jti = jwtTokenProvider.getJti(refreshToken);
+        if (jti != null && invalidatedTokenRepository.existsByToken(jti)) {
+            throw new ApiException(ApiStatus.UNAUTHORIZED, "Refresh token has been invalidated");
+        }
+
+        String email = jwtTokenProvider.getSubject(refreshToken);
+        if (email == null) {
+            throw new ApiException(ApiStatus.UNAUTHORIZED, "Cannot extract subject from refresh token");
         }
 
         var user = userService.findWithRolesByEmail(email)
-            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "User not found"));
 
-        String newAccessToken = jwtTokenProvider.generateAccessToken(
-            user.getEmail(), 
-            user.getRoles().stream().map(r -> r.getName()).toList()
-        );
+        String newAccessToken = jwtTokenProvider.generateAccessToken(user.getEmail(),
+                user.getRoles().stream().map(r -> r.getName()).toList());
 
         return new AuthResponse(
-            newAccessToken,
-            (long) jwtTokenProvider.getAccessTokenValiditySeconds(),
-            "Bearer",
-            user.getRoles().stream().map(r -> r.getName()).toList()
-        );
+                newAccessToken,
+                refreshToken,
+                jwtTokenProvider.getAccessTokenValiditySeconds(),
+                "Bearer",
+                user.getRoles().stream().map(r -> r.getName()).toList());
     }
 
     @Override
     public void logout(String refreshToken) {
-    try {
-        SignedJWT signedJWT = verifyToken(refreshToken, true);
+        try {
+            if (refreshToken == null || refreshToken.isBlank()) {
+                throw new ApiException(ApiStatus.BAD_REQUEST, "Refresh token is required");
+            }
 
-        var claims = signedJWT.getJWTClaimsSet();
+            if (!jwtTokenProvider.validateRefreshToken(refreshToken)) {
+                throw new ApiException(ApiStatus.UNAUTHORIZED, "Invalid or expired refresh token");
+            }
 
-        String jwtId = claims.getJWTID();
-        if (jwtId == null) {
-            throw new ApiException(ApiStatus.UNAUTHORIZED, "Token missing jti");
-        }
+            SignedJWT signedJWT = SignedJWT.parse(refreshToken);
+            var claims = signedJWT.getJWTClaimsSet();
 
-        LocalDateTime expiry = claims.getExpirationTime()
-                .toInstant()
-                .atZone(ZoneId.systemDefault())
-                .toLocalDateTime();
+            String jti = claims.getJWTID();
+            if (jti == null || jti.isBlank()) {
+                throw new ApiException(ApiStatus.UNAUTHORIZED, "Refresh token missing jti");
+            }
 
-        if (invalidatedTokenRepository.existsByToken(jwtId)) {
-            throw new ApiException(ApiStatus.BAD_REQUEST, "Token already invalidated");
-        }
+            Date issueTime = claims.getIssueTime();
+            if (issueTime == null) {
+                throw new ApiException(ApiStatus.UNAUTHORIZED, "Refresh token missing iat");
+            }
+            LocalDateTime expiry = issueTime.toInstant().plusMillis(jwtTokenProvider.getRefreshTokenValidityMillis())
+                    .atZone(ZoneId.systemDefault()).toLocalDateTime();
 
-        InvalidatedToken invalidated = InvalidatedToken.builder()
-                .token(jwtId)
-                .expiryTime(expiry)
-                .build();
+            if (invalidatedTokenRepository.existsByToken(jti)) {
+                throw new ApiException(ApiStatus.BAD_REQUEST, "Token already invalidated");
+            }
 
-        invalidatedTokenRepository.save(invalidated);
+            InvalidatedToken invalidated = InvalidatedToken.builder()
+                    .token(jti)
+                    .expiredAt(expiry)
+                    .build();
 
+            invalidatedTokenRepository.save(invalidated);
         } catch (ApiException e) {
-            throw e; 
+            throw e;
         } catch (Exception e) {
-            throw new ApiException(ApiStatus.INTERNAL_SERVER_ERROR,
-                    "Logout failed: " + e.getMessage());
+            log.error("logout error", e);
+            throw new ApiException(ApiStatus.INTERNAL_SERVER_ERROR, "Logout failed: " + e.getMessage());
         }
     }
 }
