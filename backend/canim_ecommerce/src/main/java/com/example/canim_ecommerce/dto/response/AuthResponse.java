@@ -16,6 +16,7 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class AuthResponse {
     String accessToken;
+    String refreshToken;
     long expiresIn;
     String tokenType;
     List<String> roles;    
