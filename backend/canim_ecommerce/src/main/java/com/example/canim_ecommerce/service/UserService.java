@@ -1,7 +1,10 @@
 package com.example.canim_ecommerce.service;
 
+import java.util.List;
 import java.util.Optional;
 
+import com.example.canim_ecommerce.dto.request.UserCreationRequest;
+import com.example.canim_ecommerce.dto.response.UserResponse;
 import com.example.canim_ecommerce.entity.User;
 
 public interface UserService {
@@ -9,4 +12,9 @@ public interface UserService {
     Optional<User> findWithRolesByEmail(String email);
     User save(User user);
     boolean existsByEmail(String email);
+
+    List<UserResponse> getAllUsers();
+    UserResponse getUserById(Long id);
+    UserResponse createUserByAdmin(UserCreationRequest request);
+    void deleteUser(Long id);
 }
