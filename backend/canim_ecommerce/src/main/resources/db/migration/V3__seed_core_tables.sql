@@ -1,6 +1,6 @@
 -- V3__seed_core_tables.sql
 -- Roles
-insert ignore into roles (name) values ('role_user'), ('role_admin');
+insert ignore into roles (name) values ('ROLE_USER'), ('ROLE_ADMIN');
 
 -- Users (password_hash is placeholder; in prod use bcrypt/argon2)
 insert ignore into users (email, password_hash, full_name, phone)
@@ -10,10 +10,10 @@ values
 
 -- Assign roles
 insert ignore into user_roles (user_id, role_id)
-select u.id, r.id from users u join roles r on r.name = 'role_user' where u.email = 'user1@gmail.com';
+select u.id, r.id from users u join roles r on r.name = 'ROLE_USER' where u.email = 'user1@gmail.com';
 
 insert ignore into user_roles (user_id, role_id)
-select u.id, r.id from users u join roles r on r.name = 'role_admin' where u.email = 'admin1@gmail.com';
+select u.id, r.id from users u join roles r on r.name = 'ROLE_ADMIN' where u.email = 'admin1@gmail.com';
 
 -- Categories
 insert ignore into categories (name, slug, description)
