@@ -74,6 +74,11 @@ public class UserServiceImpl implements UserService {
             throw new ApiException(ApiStatus.BAD_REQUEST, "Email already exists");
         }
 
+        User user = userMapper.toUser(request);
+
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setActive(true);
+
         Set<Role> roles = new HashSet<>();
         if (request.getRoles() != null && !request.getRoles().isEmpty()) {
             for (String roleName : request.getRoles()) {
@@ -86,16 +91,9 @@ public class UserServiceImpl implements UserService {
                     .orElseThrow(() -> new ApiException(ApiStatus.INTERNAL_SERVER_ERROR, "ROLE_USER not found"));
             roles.add(userRole);
         }
+        user.setRoles(roles);
 
-        User user = User.builder()
-                .email(request.getEmail())
-                .fullName(request.getFullname())
-                .phone(request.getPhone())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .active(true)
-                .roles(roles)
-                .build();
-        return userMapper.toUserResponse(user);
+        return userMapper.toUserResponse(save(user));
     }
 
     @Override
