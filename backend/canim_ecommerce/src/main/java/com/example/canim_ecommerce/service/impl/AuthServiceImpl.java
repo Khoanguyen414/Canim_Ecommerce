@@ -53,6 +53,7 @@ public class AuthServiceImpl implements AuthService {
                 authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList());
 
         String refreshToken = jwtTokenProvider.generateRefreshToken(authentication.getName());
+        // String jti = jwtTokenProvider.getJti(refreshToken);
 
         return new AuthResponse(
                 accessToken,
@@ -145,8 +146,9 @@ public class AuthServiceImpl implements AuthService {
             if (issueTime == null) {
                 throw new ApiException(ApiStatus.UNAUTHORIZED, "Refresh token missing iat");
             }
-            LocalDateTime expiry = issueTime.toInstant().plusMillis(jwtTokenProvider.getRefreshTokenValidityMillis())
-                    .atZone(ZoneId.systemDefault()).toLocalDateTime();
+
+            Date expirationTime = claims.getExpirationTime();
+            LocalDateTime expiry = expirationTime.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
 
             if (invalidatedTokenRepository.existsByToken(jti)) {
                 throw new ApiException(ApiStatus.BAD_REQUEST, "Token already invalidated");
