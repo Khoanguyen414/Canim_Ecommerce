@@ -43,8 +43,8 @@ create table if not exists products (
     sku varchar(100) unique,
     name varchar(255) not null,
 	slug varchar(255) not null unique,
-    short_decs varchar(512),
-    long_decs text,
+    short_desc varchar(512),
+    long_desc text,
     price decimal(12,2) not null,
     brand varchar(100),
     category_id int,
@@ -94,7 +94,7 @@ create table if not exists cart_items (
     price decimal(12,2) not null,
     added_at datetime default current_timestamp,
     constraint fk_ci_cart foreign key (cart_id) references carts(id) on delete cascade,
-    constraint fk_ci_prod foreign key (product_id) references products(id) 
+    constraint fk_ci_prod foreign key (product_id) references products(id) on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 -- 9. orders + order_items
@@ -136,5 +136,5 @@ create table if not exists user_events (
     occurred_at datetime default current_timestamp,
     index idx_event_user_product (user_id, product_id, event_type),
     constraint fk_event_user foreign key (user_id) references users(id),
-    constraint fk_event_product foreign key (product_id) references products(id)
+    constraint fk_event_product foreign key (product_id) references products(id) on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
