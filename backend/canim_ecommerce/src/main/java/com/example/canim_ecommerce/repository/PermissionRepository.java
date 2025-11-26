@@ -9,5 +9,5 @@ import com.example.canim_ecommerce.entity.Permission;
 
 @Repository
 public interface PermissionRepository extends JpaRepository<Permission, Integer>{
-    List<Permission> findAllById(List<Integer> ids);
+    List<Permission> findAllByIdIn(List<Integer> ids);
 }

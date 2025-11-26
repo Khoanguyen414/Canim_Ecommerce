@@ -46,11 +46,11 @@ public class RoleServiceImpl implements RoleService{
         Role role = roleMapper.toRole(request);
 
         if (request.getPermissionIds() != null && !request.getPermissionIds().isEmpty()) {
-            List<Permission> permissions = permisstionRepository.findAllById(request.getPermissionIds());
+            List<Permission> permissions = permisstionRepository.findAllByIdIn(request.getPermissionIds());
             role.setPermissions(new HashSet<>(permissions));
         }
 
-        return roleMapper.toRoleResponse(role);
+        return roleMapper.toRoleResponse(roleRepository.save(role));
     }
 
     @Override

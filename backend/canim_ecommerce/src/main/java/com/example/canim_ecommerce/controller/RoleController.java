@@ -19,7 +19,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -33,7 +32,7 @@ public class RoleController {
     RoleService roleService;
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<List<RoleResponse>> getAllRoles() {
         var roles = roleService.getAllRoles();
         return ApiResponse.success(
@@ -45,7 +44,7 @@ public class RoleController {
     
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<RoleResponse> createRole(@RequestBody RoleRequest request) {
         var newRole = roleService.createRole(request);
         
@@ -58,7 +57,7 @@ public class RoleController {
     
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<Void> deleteRole(@PathVariable Integer id) {
         roleService.deleteRole(id);
         return ApiResponse.success(
