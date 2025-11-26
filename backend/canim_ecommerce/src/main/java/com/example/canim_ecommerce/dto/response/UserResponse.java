@@ -18,7 +18,7 @@ import lombok.experimental.FieldDefaults;
 public class UserResponse {
     Long id;
     String email;
-    String fullname;
+    String fullName;
     String phone;
     boolean active;
     Set<String> roles;
