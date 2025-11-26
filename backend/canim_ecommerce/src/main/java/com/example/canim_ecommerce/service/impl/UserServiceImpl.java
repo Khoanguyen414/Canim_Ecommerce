@@ -1,5 +1,6 @@
 package com.example.canim_ecommerce.service.impl;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -92,6 +93,7 @@ public class UserServiceImpl implements UserService {
 
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setActive(true);
+        user.setCreatedAt(LocalDateTime.now());
 
         Set<Role> roles = new HashSet<>();
         if (request.getRoles() != null && !request.getRoles().isEmpty()) {
@@ -130,6 +132,8 @@ public class UserServiceImpl implements UserService {
             }
             user.setRoles(roles);
         }
+        user.setUpdatedAt(LocalDateTime.now());
+
         return userMapper.toUserResponse(userRepository.save(user));
     }
 
@@ -142,6 +146,7 @@ public class UserServiceImpl implements UserService {
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "User not found with email: " + email));
 
         userMapper.updateUserProfile(user, request);
+        user.setUpdatedAt(LocalDateTime.now());
 
         return userMapper.toUserResponse(userRepository.save(user));
     }
