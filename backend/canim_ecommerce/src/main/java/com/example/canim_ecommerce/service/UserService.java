@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.example.canim_ecommerce.dto.request.UserCreationRequest;
+import com.example.canim_ecommerce.dto.request.UserUpdateRequest;
 import com.example.canim_ecommerce.dto.response.UserResponse;
 import com.example.canim_ecommerce.entity.User;
 
@@ -16,5 +17,6 @@ public interface UserService {
     List<UserResponse> getAllUsers();
     UserResponse getUserById(Long id);
     UserResponse createUserByAdmin(UserCreationRequest request);
+    UserResponse updateUser(Long id, UserUpdateRequest request);
     void deleteUser(Long id);
 }

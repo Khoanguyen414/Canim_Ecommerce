@@ -9,6 +9,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.example.canim_ecommerce.dto.request.UserCreationRequest;
+import com.example.canim_ecommerce.dto.request.UserUpdateRequest;
 import com.example.canim_ecommerce.dto.response.UserResponse;
 import com.example.canim_ecommerce.entity.Role;
 import com.example.canim_ecommerce.entity.User;
@@ -68,7 +69,7 @@ public class UserServiceImpl implements UserService {
         return userMapper.toUserResponse(user);
     }
 
-        @Override
+    @Override
     public UserResponse createUserByAdmin(UserCreationRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ApiException(ApiStatus.BAD_REQUEST, "Email already exists");
@@ -97,11 +98,34 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public UserResponse updateUser(Long id, UserUpdateRequest request) {
+        User user = userRepository.findById(id)
+            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "User not found"));
+
+        userMapper.updateUser(user, request);
+
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+        }
+
+        if (request.getRoles() != null) {
+            Set<Role> roles = new HashSet<>();
+            for (String roleName : request.getRoles()) {
+                Role role = roleRepository.findByName(roleName)
+                        .orElseThrow(() -> new ApiException(ApiStatus.BAD_REQUEST, "Role not found: " + roleName));
+                roles.add(role);
+            }
+            user.setRoles(roles);
+        }
+        return userMapper.toUserResponse(userRepository.save(user));
+    }
+
+    @Override
     public void deleteUser(Long id) {
         User user = userRepository.findById(id)
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "User not found"));
         
         user.setActive(false);
-        save(user);
+        userRepository.save(user);
     }
 }

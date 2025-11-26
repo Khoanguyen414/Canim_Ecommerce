@@ -4,6 +4,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.canim_ecommerce.dto.request.UserCreationRequest;
+import com.example.canim_ecommerce.dto.request.UserUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.UserResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;
@@ -22,8 +23,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-
+import org.springframework.web.bind.annotation.PutMapping;
 
 @RestController
 @RequestMapping("/users")
@@ -33,7 +33,7 @@ public class UserController {
     UserService userService;
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<List<UserResponse>> getAllUsers() {
         var users = userService.getAllUsers();
         return ApiResponse.success(
@@ -44,7 +44,7 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<UserResponse> getUserById(@PathVariable Long id) {
         var user = userService.getUserById(id);
         return ApiResponse.success(
@@ -55,7 +55,7 @@ public class UserController {
     }
     
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<UserResponse> createUser(@RequestBody @Validated UserCreationRequest request) {
         var newUser = userService.createUserByAdmin(request);
         return ApiResponse.success(
@@ -65,14 +65,25 @@ public class UserController {
         );
     }
 
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ApiResponse<UserResponse> updateUser(@PathVariable Long id, @RequestBody UserUpdateRequest request) {
+        var updateUser = userService.updateUser(id, request);
+        return ApiResponse.success(
+            ApiStatus.SUCCESS,
+            "Update user successfully", 
+            updateUser
+        );
+    }
+
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<Void> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
             "Delete user successfully",
-             null
+            null
         );
     }
 }
