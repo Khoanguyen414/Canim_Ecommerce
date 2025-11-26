@@ -4,6 +4,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.canim_ecommerce.dto.request.UserCreationRequest;
+import com.example.canim_ecommerce.dto.request.UserProfileRequest;
 import com.example.canim_ecommerce.dto.request.UserUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.UserResponse;
@@ -53,6 +54,16 @@ public class UserController {
             user
         );
     }
+
+    @GetMapping("/me")
+    public  ApiResponse<UserResponse> getMyProfile() {
+        var myProfile = userService.getMyProfile();
+        return ApiResponse.success(
+            ApiStatus.SUCCESS,
+            "Get my profile successfully", 
+            myProfile
+        );
+    }
     
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
@@ -62,6 +73,16 @@ public class UserController {
             ApiStatus.SUCCESS, 
             "Create user successfully", 
             newUser
+        );
+    }
+
+    @PutMapping("/me")
+    public ApiResponse<UserResponse> putMethodName(@RequestBody UserProfileRequest request) {
+        var updateProfile = userService.updateMyProfile(request);        
+        return ApiResponse.success(
+            ApiStatus.SUCCESS, 
+            "Update profile successfully",
+            updateProfile
         );
     }
 

@@ -5,10 +5,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.example.canim_ecommerce.dto.request.UserCreationRequest;
+import com.example.canim_ecommerce.dto.request.UserProfileRequest;
 import com.example.canim_ecommerce.dto.request.UserUpdateRequest;
 import com.example.canim_ecommerce.dto.response.UserResponse;
 import com.example.canim_ecommerce.entity.Role;
@@ -70,6 +72,17 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public UserResponse getMyProfile() {
+        var context = SecurityContextHolder.getContext();
+        String email = context.getAuthentication().getName();
+
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "User not found with email: " + email));
+
+        return userMapper.toUserResponse(user);
+    }
+
+    @Override
     public UserResponse createUserByAdmin(UserCreationRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ApiException(ApiStatus.BAD_REQUEST, "Email already exists");
@@ -117,6 +130,19 @@ public class UserServiceImpl implements UserService {
             }
             user.setRoles(roles);
         }
+        return userMapper.toUserResponse(userRepository.save(user));
+    }
+
+    @Override
+    public UserResponse updateMyProfile(UserProfileRequest request) {
+        var context = SecurityContextHolder.getContext();
+        String email = context.getAuthentication().getName();
+
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "User not found with email: " + email));
+
+        userMapper.updateUserProfile(user, request);
+
         return userMapper.toUserResponse(userRepository.save(user));
     }
 
