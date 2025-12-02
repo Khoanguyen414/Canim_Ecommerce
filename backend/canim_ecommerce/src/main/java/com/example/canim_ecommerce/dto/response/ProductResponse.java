@@ -20,9 +20,9 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ProductResponse {
     Long id;
+    String sku;
     String name;
     String slug;
-    String sku;
     BigDecimal price;
     String brand;
     String shortDesc;
