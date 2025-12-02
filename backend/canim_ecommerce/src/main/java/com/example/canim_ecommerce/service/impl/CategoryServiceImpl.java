@@ -1,10 +1,7 @@
 package com.example.canim_ecommerce.service.impl;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,8 +75,7 @@ public class CategoryServiceImpl implements CategoryService{
         Category category = categoryRepository.findBySlug(slug)
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
 
-        category.setName(request.getName());
-        category.setDescription(request.getDescription());
+        categoryMapper.updateCategory(category, request);
 
         if (request.getParentId() != null) {
             if (category.getId().equals(request.getParentId())) {
@@ -90,9 +86,7 @@ public class CategoryServiceImpl implements CategoryService{
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Parent category not found"));
 
             category.setParent(parent);
-        } else {
-            category.setParent(null);
-        }
+        } 
 
         Category saveCategory = categoryRepository.save(category);
         return categoryMapper.toCategoryResponse(saveCategory);
@@ -104,6 +98,4 @@ public class CategoryServiceImpl implements CategoryService{
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
         categoryRepository.delete(category);
     }
-
-    
 }
