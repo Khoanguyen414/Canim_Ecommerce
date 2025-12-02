@@ -1,6 +1,5 @@
-package com.example.canim_ecommerce.dto.request;
+package com.example.canim_ecommerce.dto.request.category;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -11,8 +10,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class CategoryRequest {
-    @NotBlank(message = "Tên danh mục không được để trống")
+public class CategoryUpdateRequest {
     String name;
     String description;
     Integer parentId;

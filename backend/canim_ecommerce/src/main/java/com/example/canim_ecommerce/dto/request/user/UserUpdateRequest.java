@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.dto.request;
+package com.example.canim_ecommerce.dto.request.user;
 
 import java.util.List;
 
