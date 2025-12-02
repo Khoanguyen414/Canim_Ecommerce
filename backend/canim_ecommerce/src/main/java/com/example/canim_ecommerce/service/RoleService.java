@@ -3,7 +3,7 @@ package com.example.canim_ecommerce.service;
 import java.util.List;
 import java.util.Optional;
 
-import com.example.canim_ecommerce.dto.request.RoleRequest;
+import com.example.canim_ecommerce.dto.request.role.RoleRequest;
 import com.example.canim_ecommerce.dto.response.RoleResponse;
 import com.example.canim_ecommerce.entity.Role;
 

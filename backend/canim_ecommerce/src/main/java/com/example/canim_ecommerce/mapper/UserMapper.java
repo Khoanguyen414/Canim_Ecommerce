@@ -6,9 +6,9 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-import com.example.canim_ecommerce.dto.request.UserCreationRequest;
-import com.example.canim_ecommerce.dto.request.UserProfileRequest;
-import com.example.canim_ecommerce.dto.request.UserUpdateRequest;
+import com.example.canim_ecommerce.dto.request.user.UserCreationRequest;
+import com.example.canim_ecommerce.dto.request.user.UserProfileRequest;
+import com.example.canim_ecommerce.dto.request.user.UserUpdateRequest;
 import com.example.canim_ecommerce.dto.response.UserResponse;
 import com.example.canim_ecommerce.entity.User;
 

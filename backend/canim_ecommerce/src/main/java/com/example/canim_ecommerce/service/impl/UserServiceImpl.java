@@ -10,9 +10,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.example.canim_ecommerce.dto.request.UserCreationRequest;
-import com.example.canim_ecommerce.dto.request.UserProfileRequest;
-import com.example.canim_ecommerce.dto.request.UserUpdateRequest;
+import com.example.canim_ecommerce.dto.request.user.UserCreationRequest;
+import com.example.canim_ecommerce.dto.request.user.UserProfileRequest;
+import com.example.canim_ecommerce.dto.request.user.UserUpdateRequest;
 import com.example.canim_ecommerce.dto.response.UserResponse;
 import com.example.canim_ecommerce.entity.Role;
 import com.example.canim_ecommerce.entity.User;

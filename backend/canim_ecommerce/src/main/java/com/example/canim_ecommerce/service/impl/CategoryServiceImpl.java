@@ -8,7 +8,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.canim_ecommerce.dto.request.CategoryRequest;
+import com.example.canim_ecommerce.dto.request.category.CategoryCreationRequest;
+import com.example.canim_ecommerce.dto.request.category.CategoryUpdateRequest;
 import com.example.canim_ecommerce.dto.response.CategoryResponse;
 import com.example.canim_ecommerce.entity.Category;
 import com.example.canim_ecommerce.enums.ApiStatus;
@@ -52,7 +53,7 @@ public class CategoryServiceImpl implements CategoryService{
 
     @Override
     @Transactional
-    public CategoryResponse createCategory(CategoryRequest request) {
+    public CategoryResponse createCategory(CategoryCreationRequest request) {
         String slug = SlugUtils.toSlug(request.getName());
 
         if (categoryRepository.existsBySlug(slug)) {
@@ -73,7 +74,7 @@ public class CategoryServiceImpl implements CategoryService{
     }
 
     @Override
-    public CategoryResponse updateCategoryBySlug(String slug, CategoryRequest request) {
+    public CategoryResponse updateCategoryBySlug(String slug, CategoryUpdateRequest request) {
         Category category = categoryRepository.findBySlug(slug)
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
 

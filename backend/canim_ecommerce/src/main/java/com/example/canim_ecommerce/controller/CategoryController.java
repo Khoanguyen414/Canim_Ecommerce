@@ -3,7 +3,8 @@ package com.example.canim_ecommerce.controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.canim_ecommerce.dto.request.CategoryRequest;
+import com.example.canim_ecommerce.dto.request.category.CategoryCreationRequest;
+import com.example.canim_ecommerce.dto.request.category.CategoryUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.CategoryResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;
@@ -60,7 +61,7 @@ public class CategoryController {
     
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ApiResponse<CategoryResponse> createCategory(@RequestBody @Validated CategoryRequest request) {
+    public ApiResponse<CategoryResponse> createCategory(@RequestBody @Validated CategoryCreationRequest request) {
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
             "Create category successfully", 
@@ -72,7 +73,7 @@ public class CategoryController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<CategoryResponse> updateCategoryBySlug(
         @PathVariable String slug, 
-        @RequestBody @Validated CategoryRequest request) 
+        @RequestBody @Validated CategoryUpdateRequest request) 
     {
         var category = categoryService.updateCategoryBySlug(slug, request);        
         return ApiResponse.success(

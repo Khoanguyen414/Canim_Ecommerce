@@ -3,7 +3,7 @@ package com.example.canim_ecommerce.controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.canim_ecommerce.dto.request.RoleRequest;
+import com.example.canim_ecommerce.dto.request.role.RoleRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.RoleResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;

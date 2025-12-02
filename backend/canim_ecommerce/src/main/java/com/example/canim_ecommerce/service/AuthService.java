@@ -1,8 +1,8 @@
 package com.example.canim_ecommerce.service;
 
-import com.example.canim_ecommerce.dto.request.AuthRequest;
-import com.example.canim_ecommerce.dto.request.RefreshTokenRequest;
-import com.example.canim_ecommerce.dto.request.RegisterRequest;
+import com.example.canim_ecommerce.dto.request.auth.AuthRequest;
+import com.example.canim_ecommerce.dto.request.auth.RefreshTokenRequest;
+import com.example.canim_ecommerce.dto.request.auth.RegisterRequest;
 import com.example.canim_ecommerce.dto.response.AuthResponse;
 import com.example.canim_ecommerce.entity.User;
 
