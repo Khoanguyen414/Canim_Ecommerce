@@ -42,6 +42,13 @@ public class CategoryServiceImpl implements CategoryService{
     }
 
     @Override
+    public CategoryResponse getCategoryById(int id) {
+        Category category = categoryRepository.findById(id)
+            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
+        return categoryMapper.toCategoryResponse(category);
+    }
+
+    @Override
     public CategoryResponse getCategoryBySlug(String slug) {
         Category category = categoryRepository.findBySlug(slug)
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
@@ -71,8 +78,8 @@ public class CategoryServiceImpl implements CategoryService{
     }
 
     @Override
-    public CategoryResponse updateCategoryBySlug(String slug, CategoryUpdateRequest request) {
-        Category category = categoryRepository.findBySlug(slug)
+    public CategoryResponse updateCategory(int id, CategoryUpdateRequest request) {
+        Category category = categoryRepository.findById(id)
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
 
         categoryMapper.updateCategory(category, request);
@@ -93,8 +100,8 @@ public class CategoryServiceImpl implements CategoryService{
     }
 
     @Override
-    public void deleteCategoryBySlug(String slug) {
-        Category category = categoryRepository.findBySlug(slug)
+    public void deleteCategory(int id) {
+        Category category = categoryRepository.findById(id)
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
         categoryRepository.delete(category);
     }

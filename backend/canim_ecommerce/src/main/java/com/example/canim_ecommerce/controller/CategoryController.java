@@ -49,6 +49,15 @@ public class CategoryController {
             categoryService.getAllCategories()
         );
     }
+
+    @GetMapping("/{id}")
+    public ApiResponse<CategoryResponse> GetCategoryBySlug(@PathVariable int id) {
+        return ApiResponse.success(
+            ApiStatus.SUCCESS, 
+            "Get category successfully",
+            categoryService.getCategoryById(id)
+        );
+    }
     
     @GetMapping("/{slug}")
     public ApiResponse<CategoryResponse> GetCategoryBySlug(@PathVariable String slug) {
@@ -69,23 +78,23 @@ public class CategoryController {
         );
     }
     
-    @PutMapping("/{slug}")
+    @PutMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<CategoryResponse> updateCategoryBySlug(
-        @PathVariable String slug, 
+        @PathVariable int id, 
         @RequestBody @Validated CategoryUpdateRequest request) 
     {
-        var category = categoryService.updateCategoryBySlug(slug, request);        
+        var category = categoryService.updateCategory(id, request);        
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
             "Update category successfully", 
             category);
     }
 
-    @DeleteMapping("/{slug}")
+    @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ApiResponse<Void> deleteCatgoryBySlug(@PathVariable String slug) {
-        categoryService.deleteCategoryBySlug(slug);
+    public ApiResponse<Void> deleteCatgory(@PathVariable int id) {
+        categoryService.deleteCategory(id);
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
             "Delete category successfull",

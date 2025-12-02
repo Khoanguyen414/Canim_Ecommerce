@@ -9,8 +9,9 @@ import com.example.canim_ecommerce.dto.response.CategoryResponse;
 public interface CategoryService {
     List<CategoryResponse> getRootCategories();
     List<CategoryResponse> getAllCategories();
+    CategoryResponse getCategoryById(int id);
     CategoryResponse getCategoryBySlug(String slug);
     CategoryResponse createCategory(CategoryCreationRequest request);
-    CategoryResponse updateCategoryBySlug(String slug, CategoryUpdateRequest request);
-    void deleteCategoryBySlug(String slug);
+    CategoryResponse updateCategory(int id, CategoryUpdateRequest request);
+    void deleteCategory(int id);
 }
