@@ -12,9 +12,9 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.example.canim_ecommerce.dto.request.auth.AuthRequest;
-import com.example.canim_ecommerce.dto.request.auth.RefreshTokenRequest;
-import com.example.canim_ecommerce.dto.request.auth.RegisterRequest;
+import com.example.canim_ecommerce.dto.request.auths.AuthRequest;
+import com.example.canim_ecommerce.dto.request.auths.RefreshTokenRequest;
+import com.example.canim_ecommerce.dto.request.auths.RegisterRequest;
 import com.example.canim_ecommerce.dto.response.AuthResponse;
 import com.example.canim_ecommerce.entity.InvalidatedToken;
 import com.example.canim_ecommerce.entity.User;

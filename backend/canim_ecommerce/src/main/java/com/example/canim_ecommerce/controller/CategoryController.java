@@ -3,8 +3,8 @@ package com.example.canim_ecommerce.controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.canim_ecommerce.dto.request.category.CategoryCreationRequest;
-import com.example.canim_ecommerce.dto.request.category.CategoryUpdateRequest;
+import com.example.canim_ecommerce.dto.request.categories.CategoryCreationRequest;
+import com.example.canim_ecommerce.dto.request.categories.CategoryUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.CategoryResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;

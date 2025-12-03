@@ -6,7 +6,7 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
-import com.example.canim_ecommerce.dto.request.role.RoleRequest;
+import com.example.canim_ecommerce.dto.request.roles.RoleRequest;
 import com.example.canim_ecommerce.dto.response.RoleResponse;
 import com.example.canim_ecommerce.entity.Permission;
 import com.example.canim_ecommerce.entity.Role;

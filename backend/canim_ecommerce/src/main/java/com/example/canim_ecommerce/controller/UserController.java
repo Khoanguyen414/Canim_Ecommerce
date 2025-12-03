@@ -3,9 +3,9 @@ package com.example.canim_ecommerce.controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.canim_ecommerce.dto.request.user.UserCreationRequest;
-import com.example.canim_ecommerce.dto.request.user.UserProfileRequest;
-import com.example.canim_ecommerce.dto.request.user.UserUpdateRequest;
+import com.example.canim_ecommerce.dto.request.users.UserCreationRequest;
+import com.example.canim_ecommerce.dto.request.users.UserProfileRequest;
+import com.example.canim_ecommerce.dto.request.users.UserUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.UserResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;

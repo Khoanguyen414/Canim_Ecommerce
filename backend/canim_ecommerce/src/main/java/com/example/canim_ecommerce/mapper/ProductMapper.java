@@ -6,8 +6,8 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-import com.example.canim_ecommerce.dto.request.product.ProductCreationRequest;
-import com.example.canim_ecommerce.dto.request.product.ProductUpdateRequest;
+import com.example.canim_ecommerce.dto.request.products.ProductCreationRequest;
+import com.example.canim_ecommerce.dto.request.products.ProductUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ProductResponse;
 import com.example.canim_ecommerce.entity.Product;
 

@@ -2,8 +2,8 @@ package com.example.canim_ecommerce.service;
 
 import java.util.List;
 
-import com.example.canim_ecommerce.dto.request.category.CategoryCreationRequest;
-import com.example.canim_ecommerce.dto.request.category.CategoryUpdateRequest;
+import com.example.canim_ecommerce.dto.request.categories.CategoryCreationRequest;
+import com.example.canim_ecommerce.dto.request.categories.CategoryUpdateRequest;
 import com.example.canim_ecommerce.dto.response.CategoryResponse;
 
 public interface CategoryService {

@@ -3,7 +3,7 @@ package com.example.canim_ecommerce.mapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-import com.example.canim_ecommerce.dto.request.role.RoleRequest;
+import com.example.canim_ecommerce.dto.request.roles.RoleRequest;
 import com.example.canim_ecommerce.dto.response.RoleResponse;
 import com.example.canim_ecommerce.entity.Role;
 
