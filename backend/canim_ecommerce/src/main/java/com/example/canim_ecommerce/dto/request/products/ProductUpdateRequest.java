@@ -15,13 +15,15 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ProductUpdateRequest {
     String name;
+    String shortDesc;
+    String longDesc;
 
     @Min(0)
     BigDecimal price;
 
-    String shortDesc;
-    String longDesc;
     String brand;
+    String color; 
+    String size;
 
     Integer categoryId;
 }
