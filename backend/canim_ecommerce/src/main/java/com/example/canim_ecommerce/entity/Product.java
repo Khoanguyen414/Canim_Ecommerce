@@ -65,6 +65,12 @@ public class Product {
     @Column(length = 100)
     String brand;
 
+    @Column(length = 50)
+    String color;
+
+    @Column(length = 50)
+    String size;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     Category category;
