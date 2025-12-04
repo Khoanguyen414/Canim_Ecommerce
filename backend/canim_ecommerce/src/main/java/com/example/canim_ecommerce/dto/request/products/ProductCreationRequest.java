@@ -20,14 +20,16 @@ public class ProductCreationRequest {
     String name;
     
     String sku;
+    String shortDesc;
+    String longDesc;
 
     @NotNull(message = "Price cannot be empty")
     @Min(value = 0, message = "Price must be bigger or equal 0")
     BigDecimal price; 
 
-    String shortDesc;
-    String longDesc;
     String brand;
+    String color; 
+    String size;
 
     @NotNull(message = "Category cannot be empty")
     Integer categoryId;
