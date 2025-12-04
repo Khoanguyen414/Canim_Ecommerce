@@ -23,10 +23,13 @@ public class ProductResponse {
     String sku;
     String name;
     String slug;
-    BigDecimal price;
-    String brand;
     String shortDesc;
     String longDesc;
+    BigDecimal price;
+    String brand;
+    String color; 
+    String size;
+
     ProductStatus status;
 
     Integer categoryId;
