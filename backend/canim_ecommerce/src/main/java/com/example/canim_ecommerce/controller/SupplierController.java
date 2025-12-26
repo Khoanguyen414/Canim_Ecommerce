@@ -23,18 +23,19 @@ public class SupplierController {
 
     SupplierService supplierService;
 
-    // 1. Tạo mới (Chỉ Admin)
+    // 1. Create (ADMIN Only)
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<SupplierResponse> createSupplier(@RequestBody @Valid SupplierCreationRequest request) {
+        
         return ApiResponse.success(
                 ApiStatus.SUCCESS,
-                "Tạo nhà cung cấp thành công",
+                "Create supplier successfully", 
                 supplierService.createSupplier(request)
         );
     }
 
-    // 2. Cập nhật (Chỉ Admin)
+    
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<SupplierResponse> updateSupplier(
@@ -42,43 +43,40 @@ public class SupplierController {
             @RequestBody @Valid SupplierUpdateRequest request) {
         return ApiResponse.success(
                 ApiStatus.SUCCESS,
-                "Cập nhật thông tin thành công",
+                "Update supplier successfully", // English Message
                 supplierService.updateSupplier(id, request)
         );
     }
 
-    // 3. Lấy danh sách (Admin/Staff đều xem được)
-    // Thêm param ?all=true nếu muốn xem cả người đã xóa
+    
     @GetMapping
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_USER')") 
     public ApiResponse<List<SupplierResponse>> getAllSuppliers(
             @RequestParam(required = false, defaultValue = "false") boolean all) {
         return ApiResponse.success(
                 ApiStatus.SUCCESS,
-                "Lấy danh sách thành công",
+                "Get all suppliers successfully", // English Message
                 supplierService.getAllSuppliers(all)
         );
     }
 
-    // 4. Xem chi tiết
+   
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_USER')")
     public ApiResponse<SupplierResponse> getSupplierById(@PathVariable Integer id) {
         return ApiResponse.success(
                 ApiStatus.SUCCESS,
-                "Lấy chi tiết thành công",
+                "Get supplier detail successfully", /
                 supplierService.getSupplierById(id)
         );
     }
 
-    // 5. Xóa mềm (Chỉ Admin)
+    // 5. Soft Delete (ADMIN Only)
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<Void> deleteSupplier(@PathVariable Integer id) {
         supplierService.deleteSupplier(id);
         return ApiResponse.success(
                 ApiStatus.SUCCESS,
-                "Đã ngừng hợp tác với nhà cung cấp (Soft Delete)",
+                "Delete supplier successfully", 
                 null
         );
     }
