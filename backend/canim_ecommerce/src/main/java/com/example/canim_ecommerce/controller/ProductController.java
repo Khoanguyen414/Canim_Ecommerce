@@ -4,11 +4,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.canim_ecommerce.dto.request.products.ProductCreationRequest;
+import com.example.canim_ecommerce.dto.request.products.ProductStatusRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.ProductResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;
-import com.example.canim_ecommerce.enums.ProductStatus;
 import com.example.canim_ecommerce.service.ProductService;
 
 import lombok.AccessLevel;
@@ -29,9 +29,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-
-
-
 
 @RestController
 @RequestMapping("/products")
@@ -61,6 +58,7 @@ public class ProductController {
     }
     
     @GetMapping("/sku/{sku}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<ProductResponse> getProductBySku(@PathVariable String sku) {
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
@@ -100,8 +98,8 @@ public class ProductController {
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ApiResponse<Void> changeStatus(@PathVariable Long id, @RequestBody ProductStatus status) {
-        productService.changeProductStatus(id, status);
+    public ApiResponse<Void> changeStatus(@PathVariable Long id, @RequestBody ProductStatusRequest request) {
+        productService.changeProductStatus(id, request);
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
             "Status changed", 
