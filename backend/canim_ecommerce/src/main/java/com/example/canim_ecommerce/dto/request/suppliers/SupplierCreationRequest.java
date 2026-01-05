@@ -1,27 +1,38 @@
 package com.example.canim_ecommerce.dto.request.suppliers;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
-import lombok.*; 
+import jakarta.validation.constraints.*;
+import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-@Data 
+@Getter
+@Setter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class SupplierCreationRequest {
+    
+    @NotBlank(message = "Mã nhà cung cấp không được để trống")
+    @Pattern(
+        regexp = "^SUP_\\d{3,}$",
+        message = "Mã phải có format: SUP_XXX (ví dụ: SUP_001, SUP_999)"
+    )
+    String supplierCode;
     @NotBlank(message = "Tên nhà cung cấp không được để trống")
+    @Size(min = 3, max = 255, message = "Tên phải từ 3 đến 255 ký tự")
     String name;
-
+    @NotBlank(message = "Tên người liên hệ không được để trống")
     String contactName;
-
-    @Email(message = "Email không đúng định dạng")
+    @NotBlank(message = "Email không được để trống")
+    @Email(message = "Email phải hợp lệ (ví dụ: abc@example.com)")
     String email;
-
-    @Pattern(regexp = "^\\d{10,11}$", message = "Số điện thoại phải từ 10-11 số")
+    @NotBlank(message = "Số điện thoại không được để trống")
+    @Pattern(regexp = "^\\d{10,}$", message = "Số điện thoại phải ít nhất 10 chữ số")
     String phone;
-
+    @NotBlank(message = "Địa chỉ không được để trống")
     String address;
+    @Pattern(regexp = "^\\d{10,}$", message = "Mã số thuế phải ít nhất 10 chữ số")
+    String taxId;
+    @NotBlank(message = "Điều khoản thanh toán không được để trống")
+    String paymentTerms;
 }
