@@ -11,9 +11,13 @@ import lombok.experimental.FieldDefaults;
 public enum ApiStatus {
     SUCCESS(200, "Request processed successfully"),
     BAD_REQUEST(400, "Bad request"),
+    INVALID_INPUT(400, "Invalid input"),
     UNAUTHORIZED(401, "Authentication required"),
     FORBIDDEN(403, "Access denied"),
     NOT_FOUND(404, "Resource not found"),
+    METHOD_NOT_SUPPORTED(405, "Method not supported"),
+    RESOURCE_EXIST(409, "Resource already exists"),
+    FILE_TOO_LARGE(413, "File too large"),
     INTERNAL_SERVER_ERROR(500, "Internal server error");
 
     int statusCode;
