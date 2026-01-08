@@ -14,8 +14,13 @@ public enum ApiStatus {
     UNAUTHORIZED(401, "Authentication required"),
     FORBIDDEN(403, "Access denied"),
     NOT_FOUND(404, "Resource not found"),
+    // Created and Conflict statuses
+    CREATED(201, "Created"),  
+    CONFLICT(409, "Conflict"),
+    
     INTERNAL_SERVER_ERROR(500, "Internal server error");
-
+    
     int statusCode;
     String message;
+
 }
