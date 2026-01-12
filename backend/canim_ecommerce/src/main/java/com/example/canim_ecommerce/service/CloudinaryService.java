@@ -34,4 +34,25 @@ public class CloudinaryService {
         return uploadResult.get("secure_url").toString();
     }
 
+
+    public void deleteImage(String url) throws IOException {
+        String publicId = getPublicIdFromUrl(url);
+
+        if (publicId != null) {
+            cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+        }
+    }
+
+    private String getPublicIdFromUrl(String url) {
+        try {
+            int startIndex = url.indexOf("canim_products");
+            int endIndex = url.lastIndexOf(".");
+            if (startIndex != -1 && endIndex != - 1) {
+                return url.substring(startIndex, endIndex);
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }
