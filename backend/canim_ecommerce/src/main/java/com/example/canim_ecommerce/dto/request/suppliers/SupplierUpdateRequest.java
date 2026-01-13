@@ -1,28 +1,31 @@
 package com.example.canim_ecommerce.dto.request.suppliers;
 
-import jakarta.validation.constraints.*;
-import lombok.*;
-import lombok.experimental.FieldDefaults;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import lombok.AllArgsConstructor;
+import lombok.Data;  
+import lombok.NoArgsConstructor;
+import java.math.BigDecimal;
 
-@Getter
-@Setter
-@Builder
+@Data  
 @NoArgsConstructor
 @AllArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
 public class SupplierUpdateRequest {
     
-    @Size(min = 3, max = 255, message = "Tên phải từ 3 đến 255 ký tự")
-    String name;
-    String contactName;
-    @Email(message = "Email phải hợp lệ")
-    String email;
-    @Pattern(regexp = "^\\d{10,}$", message = "Số điện thoại phải ít nhất 10 chữ số")
-    String phone;
-    String address;
-    @Pattern(regexp = "^\\d{10,}$", message = "Mã số thuế phải ít nhất 10 chữ số")
-    String taxId;
-    String paymentTerms;
-    @NotNull(message = "Trạng thái hoạt động bắt buộc phải chỉ định (true/false)")
-    Boolean isActive;
+    private String name;
+    private String contactName;
+    
+    @Email(message = "Email should be valid / Email phải hợp lệ")
+    private String email;
+    
+    private String phone;
+    private String address;
+    private String taxId;
+    private String paymentTerms;
+    
+    @DecimalMin(value = "1.0")
+    @DecimalMax(value = "5.0")
+    private BigDecimal rating;
+  
 }

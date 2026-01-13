@@ -9,7 +9,7 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public enum ProductStatus {
-    ACTICE,
-    INACTICE,
-    HIDDEN
+    active,
+    inactive,
+    hidden
 }

@@ -1,36 +1,49 @@
 package com.example.canim_ecommerce.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.*;
-import lombok.experimental.FieldDefaults;
+import lombok.AllArgsConstructor;
+import lombok.Builder;  
+import lombok.Data;     
+import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@Getter
-@Setter
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
-@JsonInclude(JsonInclude.Include.NON_NULL)
+
+@Data 
+@Builder  
+@NoArgsConstructor  
+@AllArgsConstructor  
 public class SupplierResponse {
-    Long id;
-    String supplierCode;
-    String name;
-    String contactName;
-    String email;
-    String phone;
-    String address;
-    String taxId;
-    // Điều khoản thanh toán
-    String paymentTerms;
-    BigDecimal rating;
-    //Tổng số đơn đã mua từ supplier
-    Integer totalOrders;
-    //Trạng thái hoạt động
-    Boolean isActive;
-    Long createdBy;
-    LocalDateTime createdAt;
-    Long updatedBy;
-    LocalDateTime updatedAt;
+    
+    private Long id;  
+    
+    private String supplierCode;  
+    
+    private String name;  
+    
+    private String contactName;  
+    
+    private String email; 
+    
+    private String phone;  
+    
+    private String address;  
+    
+    private String taxId;  
+    
+    private String paymentTerms;  // NET30, COD, ADVANCE
+    
+    private BigDecimal rating;  
+    
+    private Integer totalOrders;  
+    
+    private Boolean isActive;  
+    
+    private Long createdBy;  
+    
+    private LocalDateTime createdAt; 
+    
+    private Long updatedBy;  
+    
+    private LocalDateTime updatedAt;
+
 }

@@ -1,19 +1,17 @@
 package com.example.canim_ecommerce.service.impl;
 
-import java.time.LocalDateTime;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.canim_ecommerce.dto.request.products.ProductCreationRequest;
+import com.example.canim_ecommerce.dto.request.products.ProductStatusRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ProductResponse;
 import com.example.canim_ecommerce.entity.Category;
 import com.example.canim_ecommerce.entity.Product;
 import com.example.canim_ecommerce.enums.ApiStatus;
-import com.example.canim_ecommerce.enums.ProductStatus;
 import com.example.canim_ecommerce.exception.ApiException;
 import com.example.canim_ecommerce.mapper.ProductMapper;
 import com.example.canim_ecommerce.repository.CategoryRepository;
@@ -105,11 +103,11 @@ public class ProductServiceImpl implements ProductService{
 
     @Override
     @Transactional
-    public void changeProductStatus(Long id, ProductStatus status) {
+    public void changeProductStatus(Long id, ProductStatusRequest request) {
         Product product = productRepository.findById(id)
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
 
-        product.setStatus(status);
+        product.setStatus(request.getStatus());
         productRepository.save(product);
     }
 

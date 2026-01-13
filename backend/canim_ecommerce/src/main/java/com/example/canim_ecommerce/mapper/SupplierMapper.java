@@ -5,8 +5,9 @@ import com.example.canim_ecommerce.dto.request.suppliers.SupplierUpdateRequest;
 import com.example.canim_ecommerce.dto.response.SupplierResponse;
 import com.example.canim_ecommerce.entity.Supplier;
 import org.springframework.stereotype.Component;
+import java.util.List;
+import java.util.stream.Collectors;
 
-import java.math.BigDecimal;
 
 @Component
 public class SupplierMapper {
@@ -15,94 +16,99 @@ public class SupplierMapper {
         if (request == null) {
             return null;
         }
+    
+        Supplier supplier = new Supplier();
         
-        return Supplier.builder()
-            // FROM REQUEST (8 fields)
-            .supplierCode(request.getSupplierCode())
-            .name(request.getName())
-            .contactName(request.getContactName())
-            .email(request.getEmail())
-            .phone(request.getPhone())
-            .address(request.getAddress())
-            .taxId(request.getTaxId())
-            .paymentTerms(request.getPaymentTerms())
-            
-            //DEFAULT VALUES (auto-set)
-            .rating(BigDecimal.valueOf(5.0))  
-            .totalOrders(0)                    
-            .isActive(true)                    
-            .build();
+        supplier.setSupplierCode(request.getSupplierCode());
+        supplier.setName(request.getName());
+        supplier.setContactName(request.getContactName());
+        supplier.setEmail(request.getEmail());
+        supplier.setPhone(request.getPhone());
+        supplier.setAddress(request.getAddress());
+        supplier.setTaxId(request.getTaxId());
+        supplier.setPaymentTerms(request.getPaymentTerms());
+        supplier.setRating(request.getRating());
+        
+        return supplier;
     }
     
-    
-    public SupplierResponse toResponse(Supplier supplier) {
-        if (supplier == null) {
+    public SupplierResponse toResponse(Supplier entity) {
+        if (entity == null) {
             return null;
         }
         
-        return SupplierResponse.builder()
-            // ⭐ TẤT CẢ 15 FIELDS FROM ENTITY
-            .id(supplier.getId())
-            .supplierCode(supplier.getSupplierCode())
-            .name(supplier.getName())
-            .contactName(supplier.getContactName())
-            .email(supplier.getEmail())
-            .phone(supplier.getPhone())
-            .address(supplier.getAddress())
-            .taxId(supplier.getTaxId())
-            .paymentTerms(supplier.getPaymentTerms())
-            .rating(supplier.getRating())
-            .totalOrders(supplier.getTotalOrders())
-            .isActive(supplier.getIsActive())
-            
-            // ⭐ AUDIT TRAIL
-            .createdBy(supplier.getCreatedBy())
-            .createdAt(supplier.getCreatedAt())
-            .updatedBy(supplier.getUpdatedBy())
-            .updatedAt(supplier.getUpdatedAt())
-            
-            .build();
+        SupplierResponse response = new SupplierResponse();
+        
+        
+        response.setId(entity.getId());
+        response.setSupplierCode(entity.getSupplierCode());
+        response.setName(entity.getName());
+        response.setContactName(entity.getContactName());
+        response.setEmail(entity.getEmail());
+        response.setPhone(entity.getPhone());
+        response.setAddress(entity.getAddress());
+        response.setTaxId(entity.getTaxId());
+        response.setPaymentTerms(entity.getPaymentTerms());
+        response.setRating(entity.getRating());
+        response.setTotalOrders(entity.getTotalOrders());
+        response.setIsActive(entity.getIsActive());
+        response.setCreatedBy(entity.getCreatedBy());
+        response.setCreatedAt(entity.getCreatedAt());
+        response.setUpdatedBy(entity.getUpdatedBy());
+        response.setUpdatedAt(entity.getUpdatedAt());
+        
+        
+        return response;
     }
     
-    public Supplier updateEntity(SupplierUpdateRequest request, Supplier existingSupplier) {
-        if (request == null || existingSupplier == null) {
-            return existingSupplier;
+    public List<SupplierResponse> toResponseList(List<Supplier> entities) {
+        // Null safety
+        if (entities == null) {
+            return null;
         }
         
-        // ⭐ UPDATE FIELDS - Only if NOT NULL
+        return entities.stream()
+                .map(this::toResponse)  
+                .collect(Collectors.toList());  
+    }
+    
+    public void updateEntityFromRequest(SupplierUpdateRequest request, Supplier entity) {
+
+        if (request == null || entity == null) {
+            return;
+        }
+        
         if (request.getName() != null) {
-            existingSupplier.setName(request.getName());
+            entity.setName(request.getName());
         }
         
         if (request.getContactName() != null) {
-            existingSupplier.setContactName(request.getContactName());
+            entity.setContactName(request.getContactName());
         }
         
         if (request.getEmail() != null) {
-            existingSupplier.setEmail(request.getEmail());
+            entity.setEmail(request.getEmail());
         }
         
         if (request.getPhone() != null) {
-            existingSupplier.setPhone(request.getPhone());
+            entity.setPhone(request.getPhone());
         }
         
         if (request.getAddress() != null) {
-            existingSupplier.setAddress(request.getAddress());
+            entity.setAddress(request.getAddress());
         }
         
         if (request.getTaxId() != null) {
-            existingSupplier.setTaxId(request.getTaxId());
+            entity.setTaxId(request.getTaxId());
         }
         
         if (request.getPaymentTerms() != null) {
-            existingSupplier.setPaymentTerms(request.getPaymentTerms());
+            entity.setPaymentTerms(request.getPaymentTerms());
         }
         
-        // 
-        if (request.getIsActive() != null) {
-            existingSupplier.setIsActive(request.getIsActive());
+        if (request.getRating() != null) {
+            entity.setRating(request.getRating());
         }
         
-        return existingSupplier;
     }
 }
