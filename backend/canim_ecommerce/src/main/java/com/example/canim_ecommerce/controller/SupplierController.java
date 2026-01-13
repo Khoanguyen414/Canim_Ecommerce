@@ -1,5 +1,3 @@
-// File: src/main/java/com/example/canim_ecommerce/controller/SupplierController.java
-
 package com.example.canim_ecommerce.controller;
 
 import com.example.canim_ecommerce.dto.request.suppliers.SupplierCreationRequest;
