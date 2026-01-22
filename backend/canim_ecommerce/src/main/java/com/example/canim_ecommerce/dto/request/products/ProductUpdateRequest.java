@@ -15,6 +15,7 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ProductUpdateRequest {
     String name;
+    String sku;
     String shortDesc;
     String longDesc;
 

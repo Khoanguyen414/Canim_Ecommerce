@@ -17,7 +17,6 @@ import com.example.canim_ecommerce.mapper.ProductMapper;
 import com.example.canim_ecommerce.repository.CategoryRepository;
 import com.example.canim_ecommerce.repository.ProductRepository;
 import com.example.canim_ecommerce.service.ProductService;
-import com.example.canim_ecommerce.service.SkuService;
 import com.example.canim_ecommerce.utils.SlugUtils;
 
 import lombok.AccessLevel;
@@ -31,7 +30,6 @@ public class ProductServiceImpl implements ProductService{
     ProductRepository productRepository;
     CategoryRepository categoryRepository;
     ProductMapper productMapper;
-    SkuService skuService;
 
     @Override
     public Page<ProductResponse> getAllProducts(Pageable pageable) {
@@ -65,14 +63,15 @@ public class ProductServiceImpl implements ProductService{
     public ProductResponse createProduct(ProductCreationRequest request) {
         String slug = SlugUtils.toSlug(request.getName());
 
-        String sku = skuService.generateOrValidateSku(request.getSku(), request.getName(), request.getColor());
-
         if (productRepository.existsBySlug(slug)) {
-            throw new ApiException(ApiStatus.NOT_FOUND, "Product slug already exists");
+            throw new ApiException(ApiStatus.RESOURCE_EXIST, "Product slug already exists");
+        }
+
+        if (productRepository.existsBySku(request.getSku())) {
+            throw new ApiException(ApiStatus.RESOURCE_EXIST, "Mã SKU này đã tồn tại: " + request.getSku());
         }
 
         Product product = productMapper.toProduct(request);
-        product.setSku(sku);
         product.setSlug(slug);
 
         if (request.getCategoryId() != null) {
