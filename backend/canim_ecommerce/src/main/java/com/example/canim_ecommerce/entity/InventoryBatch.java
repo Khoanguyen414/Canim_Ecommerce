@@ -7,36 +7,35 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "inventory_batches") 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Table(name = "inventory_batches")
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor @Builder
 public class InventoryBatch {
-//edit here
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Liên kết với bảng Products
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
-    @Column(name = "batch_code", nullable = false, unique = true)
-    private String batchCode; // Mã lô (VD: BATCH-1705648293)
+    @Column(name = "product_id", insertable = false, updatable = false)
+    private Long productId;
 
+    // Lưu trữ SKU tại thời điểm nhập kho
+    @Column(name = "sku_snapshot") 
+    private String sku; 
+    // Lưu trữ tên sản phẩm tại thời điểm nhập kho
+    @Column(name = "batch_code", nullable = false)
+    private String batchCode;
+    //Quản lý số lượng tồn kho trong lô
     @Column(name = "quantity_remaining", nullable = false)
-    private Integer quantityRemaining; // Số lượng còn lại của lô này (Tồn kho theo lô)
-
+    private Integer quantityRemaining;
+    
     @Column(name = "import_price")
-    private BigDecimal importPrice; // Giá nhập tại thời điểm đó
-
-    @Column(name = "expired_at")
-    private LocalDateTime expiredAt; // Hạn sử dụng (nếu có, có thể để null)
+    private BigDecimal importPrice;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt; // Ngày nhập kho (Quan trọng để xác định cũ/mới)
+    private LocalDateTime createdAt;
 }
