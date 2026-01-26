@@ -6,7 +6,6 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 import java.util.List;
-
 @Entity
 @Table(name = "inventory_receipts")
 @Getter @Setter
@@ -37,4 +36,8 @@ public class InventoryReceipt {
 
     @CreationTimestamp
     private LocalDateTime createdAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ReceiptReason reason;
 }
