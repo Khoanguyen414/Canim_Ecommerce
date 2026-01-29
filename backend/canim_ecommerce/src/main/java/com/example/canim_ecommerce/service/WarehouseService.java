@@ -15,5 +15,5 @@ public interface WarehouseService {
 
     List<InventoryReportResponse> getInventoryReport();
     
-    ByteArrayInputStream exportInventoryToExcel() throws IOException;
+    ByteArrayInputStream exportStocktakeReport() throws IOException;
 }

@@ -1,9 +1,9 @@
 package com.example.canim_ecommerce.enums;
 
 public enum ReceiptReason {
-    PURCHASE,           
+    PURCHASE,      
     RETURN_TO_SUPPLIER,
     SALES_ORDER,        
     DAMAGE,            
-    STOCKTAKE_ADJUST    
+    STOCKTAKE_ADJUST   
 }
