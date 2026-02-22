@@ -16,6 +16,8 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;
 
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -93,4 +95,17 @@ public class GlobalExceptionHandler {
             .status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(ApiResponse.error(ApiStatus.INTERNAL_SERVER_ERROR, exception.getMessage()));
     }
+    public class ResourceNotFoundException extends RuntimeException {
+
+    public ResourceNotFoundException(String message) {
+        super(message);
+    }
+}
+@ExceptionHandler(ResourceNotFoundException.class)
+public ResponseEntity<ApiResponse<?>> handleResourceNotFound(ResourceNotFoundException e) {
+    return ResponseEntity
+        .status(HttpStatus.NOT_FOUND) // 404
+        .body(ApiResponse.error(ApiStatus.NOT_FOUND, e.getMessage()));
+}
+
 }
