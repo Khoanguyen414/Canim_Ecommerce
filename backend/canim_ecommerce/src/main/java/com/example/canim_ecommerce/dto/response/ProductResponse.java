@@ -36,6 +36,7 @@ public class ProductResponse {
     String categoryName;
     String categorySlug;
 
+    // Integer quantity;
     List<ProductImageResponse> images;
 
     LocalDateTime createdAt;
