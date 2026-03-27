@@ -80,8 +80,9 @@ public class Product {
     List<ProductImage> images = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "status")
     @Builder.Default
-    ProductStatus status = ProductStatus.ACTICE;
+    ProductStatus status = ProductStatus.active;
 
     @CreationTimestamp
     @Column(name = "created_at")

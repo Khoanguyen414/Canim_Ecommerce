@@ -12,7 +12,7 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class CategoryCreationRequest {
-    @NotBlank(message = "Tên danh mục không được để trống")
+    @NotBlank(message = "Category name cannot be empty")
     String name;
     String description;
     Integer parentId;

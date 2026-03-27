@@ -1,25 +1,22 @@
 package com.example.canim_ecommerce.controller;
 
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.canim_ecommerce.dto.request.products.ProductCreationRequest;
+import com.example.canim_ecommerce.dto.request.products.ProductStatusRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
+import com.example.canim_ecommerce.dto.response.PageResponse;
 import com.example.canim_ecommerce.dto.response.ProductResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;
-import com.example.canim_ecommerce.enums.ProductStatus;
 import com.example.canim_ecommerce.service.ProductService;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
-import org.springdoc.core.annotations.ParameterObject;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -30,9 +27,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-
-
-
 @RestController
 @RequestMapping("/products")
 @RequiredArgsConstructor
@@ -41,13 +35,27 @@ public class ProductController {
     ProductService productService;
 
     @GetMapping
-    public ApiResponse<Page<ProductResponse>> getAllProducts(
-        @ParameterObject @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) 
-        Pageable pageable) {
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ApiResponse<PageResponse<ProductResponse>> getAllProducts(
+        @RequestParam(defaultValue = "1") int pageNum,
+        @RequestParam(defaultValue = "40") int sizePage
+    ) {
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
-            "Get products successfully", 
-            productService.getAllProducts(pageable)
+            "Get all products successfully", 
+            productService.getAllProducts(pageNum, sizePage)
+        );
+    }
+
+    @GetMapping("/public")
+    public ApiResponse<PageResponse<ProductResponse>> getProductsPublic(
+        @RequestParam(defaultValue = "1") int pageNum,
+        @RequestParam(defaultValue = "40") int sizePage
+    ) {
+        return ApiResponse.success(
+            ApiStatus.SUCCESS, 
+            "Get product list success", 
+            productService.getProductsPublic(pageNum, sizePage)
         );
     }
     
@@ -61,6 +69,7 @@ public class ProductController {
     }
     
     @GetMapping("/sku/{sku}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<ProductResponse> getProductBySku(@PathVariable String sku) {
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
@@ -100,8 +109,8 @@ public class ProductController {
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ApiResponse<Void> changeStatus(@PathVariable Long id, @RequestBody ProductStatus status) {
-        productService.changeProductStatus(id, status);
+    public ApiResponse<Void> changeStatus(@PathVariable Long id, @RequestBody ProductStatusRequest request) {
+        productService.changeProductStatus(id, request);
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
             "Status changed", 
