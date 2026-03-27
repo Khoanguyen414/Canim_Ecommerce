@@ -1,5 +1,3 @@
-import "bootstrap/dist/css/bootstrap.min.css";
-
 const Banner = () => {
   return (
     <div className="container mt-3">

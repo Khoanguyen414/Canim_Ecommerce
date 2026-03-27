@@ -1,4 +1,5 @@
-import { Facebook, Instagram, Twitter, Mail, Phone, MapPin } from "lucide-react"
+import { Mail, Phone, MapPin } from "lucide-react"
+import { FaFacebook, FaInstagram, FaTwitter } from "react-icons/fa"
 import { Link } from "react-router-dom"
 
 export default function Footer() {
@@ -18,19 +19,19 @@ export default function Footer() {
                 href="#"
                 className="p-2 hover:bg-background rounded-md transition-colors"
               >
-                <Facebook className="w-4 h-4" />
+                <FaFacebook className="w-4 h-4" />
               </a>
               <a
                 href="#"
                 className="p-2 hover:bg-background rounded-md transition-colors"
               >
-                <Instagram className="w-4 h-4" />
+                <FaInstagram className="w-4 h-4" />
               </a>
               <a
                 href="#"
                 className="p-2 hover:bg-background rounded-md transition-colors"
               >
-                <Twitter className="w-4 h-4" />
+                <FaTwitter className="w-4 h-4" />
               </a>
             </div>
           </div>
