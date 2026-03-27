@@ -32,6 +32,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.experimental.FieldDefaults;
 
+import org.springframework.transaction.annotation.Transactional;
+
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -65,6 +67,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public User register(RegisterRequest request) {
         if (userService.existsByEmail(request.getEmail())) {
             throw new ApiException(ApiStatus.BAD_REQUEST, "Email already exists!");
@@ -83,10 +86,7 @@ public class AuthServiceImpl implements AuthService {
             .roles(Set.of(roleUser))
             .active(true)
             .build();
-
-        User newUser = userService.save(user);
-
-        return newUser;
+        return userService.save(user);
     }
 
     @Override
