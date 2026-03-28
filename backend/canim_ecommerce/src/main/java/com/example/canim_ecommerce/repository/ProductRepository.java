@@ -19,5 +19,6 @@ public interface ProductRepository extends JpaRepository<Product, Long>{
     Optional<Product> findBySku(String sku);
     // Optional<Inventory> findByProduct(Product product);
 
-    Page<Product> findAllByStatus(ProductStatus status, Pageable pageable);
+    Page<Product> findAllByStatus(ProductStatus status, Pageable pageable);  
+    
 }

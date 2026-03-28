@@ -39,7 +39,7 @@ import lombok.experimental.FieldDefaults;
 
 @Service
 @RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true) 
 public class ProductServiceImpl implements ProductService{
     ProductRepository productRepository;
     CategoryRepository categoryRepository;

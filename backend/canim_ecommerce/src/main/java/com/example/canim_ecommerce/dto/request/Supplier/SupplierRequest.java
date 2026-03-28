@@ -7,22 +7,22 @@ import lombok.Data;
 @Data
 public class SupplierRequest {
     
-    @NotBlank(message = "Mã nhà cung cấp không được để trống")
+    @NotBlank(message = "Supplier code must not be blank")
     private String code;
 
-    @NotBlank(message = "Tên nhà cung cấp không được để trống")
+    @NotBlank(message = "Supplier name must not be blank")
     private String name;
 
-    @NotBlank(message = "Người liên hệ không được để trống")
+    @NotBlank(message = "Contact person must not be blank")
     private String contactPerson;
 
-    @NotBlank(message = "Email không được để trống")
-    @Email(message = "Email không đúng định dạng")
+    @NotBlank(message = "Email must not be blank")
+    @Email(message = "Invalid email format")
     private String email;
 
-    @NotBlank(message = "Số điện thoại không được để trống")
+    @NotBlank(message = "Phone number must not be blank")
     private String phone;
 
-    @NotBlank(message = "Địa chỉ không được để trống")
+    @NotBlank(message = "Address must not be blank")
     private String address;
 }

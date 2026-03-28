@@ -7,14 +7,15 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
-public interface WarehouseMapper {
+public interface InventoryMapper {
+
     @Mapping(target = "supplierName", source = "supplier.name")
     @Mapping(target = "details", source = "details")
-    InboundResponse toResponse(InventoryReceipt receipt);
+    InboundResponse toInboundResponse(InventoryReceipt receipt);
 
-    @Mapping(target = "productId", source = "product.id") 
+    @Mapping(target = "productId", source = "product.id")
     @Mapping(target = "productName", source = "product.name")
-    @Mapping(target = "sku", source = "batch.sku") // Lấy SKU từ Batch
-    @Mapping(target = "batchCode", source = "batch.batchCode") 
-    InboundResponse.DetailResponse toDetail(InventoryReceiptDetail detail);
+    @Mapping(target = "sku", source = "batch.sku") // Map SKU from batch
+    @Mapping(target = "batchCode", source = "batch.batchCode")
+    InboundResponse.DetailResponse toDetailResponse(InventoryReceiptDetail detail);
 }

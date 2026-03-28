@@ -4,11 +4,13 @@ import com.example.canim_ecommerce.dto.request.inventory.InboundRequest;
 import com.example.canim_ecommerce.dto.request.inventory.OutboundRequest;
 import com.example.canim_ecommerce.dto.response.InboundResponse;
 import com.example.canim_ecommerce.dto.response.InventoryReportResponse;
+import com.example.canim_ecommerce.dto.response.InventorySummaryResponse;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.List;
 
-public interface WarehouseService {
+public interface InventoryService {
     InboundResponse createInboundReceipt(InboundRequest request);
 
     void createOutboundReceipt(OutboundRequest request);
@@ -16,4 +18,6 @@ public interface WarehouseService {
     List<InventoryReportResponse> getInventoryReport();
     
     ByteArrayInputStream exportStocktakeReport() throws IOException;
+
+    InventorySummaryResponse getInventorySummary();
 }
