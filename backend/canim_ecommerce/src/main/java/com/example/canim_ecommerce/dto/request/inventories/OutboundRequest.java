@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.dto.request.inventory;
+package com.example.canim_ecommerce.dto.request.inventories;
 
 import com.example.canim_ecommerce.enums.ReceiptReason;
 import jakarta.validation.constraints.NotNull;

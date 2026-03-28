@@ -1,6 +1,6 @@
 package com.example.canim_ecommerce.controller;
 
-import com.example.canim_ecommerce.dto.request.Supplier.SupplierRequest;
+import com.example.canim_ecommerce.dto.request.suppliers.SupplierRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.entity.Supplier;
 import com.example.canim_ecommerce.enums.ApiStatus;

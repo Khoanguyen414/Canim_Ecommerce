@@ -1,7 +1,7 @@
 package com.example.canim_ecommerce.service.impl;
 
-import com.example.canim_ecommerce.dto.request.inventory.InboundRequest;
-import com.example.canim_ecommerce.dto.request.inventory.OutboundRequest;
+import com.example.canim_ecommerce.dto.request.inventories.InboundRequest;
+import com.example.canim_ecommerce.dto.request.inventories.OutboundRequest;
 import com.example.canim_ecommerce.dto.response.InboundResponse;
 import com.example.canim_ecommerce.dto.response.InventoryReportResponse;
 import com.example.canim_ecommerce.entity.*;
@@ -13,7 +13,11 @@ import com.example.canim_ecommerce.repository.*;
 import com.example.canim_ecommerce.repository.inventory.*;
 import com.example.canim_ecommerce.service.WarehouseService;
 import com.example.canim_ecommerce.utils.CodeGenerator;
+
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
@@ -28,14 +32,15 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class WarehouseServiceImpl implements WarehouseService {
 
-    private final InventoryReceiptRepository receiptRepo;
-    private final InventoryReceiptDetailRepository detailRepo;
-    private final InventoryBatchRepository batchRepo;
-    private final SupplierRepository supplierRepo;
-    private final ProductRepository productRepo;
-    private final WarehouseMapper warehouseMapper;
+   InventoryReceiptRepository receiptRepo;
+   InventoryReceiptDetailRepository detailRepo;
+   InventoryBatchRepository batchRepo;
+   SupplierRepository supplierRepo;
+   ProductRepository productRepo;
+   WarehouseMapper warehouseMapper;
 
     
     @Override

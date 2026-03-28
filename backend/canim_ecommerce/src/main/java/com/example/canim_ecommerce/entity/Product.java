@@ -62,14 +62,18 @@ public class Product {
     @Column(nullable = false)
     BigDecimal price;
 
-    @Column(length = 100)
-    String brand;
 
-    @Column(length = 50)
-    String color;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "brand_id")
+    Brand brand;
 
-    @Column(length = 50)
-    String size;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "color_id")
+    Color color;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "size_id")
+    Size size;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)

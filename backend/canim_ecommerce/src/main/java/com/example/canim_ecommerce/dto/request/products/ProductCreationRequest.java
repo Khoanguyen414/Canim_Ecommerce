@@ -31,9 +31,10 @@ public class ProductCreationRequest {
     @Min(value = 0, message = "Price must be bigger or equal 0")
     BigDecimal price; 
 
-    String brand;
-    String color; 
-    String size;
+
+    Long brandId;
+    Long colorId;
+    Long sizeId;
 
     @NotNull(message = "Category cannot be empty")
     Integer categoryId;

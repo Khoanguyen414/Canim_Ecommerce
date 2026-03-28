@@ -26,9 +26,34 @@ public class ProductResponse {
     String shortDesc;
     String longDesc;
     BigDecimal price;
-    String brand;
-    String color; 
-    String size;
+
+    BrandDto brand;
+    ColorDto color;
+    SizeDto size;
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    @lombok.NoArgsConstructor
+    public static class BrandDto {
+        Long id;
+        String name;
+    }
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    @lombok.NoArgsConstructor
+    public static class ColorDto {
+        Long id;
+        String name;
+    }
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    @lombok.NoArgsConstructor
+    public static class SizeDto {
+        Long id;
+        String name;
+    }
 
     ProductStatus status;
 

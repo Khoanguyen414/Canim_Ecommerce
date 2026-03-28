@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.dto.request.Supplier;
+package com.example.canim_ecommerce.dto.request.suppliers;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

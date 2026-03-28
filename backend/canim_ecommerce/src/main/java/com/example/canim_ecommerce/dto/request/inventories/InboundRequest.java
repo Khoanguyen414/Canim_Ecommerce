@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.dto.request.inventory;
+package com.example.canim_ecommerce.dto.request.inventories;
 
 import lombok.Data;
 import java.math.BigDecimal;
