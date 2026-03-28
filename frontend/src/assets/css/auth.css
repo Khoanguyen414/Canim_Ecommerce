@@ -1,0 +1,60 @@
+.auth-wrapper {
+  min-height: 100vh;
+  background:
+    linear-gradient(
+      rgba(218, 186, 138, 0.75),
+      rgba(255, 87, 34, 0.75)
+    ),
+    url("../images/ecommerce-bg.jpg") center/cover no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 450px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+}
+
+.auth-title {
+  font-weight: 700;
+  color: #ff5722;
+}
+
+.auth-subtitle {
+  font-size: 14px;
+  color: #666;
+}
+
+.auth-input-group {
+  position: relative;
+}
+
+.auth-input-group i {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: #ff9800;
+}
+
+.auth-input-group input {
+  padding-left: 40px;
+}
+
+.btn-shop {
+  background: linear-gradient(45deg, #ff5722, #ff9800);
+  border: none;
+  color: white;
+  font-weight: 600;
+}
+
+.btn-shop:hover {
+  opacity: 0.9;
+}
+
+
