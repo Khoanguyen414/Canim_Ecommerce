@@ -9,7 +9,7 @@ import java.util.List;
 public class OutboundRequest {
     private String note;
     
-    @NotNull(message = "Lý do xuất kho không được để trống")
+    @NotNull(message = "The reason section should not be left blank")
     private ReceiptReason reason; 
 
     private List<OutboundItem> items;
