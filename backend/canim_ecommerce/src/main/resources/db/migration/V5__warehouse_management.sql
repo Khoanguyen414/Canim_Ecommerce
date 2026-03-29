@@ -1,16 +1,17 @@
 -- V5__warehouse_management.sql
-CREATE TABLE IF NOT EXISTS suppliers (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    code VARCHAR(50) NOT NULL UNIQUE,
-    name VARCHAR(255) NOT NULL,
-    contact_person VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    phone VARCHAR(20) NOT NULL,
-    address TEXT NOT NULL,
-    is_active TINYINT(1) DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+CREATE TABLE
+    IF NOT EXISTS suppliers (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        code VARCHAR(50) NOT NULL UNIQUE,
+        name VARCHAR(255) NOT NULL,
+        contact_person VARCHAR(100) NOT NULL,
+        email VARCHAR(100) NOT NULL UNIQUE,
+        phone VARCHAR(20) NOT NULL,
+        address TEXT NOT NULL,
+        is_active TINYINT (1) DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 CREATE TABLE
     IF NOT EXISTS inventory_batches (
@@ -101,10 +102,25 @@ VALUES
     ('WAREHOUSE_STOCKTAKE', 'Thực hiện kiểm kê');
 
 -- Gán quyền cho ADMIN
-INSERT IGNORE INTO roles (name) VALUES ('ROLE_WAREHOUSE');
+INSERT IGNORE INTO roles (name)
+VALUES
+    ('ROLE_WAREHOUSE');
 
 -- Gán quyền cho WAREHOUSE (Fix lỗi igmore)
 INSERT IGNORE INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r, permissions p
-    WHERE r.name IN ('ROLE_ADMIN', 'ROLE_WAREHOUSE')
-    AND p.name IN ('SUPPLIER_READ', 'SUPPLIER_MANAGE', 'WAREHOUSE_READ', 'WAREHOUSE_IMPORT', 'WAREHOUSE_EXPORT', 'WAREHOUSE_STOCKTAKE');
+SELECT
+    r.id,
+    p.id
+FROM
+    roles r,
+    permissions p
+WHERE
+    r.name IN ('ROLE_ADMIN', 'ROLE_WAREHOUSE')
+    AND p.name IN (
+        'SUPPLIER_READ',
+        'SUPPLIER_MANAGE',
+        'WAREHOUSE_READ',
+        'WAREHOUSE_IMPORT',
+        'WAREHOUSE_EXPORT',
+        'WAREHOUSE_STOCKTAKE'
+    );
