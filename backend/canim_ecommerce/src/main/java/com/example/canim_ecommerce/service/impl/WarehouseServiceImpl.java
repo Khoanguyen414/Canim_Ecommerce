@@ -10,7 +10,6 @@ import com.example.canim_ecommerce.enums.ReceiptStatus;
 import com.example.canim_ecommerce.enums.ReceiptType;
 import com.example.canim_ecommerce.mapper.WarehouseMapper;
 import com.example.canim_ecommerce.repository.*;
-import com.example.canim_ecommerce.repository.inventory.*;
 import com.example.canim_ecommerce.service.WarehouseService;
 import com.example.canim_ecommerce.utils.CodeGenerator;
 
