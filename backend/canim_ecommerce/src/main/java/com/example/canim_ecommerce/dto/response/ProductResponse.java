@@ -20,40 +20,12 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ProductResponse {
     Long id;
-    String sku;
     String name;
     String slug;
     String shortDesc;
     String longDesc;
-    BigDecimal price;
 
-    BrandDto brand;
-    ColorDto color;
-    SizeDto size;
-
-    @lombok.Data
-    @lombok.AllArgsConstructor
-    @lombok.NoArgsConstructor
-    public static class BrandDto {
-        Long id;
-        String name;
-    }
-
-    @lombok.Data
-    @lombok.AllArgsConstructor
-    @lombok.NoArgsConstructor
-    public static class ColorDto {
-        Long id;
-        String name;
-    }
-
-    @lombok.Data
-    @lombok.AllArgsConstructor
-    @lombok.NoArgsConstructor
-    public static class SizeDto {
-        Long id;
-        String name;
-    }
+    List<ProductVariantResponse> variants;
 
     ProductStatus status;
 
@@ -61,7 +33,6 @@ public class ProductResponse {
     String categoryName;
     String categorySlug;
 
-    // Integer quantity;
     List<ProductImageResponse> images;
 
     LocalDateTime createdAt;

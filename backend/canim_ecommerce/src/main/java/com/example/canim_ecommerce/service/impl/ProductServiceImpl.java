@@ -3,7 +3,9 @@ package com.example.canim_ecommerce.service.impl;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -13,23 +15,29 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.canim_ecommerce.dto.request.productVariants.ProductVariantRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductCreationRequest;
+import com.example.canim_ecommerce.dto.request.products.ProductFilterRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductStatusRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductUpdateRequest;
 import com.example.canim_ecommerce.dto.response.PageResponse;
 import com.example.canim_ecommerce.dto.response.ProductResponse;
 import com.example.canim_ecommerce.entity.Category;
 import com.example.canim_ecommerce.entity.Product;
+import com.example.canim_ecommerce.entity.ProductVariant;
 import com.example.canim_ecommerce.enums.ApiStatus;
 import com.example.canim_ecommerce.enums.ProductStatus;
 import com.example.canim_ecommerce.exception.ApiException;
 import com.example.canim_ecommerce.mapper.ProductMapper;
 import com.example.canim_ecommerce.repository.CategoryRepository;
 import com.example.canim_ecommerce.repository.ProductRepository;
+import com.example.canim_ecommerce.repository.ProductVariantRepository;
+import com.example.canim_ecommerce.repository.specification.ProductSpecification;
 import com.example.canim_ecommerce.service.ProductService;
 import com.example.canim_ecommerce.utils.SlugUtils;
 
@@ -40,68 +48,56 @@ import lombok.experimental.FieldDefaults;
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class ProductServiceImpl implements ProductService{
+public class ProductServiceImpl implements ProductService {
     ProductRepository productRepository;
+    ProductVariantRepository productVariantRepository;
     CategoryRepository categoryRepository;
     ProductMapper productMapper;
 
     @Override
-    public PageResponse<ProductResponse> getAllProducts(int pageNum, int sizePage) {
-        Pageable pageable = PageRequest.of(pageNum - 1, sizePage, Sort.by("updatedAt").descending());
-        Page<Product> pageData = productRepository.findAll(pageable);
+    public PageResponse<ProductResponse> getProducts(ProductFilterRequest filterRequest, int pageNum, int sizePage, String sortBy, String sortDir) {
+        Sort sort = sortDir.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(pageNum - 1, sizePage, sort);
+        Specification<Product> spec = ProductSpecification.filterProducts(filterRequest);
+        Page<Product> pageData = productRepository.findAll(spec, pageable);
 
         List<ProductResponse> data = pageData.getContent().stream()
                 .map(productMapper::toProductResponse)
                 .toList();
 
         return PageResponse.<ProductResponse>builder()
-            .page(pageNum)
-            .size(sizePage)
-            .totalElements(pageData.getTotalElements())
-            .totalPages(pageData.getTotalPages())
-            .data(data)
-            .build();
-    }
-
-    @Override
-    public PageResponse<ProductResponse> getProductsPublic(int pageNum, int sizePage) {
-        Pageable pageable = PageRequest.of(pageNum - 1, sizePage, Sort.by("createdAt").descending());
-        Page<Product> pageData = productRepository.findAllByStatus(ProductStatus.active, pageable);
-
-        List<ProductResponse> data = pageData.getContent().stream()
-                .map(productMapper::toProductResponse)
-                .toList();
-
-        return PageResponse.<ProductResponse>builder()
-            .page(pageNum)
-            .size(sizePage)
-            .totalElements(pageData.getTotalElements())
-            .totalPages(pageData.getTotalPages())
-            .data(data)
-            .build();
+                .page(pageNum)
+                .size(sizePage)
+                .totalElements(pageData.getTotalElements())
+                .totalPages(pageData.getTotalPages())
+                .data(data)
+                .build();
     }
 
     @Override
     public ProductResponse getProductById(Long id) {
         Product product = productRepository.findById(id)
-            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
         return productMapper.toProductResponse(product);
     }
 
     @Override
     public ProductResponse getProductBySku(String sku) {
-        Product product = productRepository.findBySku(sku)
-            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found with sku: " + sku));
+        ProductVariant variant = productVariantRepository.findBySku(sku)
+            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product variant not found with sku: " + sku));
+
+        Product product = variant.getProduct();
         return productMapper.toProductResponse(product);
     }
 
     @Override
     public ProductResponse getProductBySlug(String slug) {
         Product product = productRepository.findBySlug(slug)
-            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found with slug: " + slug));
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found with slug: " + slug));
         ProductResponse response = productMapper.toProductResponse(product);
 
-        // Inventory inventory = inventoryRepository.findByProduct(product).orElse(null);
+        // Inventory inventory =
+        // inventoryRepository.findByProduct(product).orElse(null);
         // response.setQuantity(inventory != null ? inventory.getQuantity() : 0);
         return response;
     }
@@ -112,11 +108,13 @@ public class ProductServiceImpl implements ProductService{
         String slug = SlugUtils.toSlug(request.getName());
 
         if (productRepository.existsBySlug(slug)) {
-            throw new ApiException(ApiStatus.RESOURCE_EXIST, "Product slug already exists");
+            throw new ApiException(ApiStatus.RESOURCE_EXIST, "Product slug already exists.");
         }
 
-        if (productRepository.existsBySku(request.getSku())) {
-            throw new ApiException(ApiStatus.RESOURCE_EXIST, "Mã SKU này đã tồn tại: " + request.getSku());
+        for (ProductVariantRequest variantRequest : request.getVariants()) {
+            if (productVariantRepository.existsBySku(variantRequest.getSku())) {
+                throw new ApiException(ApiStatus.RESOURCE_EXIST, "SKU already exists.");
+            }
         }
 
         Product product = productMapper.toProduct(request);
@@ -124,7 +122,31 @@ public class ProductServiceImpl implements ProductService{
 
         if (request.getCategoryId() != null) {
             Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
+                    .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
+            product.setCategory(category);
+        }
+
+        if (product.getVariants() != null) {
+            for (ProductVariant variant : product.getVariants()) {
+                variant.setProduct(product);
+            }
+        }
+
+        Product savedProduct = productRepository.save(product);
+        return productMapper.toProductResponse(savedProduct);
+    }
+
+    @Override
+    @Transactional
+    public ProductResponse updateProduct(Long id, ProductUpdateRequest request) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
+
+        productMapper.updateProduct(product, request);
+
+        if (request.getCategoryId() != null) {
+            Category category = categoryRepository.findById(request.getCategoryId())
+                    .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product's category not found"));
             product.setCategory(category);
         }
 
@@ -133,26 +155,9 @@ public class ProductServiceImpl implements ProductService{
 
     @Override
     @Transactional
-    public ProductResponse updateProduct(Long id, ProductUpdateRequest request) {
-        Product product = productRepository.findById(id)
-            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
-
-        productMapper.updateProduct(product, request);
-
-        if (request.getCategoryId() != null) {
-            Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product's category not found"));
-            product.setCategory(category);
-        }
-
-        return productMapper.toProductResponse(productRepository.save(product));
-    } 
-
-    @Override
-    @Transactional
     public void changeProductStatus(Long id, ProductStatusRequest request) {
         Product product = productRepository.findById(id)
-            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
 
         product.setStatus(request.getStatus());
         productRepository.save(product);
@@ -161,7 +166,7 @@ public class ProductServiceImpl implements ProductService{
     @Override
     public void deleteProduct(Long id) {
         Product product = productRepository.findById(id)
-            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
 
         productRepository.delete(product);
     }
@@ -170,48 +175,66 @@ public class ProductServiceImpl implements ProductService{
     @Transactional(rollbackFor = Exception.class)
     public void importProducts(MultipartFile file) {
         try (InputStream inputStream = file.getInputStream();
-            Workbook workbook = new XSSFWorkbook(inputStream)){
+                Workbook workbook = new XSSFWorkbook(inputStream)) {
             Sheet sheet = workbook.getSheetAt(0);
-            List<Product> productsToSave = new ArrayList<>();
+            Map<String, Product> productMap = new HashMap<>();
 
-            for (int i = 0; i <= sheet.getLastRowNum(); i++) {
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 int rowIndex = i;
                 Row row = sheet.getRow(i);
-                if (row == null) continue;
+                if (row == null)
+                    continue;
 
                 String name = row.getCell(0).getStringCellValue();
                 String sku = row.getCell(1).getStringCellValue();
                 double price = row.getCell(2).getNumericCellValue();
                 double catId = row.getCell(3).getNumericCellValue();
 
-                if (productRepository.existsBySku(sku)) {
+                if (productVariantRepository.existsBySku(sku)) {
                     throw new ApiException(
-                        ApiStatus.NOT_FOUND, 
-                        "The line " + (rowIndex + 1) + ": SKU " + sku + " already exists!");
+                            ApiStatus.NOT_FOUND,
+                            "The line " + (rowIndex + 1) + ": SKU " + sku + " already exists!");
                 }
 
-                Product product = Product.builder()
-                    .name(name)
-                    .sku(sku)
-                    .slug(SlugUtils.toSlug(name))
-                    .price(BigDecimal.valueOf(price))
-                    .status(ProductStatus.active)
-                    .build();
-
                 Category category = categoryRepository.findById((int) catId)
-                    .orElseThrow(() -> new ApiException(
-                        ApiStatus.NOT_FOUND, 
-                        "The line " + (rowIndex + 1) + ": Category ID " + catId + " does not exist!"));
+                        .orElseThrow(() -> new ApiException(
+                                ApiStatus.NOT_FOUND,
+                                "The line " + (rowIndex + 1) + ": Category ID " + catId + " does not exist!"));
 
-                product.setCategory(category);
+                String slug = SlugUtils.toSlug(name);
+                Product product = productMap.get(slug);
+                
+                if (product == null) {
+                    product = productRepository.findBySlug(slug).orElse(null);
 
-                productsToSave.add(product);
+                    if (product == null) {
+                        product = Product.builder()
+                                .name(name)
+                                .slug(slug)
+                                .category(category)
+                                .status(ProductStatus.active)
+                                .build();
+                    }
+                    productMap.put(slug, product);
+                }
+
+                ProductVariant variant = ProductVariant.builder()
+                        .sku(sku)
+                        .price(BigDecimal.valueOf(price))
+                        .product(product)
+                        .build();
+
+                if (product.getVariants() == null) {
+                    product.setVariants(new ArrayList<>());
+                }
+
+                product.getVariants().add(variant);
             }
 
-            productRepository.saveAll(productsToSave);
+            productRepository.saveAll(productMap.values());
         } catch (Exception e) {
             throw new ApiException(ApiStatus.INVALID_INPUT, "Error reading Excel file: " + e.getMessage());
-        }            
+        }
     }
 
 }

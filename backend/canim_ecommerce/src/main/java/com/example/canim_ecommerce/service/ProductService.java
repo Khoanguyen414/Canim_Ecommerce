@@ -3,14 +3,14 @@ package com.example.canim_ecommerce.service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.canim_ecommerce.dto.request.products.ProductCreationRequest;
+import com.example.canim_ecommerce.dto.request.products.ProductFilterRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductStatusRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductUpdateRequest;
 import com.example.canim_ecommerce.dto.response.PageResponse;
 import com.example.canim_ecommerce.dto.response.ProductResponse;
 
 public interface ProductService {
-    PageResponse<ProductResponse> getAllProducts(int pageNum, int sizePage);
-    PageResponse<ProductResponse> getProductsPublic(int pageNum, int sizePage);
+    PageResponse<ProductResponse> getProducts(ProductFilterRequest filterRequest, int pageNum, int sizePage, String sortBy, String sortDir);
     ProductResponse getProductById(Long id);   
     ProductResponse getProductBySku(String sku);   
     ProductResponse getProductBySlug(String slug);
