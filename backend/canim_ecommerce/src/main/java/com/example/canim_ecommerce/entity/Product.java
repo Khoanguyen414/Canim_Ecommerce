@@ -1,6 +1,5 @@
 package com.example.canim_ecommerce.entity;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,7 +73,7 @@ public class Product {
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
     @Builder.Default
-    ProductStatus status = ProductStatus.active;
+    ProductStatus status = ProductStatus.ACTIVE;
 
     @CreationTimestamp
     @Column(name = "created_at")
