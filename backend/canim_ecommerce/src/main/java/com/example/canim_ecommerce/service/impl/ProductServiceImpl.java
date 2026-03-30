@@ -168,7 +168,12 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
 
-        productRepository.delete(product);
+        if (product.getStatus() == ProductStatus.HIDDEN) {
+            return;
+        }
+
+        product.setStatus(ProductStatus.HIDDEN);
+        productRepository.save(product);
     }
 
     @Override
@@ -212,7 +217,7 @@ public class ProductServiceImpl implements ProductService {
                                 .name(name)
                                 .slug(slug)
                                 .category(category)
-                                .status(ProductStatus.active)
+                                .status(ProductStatus.ACTIVE)
                                 .build();
                     }
                     productMap.put(slug, product);
