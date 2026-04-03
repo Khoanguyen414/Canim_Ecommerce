@@ -1,21 +1,26 @@
 package com.example.canim_ecommerce.service.impl;
 
-import com.example.canim_ecommerce.dto.request.Supplier.SupplierRequest;
+import com.example.canim_ecommerce.dto.request.suppliers.SupplierRequest;
 import com.example.canim_ecommerce.entity.Supplier;
 import com.example.canim_ecommerce.mapper.SupplierMapper;
 import com.example.canim_ecommerce.repository.SupplierRepository;
 import com.example.canim_ecommerce.service.SupplierService;
+
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class SupplierServiceImpl implements SupplierService {
 
-    private final SupplierRepository supplierRepository;
-    private final SupplierMapper supplierMapper;
+    SupplierRepository supplierRepository;
+    SupplierMapper supplierMapper;
 
     @Override
     public Supplier createSupplier(SupplierRequest request) {
@@ -64,9 +69,10 @@ public class SupplierServiceImpl implements SupplierService {
         supplierRepository.save(existing);
     }
     @Override
-public void activateSupplier(Long id) {
-    Supplier existing = getSupplierById(id);
-    existing.setIsActive(true); // Bật lại trạng thái hoạt động
-    supplierRepository.save(existing);
-}
+    
+    public void activateSupplier(Long id) {
+        Supplier existing = getSupplierById(id);
+        existing.setIsActive(true); // Bật lại trạng thái hoạt động
+        supplierRepository.save(existing);
+    }
 }

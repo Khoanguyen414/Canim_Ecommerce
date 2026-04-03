@@ -20,15 +20,12 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ProductResponse {
     Long id;
-    String sku;
     String name;
     String slug;
     String shortDesc;
     String longDesc;
-    BigDecimal price;
-    String brand;
-    String color; 
-    String size;
+
+    List<ProductVariantResponse> variants;
 
     ProductStatus status;
 
@@ -36,7 +33,6 @@ public class ProductResponse {
     String categoryName;
     String categorySlug;
 
-    // Integer quantity;
     List<ProductImageResponse> images;
 
     LocalDateTime createdAt;

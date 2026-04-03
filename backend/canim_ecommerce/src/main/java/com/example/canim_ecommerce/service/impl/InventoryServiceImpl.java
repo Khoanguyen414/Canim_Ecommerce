@@ -11,7 +11,7 @@ import com.example.canim_ecommerce.enums.ReceiptStatus;
 import com.example.canim_ecommerce.enums.ReceiptType;
 import com.example.canim_ecommerce.mapper.InventoryMapper;
 import com.example.canim_ecommerce.repository.*;
-import com.example.canim_ecommerce.repository.inventory.*;
+
 import com.example.canim_ecommerce.service.InventoryService;
 import com.example.canim_ecommerce.utils.CodeGenerator;
 import lombok.AccessLevel;

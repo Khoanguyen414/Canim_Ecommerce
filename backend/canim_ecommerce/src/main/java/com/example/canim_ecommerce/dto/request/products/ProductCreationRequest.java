@@ -1,11 +1,13 @@
 package com.example.canim_ecommerce.dto.request.products;
 
-import java.math.BigDecimal;
+import java.util.List;
 
-import jakarta.validation.constraints.Min;
+import com.example.canim_ecommerce.dto.request.productVariants.ProductVariantRequest;
+
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,20 +22,12 @@ public class ProductCreationRequest {
     @NotBlank(message = "Product name cannot be empty")
     String name;
     
-    @NotBlank(message = "SKU cannot be empty")
-    @Size(min = 3, message = "SKU must have at least 3 charaters")
-    String sku;
-    
     String shortDesc;
-    String longDesc;
+    String longDesc; 
 
-    @NotNull(message = "Price cannot be empty")
-    @Min(value = 0, message = "Price must be bigger or equal 0")
-    BigDecimal price; 
-
-    String brand;
-    String color; 
-    String size;
+    @NotEmpty(message = "At least one product variant is required")
+    @Valid
+    List<ProductVariantRequest> variants;
 
     @NotNull(message = "Category cannot be empty")
     Integer categoryId;

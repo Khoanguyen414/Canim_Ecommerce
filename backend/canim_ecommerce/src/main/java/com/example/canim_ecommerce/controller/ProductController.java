@@ -5,12 +5,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.canim_ecommerce.dto.request.products.ProductCreationRequest;
+import com.example.canim_ecommerce.dto.request.products.ProductFilterRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductStatusRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.PageResponse;
 import com.example.canim_ecommerce.dto.response.ProductResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;
+import com.example.canim_ecommerce.enums.ProductStatus;
 import com.example.canim_ecommerce.service.ProductService;
 
 import lombok.AccessLevel;
@@ -21,6 +23,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,26 +39,29 @@ public class ProductController {
 
     @GetMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ApiResponse<PageResponse<ProductResponse>> getAllProducts(
+    public ApiResponse<PageResponse<ProductResponse>> getProducts(
+        @ModelAttribute ProductFilterRequest filterRequest,
         @RequestParam(defaultValue = "1") int pageNum,
-        @RequestParam(defaultValue = "40") int sizePage
+        @RequestParam(defaultValue = "20") int sizePage
     ) {
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
-            "Get all products successfully", 
-            productService.getAllProducts(pageNum, sizePage)
+            "Get products successfully", 
+            productService.getProducts(filterRequest, pageNum, sizePage, "updatedAt", "desc")
         );
     }
 
     @GetMapping("/public")
-    public ApiResponse<PageResponse<ProductResponse>> getProductsPublic(
+    public ApiResponse<PageResponse<ProductResponse>> getPublicProducts(
+        @ModelAttribute ProductFilterRequest filterRequest,
         @RequestParam(defaultValue = "1") int pageNum,
-        @RequestParam(defaultValue = "40") int sizePage
+        @RequestParam(defaultValue = "20") int sizePage
     ) {
+        filterRequest.setStatus(ProductStatus.active);
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
-            "Get product list success", 
-            productService.getProductsPublic(pageNum, sizePage)
+            "Get public products successfully", 
+            productService.getProducts(filterRequest, pageNum, sizePage, "createdAt", "desc")
         );
     }
     

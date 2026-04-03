@@ -22,9 +22,10 @@ public class ProductUpdateRequest {
     @Min(0)
     BigDecimal price;
 
-    String brand;
-    String color; 
-    String size;
+
+    Long brandId;
+    Long colorId;
+    Long sizeId;
 
     Integer categoryId;
 }
