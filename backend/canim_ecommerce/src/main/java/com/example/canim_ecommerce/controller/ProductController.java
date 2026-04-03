@@ -57,7 +57,7 @@ public class ProductController {
         @RequestParam(defaultValue = "1") int pageNum,
         @RequestParam(defaultValue = "20") int sizePage
     ) {
-        filterRequest.setStatus(ProductStatus.active);
+        filterRequest.setStatus(ProductStatus.ACTIVE);
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
             "Get public products successfully", 

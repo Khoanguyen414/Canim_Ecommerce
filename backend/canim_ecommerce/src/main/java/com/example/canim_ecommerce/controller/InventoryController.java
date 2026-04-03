@@ -1,7 +1,30 @@
 package com.example.canim_ecommerce.controller;
 
+<<<<<<< HEAD:backend/canim_ecommerce/src/main/java/com/example/canim_ecommerce/controller/InventoryController.java
 import com.example.canim_ecommerce.dto.request.inventory.InboundRequest;
 import com.example.canim_ecommerce.dto.request.inventory.OutboundRequest;
+=======
+<<<<<<< HEAD
+import com.example.canim_ecommerce.dto.request.inventory.InboundRequest;
+import com.example.canim_ecommerce.service.impl.WarehouseServiceImpl;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/warehouse")
+@RequiredArgsConstructor
+public class WarehouseController {
+
+    private final WarehouseServiceImpl warehouseService;
+
+    @PostMapping("/inbound")
+    public ResponseEntity<?> inbound(@RequestBody InboundRequest request) {
+        return ResponseEntity.ok(warehouseService.createInboundReceipt(request));
+=======
+import com.example.canim_ecommerce.dto.request.inventories.InboundRequest;
+import com.example.canim_ecommerce.dto.request.inventories.OutboundRequest;
+>>>>>>> main:backend/canim_ecommerce/src/main/java/com/example/canim_ecommerce/controller/WarehouseController.java
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.InboundResponse;
 import com.example.canim_ecommerce.dto.response.InventoryReportResponse;
@@ -78,6 +101,7 @@ public class InventoryController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + filename)
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(new InputStreamResource(in));
+>>>>>>> 72c17a95770e973f5c4312b110e7a2a9b3c8d059
     }
     @GetMapping("/summary")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_WAREHOUSE')")

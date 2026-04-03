@@ -9,7 +9,12 @@ import java.math.BigDecimal;
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
 public class InventoryReceiptDetail {
+<<<<<<< HEAD
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+=======
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+>>>>>>> 72c17a95770e973f5c4312b110e7a2a9b3c8d059
     private Long id;
 
     @ManyToOne
@@ -22,7 +27,11 @@ public class InventoryReceiptDetail {
 
     @ManyToOne
     @JoinColumn(name = "batch_id")
+<<<<<<< HEAD
+    private InventoryBatch batch; 
+=======
     private InventoryBatch batch;
+>>>>>>> 72c17a95770e973f5c4312b110e7a2a9b3c8d059
 
     private Integer quantity;
     private BigDecimal price;

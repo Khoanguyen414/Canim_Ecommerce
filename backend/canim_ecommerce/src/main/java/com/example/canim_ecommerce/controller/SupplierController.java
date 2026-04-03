@@ -1,5 +1,37 @@
 package com.example.canim_ecommerce.controller;
 
+<<<<<<< HEAD
+import com.example.canim_ecommerce.dto.request.Supplier.SupplierRequest;
+import com.example.canim_ecommerce.entity.Supplier;
+import com.example.canim_ecommerce.service.SupplierService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/suppliers") 
+@RequiredArgsConstructor
+public class SupplierController {
+
+    private final SupplierService supplierService;
+
+    @PostMapping
+    public ResponseEntity<Supplier> create(@Valid @RequestBody SupplierRequest request) {
+        return ResponseEntity.ok(supplierService.createSupplier(request));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Supplier>> getAll() {
+        return ResponseEntity.ok(supplierService.getAllSuppliers());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Supplier> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(supplierService.getSupplierById(id));
+=======
 import com.example.canim_ecommerce.dto.request.suppliers.SupplierRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.entity.Supplier;
@@ -53,10 +85,22 @@ public class SupplierController {
             "Lấy chi tiết thành công",
             supplierService.getSupplierById(id)
         );
+>>>>>>> 72c17a95770e973f5c4312b110e7a2a9b3c8d059
     }
 
 
     @PutMapping("/{id}")
+<<<<<<< HEAD
+    public ResponseEntity<Supplier> update(@PathVariable Long id, @Valid @RequestBody SupplierRequest request) {
+        return ResponseEntity.ok(supplierService.updateSupplier(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> delete(@PathVariable Long id) {
+        supplierService.deleteSupplier(id);
+        return ResponseEntity.ok("Đã khóa nhà cung cấp thành công.");
+    }
+=======
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<Supplier> update(@PathVariable Long id, @Valid @RequestBody SupplierRequest request) {
         return ApiResponse.success(
@@ -90,4 +134,5 @@ public ApiResponse<Void> restore(@PathVariable Long id) {
         null
     );
 }
+>>>>>>> 72c17a95770e973f5c4312b110e7a2a9b3c8d059
 }
