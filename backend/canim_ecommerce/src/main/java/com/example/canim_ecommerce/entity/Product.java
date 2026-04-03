@@ -1,6 +1,5 @@
 package com.example.canim_ecommerce.entity;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,9 +43,6 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
-    @Column(length = 100, unique = true)
-    String sku;
-
     @Column(nullable = false)
     String name;
 
@@ -59,17 +55,12 @@ public class Product {
     @Column(name = "long_desc", columnDefinition = "text")
     String longDesc;
 
-    @Column(nullable = false)
-    BigDecimal price;
-
     @Column(length = 100)
     String brand;
 
-    @Column(length = 50)
-    String color;
-
-    @Column(length = 50)
-    String size;
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    List<ProductVariant> variants = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
@@ -82,7 +73,7 @@ public class Product {
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
     @Builder.Default
-    ProductStatus status = ProductStatus.active;
+    ProductStatus status = ProductStatus.ACTIVE;
 
     @CreationTimestamp
     @Column(name = "created_at")

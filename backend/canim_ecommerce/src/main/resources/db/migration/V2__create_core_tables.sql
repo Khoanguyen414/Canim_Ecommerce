@@ -1,140 +1,177 @@
 -- V2__create_core_tables.sql
 -- 1. roles
-create table if not exists roles (
-	id int auto_increment primary key,
-    name varchar(50) not null unique
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+CREATE TABLE
+    IF NOT EXISTS roles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(50) NOT NULL UNIQUE
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- 2. users
-create table if not exists users (
-	id bigint auto_increment primary key,
-    email varchar(255) not null unique,
-    password_hash varchar(255) not null,
-    full_name varchar(200),
-    phone varchar(50),
-    is_active tinyint(1) default 1,
-    created_at datetime default current_timestamp,
-    updated_at datetime default current_timestamp on update current_timestamp
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+CREATE TABLE
+    IF NOT EXISTS users (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        full_name VARCHAR(200),
+        phone VARCHAR(50),
+        is_active TINYINT (1) DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- 3. user_roles
-create table if not exists user_roles (
-	user_id bigint not null,
-    role_id int not null,
-    primary key(user_id, role_id),
-    constraint fk_ur_user foreign key (user_id) references users(id) on delete cascade,
-    constraint fk_ur_role foreign key (role_id) references roles(id) on delete cascade
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci; 
+CREATE TABLE
+    IF NOT EXISTS user_roles (
+        user_id BIGINT NOT NULL,
+        role_id INT NOT NULL,
+        PRIMARY KEY (user_id, role_id),
+        CONSTRAINT fk_ur_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+        CONSTRAINT fk_ur_role FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- 4. categories
-create table if not exists categories (
-	id int auto_increment primary key,
-    parent_id int default null,
-    name varchar(200) not null,
-    slug varchar(255) not null unique,
-    description text,
-    created_at datetime default current_timestamp,
-    constraint fk_cat_parent foreign key (parent_id) references categories(id) on delete set null
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci; 
+CREATE TABLE
+    IF NOT EXISTS categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        parent_id INT DEFAULT NULL,
+        name VARCHAR(200) NOT NULL,
+        slug VARCHAR(255) NOT NULL UNIQUE,
+        description TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_cat_parent FOREIGN KEY (parent_id) REFERENCES categories (id) ON DELETE SET NULL
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- 5. products
-create table if not exists products (
-	id bigint auto_increment primary key,
-    sku varchar(100) unique,
-    name varchar(255) not null,
-	slug varchar(255) not null unique,
-    short_desc varchar(512),
-    long_desc text,
-    price decimal(12,2) not null,
-    brand varchar(100),
-    category_id int,
-    status enum('active', 'inactive', 'hidden') default 'active',
-    created_at datetime default current_timestamp,
-    updated_at datetime default current_timestamp on update current_timestamp,
-    constraint fk_prod_category foreign key (category_id) references categories(id) on delete set null
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci; 
+CREATE TABLE
+    IF NOT EXISTS products (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) NOT NULL UNIQUE,
+        short_desc VARCHAR(512),
+        long_desc TEXT,
+        brand VARCHAR(100),
+        category_id INT,
+        status ENUM ('ACTIVE', 'INACTIVE', 'HIDDEN') DEFAULT 'ACTIVE',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        CONSTRAINT fk_prod_category FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
--- 6. product_images
-create table if not exists product_images (
-	id bigint auto_increment primary key,
-    product_id bigint not null,
-    url varchar(1024),
-    position int default 0,
-    is_main tinyint(1) default 0,
-    constraint fk_img_prod foreign key (product_id) references products(id) on delete cascade
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci; 
+-- 6. product_variants
+CREATE TABLE
+    IF NOT EXISTS product_variants (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        product_id BIGINT NOT NULL,
+        sku VARCHAR(100) NOT NULL UNIQUE,
+        color VARCHAR(50),
+        size VARCHAR(50),
+        price DECIMAL(15, 2) NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        CONSTRAINT fk_variant_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
--- 7. inventory
-create table if not exists inventory (
-	id bigint auto_increment primary key,
-    product_id bigint not null,
-    sku varchar(100) not null,
-    quantity int default 0,
-    reserved int default 0,
-    updated_at datetime default current_timestamp on update current_timestamp,
-    unique key uq_inventory_product_sku (product_id, sku),
-    constraint fk_inv_prod foreign key (product_id) references products(id) on delete cascade
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci; 
+-- 7. product_images
+CREATE TABLE
+    IF NOT EXISTS product_images (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        product_id BIGINT NOT NULL,
+        url VARCHAR(1024),
+        position INT DEFAULT 0,
+        is_main TINYINT (1) DEFAULT 0,
+        CONSTRAINT fk_img_prod FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
--- 8. carts + cart_items
-create table if not exists carts (
-	id bigint auto_increment primary key,
-    user_id bigint not null,
-    created_at datetime default current_timestamp,
-    updated_at datetime default current_timestamp on update current_timestamp,
-    constraint fk_cart_user foreign key (user_id) references users(id) on delete cascade
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci; 
+-- 8. inventory
+CREATE TABLE
+    IF NOT EXISTS inventory (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        variant_id BIGINT NOT NULL,
+        quantity INT DEFAULT 0,
+        reserved INT DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_inventory_variant (variant_id),
+        CONSTRAINT fk_inv_variant FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE CASCADE
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
-create table if not exists cart_items (
-	id bigint auto_increment primary key,
-    cart_id bigint not null,
-    product_id bigint not null,
-    sku varchar(100),
-    quantity int not null,
-    price decimal(12,2) not null,
-    added_at datetime default current_timestamp,
-    constraint fk_ci_cart foreign key (cart_id) references carts(id) on delete cascade,
-    constraint fk_ci_prod foreign key (product_id) references products(id) on delete cascade
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+-- 9. carts + cart_items
+CREATE TABLE
+    IF NOT EXISTS carts (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
--- 9. orders + order_items
-create table if not exists orders (
-	id bigint auto_increment primary key,
-    order_no varchar(64) not null unique,
-    user_id bigint,
-    total_amount decimal(12,2) not null,
-    discount_amount decimal(12,2) default 0,
-    status enum('pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded') default 'pending',
-    created_at datetime default current_timestamp,
-    updated_at datetime default current_timestamp on update current_timestamp,
-    constraint fk_order_user foreign key (user_id) references users(id) 
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+CREATE TABLE
+    IF NOT EXISTS cart_items (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        cart_id BIGINT NOT NULL,
+        variant_id BIGINT NOT NULL,
+        quantity INT NOT NULL,
+        price DECIMAL(15, 2) NOT NULL,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_ci_cart FOREIGN KEY (cart_id) REFERENCES carts (id) ON DELETE CASCADE,
+        CONSTRAINT fk_ci_variant FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE CASCADE
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
-create table if not exists order_items (
-	id bigint auto_increment primary key,
-    order_id bigint not null,
-	product_id bigint not null,
-	sku varchar(100),
-	quantity int not null,
-	price decimal(12,2) not null,
-	constraint fk_oi_order foreign key (order_id) references orders(id) on delete cascade,
-	constraint fk_oi_prod foreign key (product_id) references products(id)
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+-- 10. orders + order_items
+CREATE TABLE
+    IF NOT EXISTS orders (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        order_no VARCHAR(64) NOT NULL UNIQUE,
+        user_id BIGINT,
+        total_amount DECIMAL(15, 2) NOT NULL,
+        discount_amount DECIMAL(15, 2) DEFAULT 0,
+        status ENUM (
+            'PENDING',
+            'PAID',
+            'PROCESSING',
+            'SHIPPED',
+            'DELIVERED',
+            'CANCELLED',
+            'REFUNDED'
+        ) DEFAULT 'PENDING',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        CONSTRAINT fk_order_user FOREIGN KEY (user_id) REFERENCES users (id)
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE
+    IF NOT EXISTS order_items (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        order_id BIGINT NOT NULL,
+        variant_id BIGINT NOT NULL,
+        quantity INT NOT NULL,
+        price DECIMAL(15, 2) NOT NULL,
+        CONSTRAINT fk_oi_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
+        CONSTRAINT fk_oi_variant FOREIGN KEY (variant_id) REFERENCES product_variants (id)
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- Indexes for performance (basic)
-create index idx_products_category on products(category_id);
-create index idx_inventory_product on inventory(product_id);
-create index idx_orders_created_at on orders(created_at);
+CREATE INDEX idx_products_category ON products (category_id);
+
+CREATE INDEX idx_inventory_variant ON inventory (variant_id);
+
+CREATE INDEX idx_orders_created_at ON orders (created_at);
 
 -- 10. user_events (lightweight for AI later)
-create table if not exists user_events (
-	id bigint auto_increment primary key,
-    user_id bigint,
-    product_id bigint,
-    event_type enum('view', 'click', 'add_to_cart', 'purchase', 'search') not null,
-    event_meta json,
-    occurred_at datetime default current_timestamp,
-    index idx_event_user_product (user_id, product_id, event_type),
-    constraint fk_event_user foreign key (user_id) references users(id),
-    constraint fk_event_product foreign key (product_id) references products(id) on delete cascade
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+CREATE TABLE
+    IF NOT EXISTS user_events (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT,
+        product_id BIGINT,
+        event_type ENUM (
+            'VIEW',
+            'CLICK',
+            'ADD_TO_CART',
+            'PURCHASE',
+            'SEARCH'
+        ) NOT NULL,
+        event_meta JSON,
+        occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_event_user_product (user_id, product_id, event_type),
+        CONSTRAINT fk_event_user FOREIGN KEY (user_id) REFERENCES users (id),
+        CONSTRAINT fk_event_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

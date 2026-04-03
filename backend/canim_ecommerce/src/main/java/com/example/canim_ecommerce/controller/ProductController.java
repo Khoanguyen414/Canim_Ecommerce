@@ -1,29 +1,29 @@
 package com.example.canim_ecommerce.controller;
 
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.canim_ecommerce.dto.request.products.ProductCreationRequest;
+import com.example.canim_ecommerce.dto.request.products.ProductFilterRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductStatusRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
+import com.example.canim_ecommerce.dto.response.PageResponse;
 import com.example.canim_ecommerce.dto.response.ProductResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;
+import com.example.canim_ecommerce.enums.ProductStatus;
 import com.example.canim_ecommerce.service.ProductService;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
-import org.springdoc.core.annotations.ParameterObject;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,13 +38,30 @@ public class ProductController {
     ProductService productService;
 
     @GetMapping
-    public ApiResponse<Page<ProductResponse>> getAllProducts(
-        @ParameterObject @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) 
-        Pageable pageable) {
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ApiResponse<PageResponse<ProductResponse>> getProducts(
+        @ModelAttribute ProductFilterRequest filterRequest,
+        @RequestParam(defaultValue = "1") int pageNum,
+        @RequestParam(defaultValue = "20") int sizePage
+    ) {
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
             "Get products successfully", 
-            productService.getAllProducts(pageable)
+            productService.getProducts(filterRequest, pageNum, sizePage, "updatedAt", "desc")
+        );
+    }
+
+    @GetMapping("/public")
+    public ApiResponse<PageResponse<ProductResponse>> getPublicProducts(
+        @ModelAttribute ProductFilterRequest filterRequest,
+        @RequestParam(defaultValue = "1") int pageNum,
+        @RequestParam(defaultValue = "20") int sizePage
+    ) {
+        filterRequest.setStatus(ProductStatus.ACTIVE);
+        return ApiResponse.success(
+            ApiStatus.SUCCESS, 
+            "Get public products successfully", 
+            productService.getProducts(filterRequest, pageNum, sizePage, "createdAt", "desc")
         );
     }
     

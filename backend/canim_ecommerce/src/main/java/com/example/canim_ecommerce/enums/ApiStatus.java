@@ -18,7 +18,11 @@ public enum ApiStatus {
     METHOD_NOT_SUPPORTED(405, "Method not supported"),
     RESOURCE_EXIST(409, "Resource already exists"),
     FILE_TOO_LARGE(413, "File too large"),
+    CREATED(201, "Created"),  
+    CONFLICT(409, "Conflict"),
     INTERNAL_SERVER_ERROR(500, "Internal server error");
+
+    
 
     int statusCode;
     String message;

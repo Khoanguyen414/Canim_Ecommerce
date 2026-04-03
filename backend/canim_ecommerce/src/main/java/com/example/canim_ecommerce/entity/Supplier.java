@@ -22,10 +22,18 @@ public class Supplier {
     @Column(nullable = false)
     private String name;
 
+<<<<<<< HEAD
     @Column(name = "contact_person", nullable = false)
     private String contactPerson;
 
     @Column(nullable = false, unique = true)
+=======
+    // QUAN TRỌNG: Mapping tên cột trong Database (contact_person)
+    @Column(name = "contact_person", nullable = false, length = 100)
+    private String contactPerson;
+
+    @Column(nullable = false, unique = true, length = 100)
+>>>>>>> 72c17a95770e973f5c4312b110e7a2a9b3c8d059
     private String email;
 
     @Column(nullable = false, length = 20)
