@@ -4,33 +4,34 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-import java.math.BigDecimal;
-
 @Entity
-@Table(name = "inventory_receipt_details")
+@Table(name = "stock_check_details")
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class InventoryReceiptDetail {
+public class StockCheckDetail {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "receipt_id", nullable = false)
-    InventoryReceipt receipt;
+    @JoinColumn(name = "check_id", nullable = false)
+    StockCheck stockCheck;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "variant_id", nullable = false)
     ProductVariant variant;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "batch_id")
-    InventoryBatch batch;
+    @Column(name = "system_quantity", nullable = false)
+    Integer systemQuantity; 
 
-    @Column(nullable = false)
-    Integer quantity;
+    @Column(name = "actual_quantity", nullable = false)
+    Integer actualQuantity;
 
-    @Column(name = "unit_price", precision = 15, scale = 2)
-    BigDecimal unitPrice; 
+   
+    @Column(insertable = false, updatable = false)
+    Integer difference; 
+
+    @Column(columnDefinition = "TEXT")
+    String reason; 
 }

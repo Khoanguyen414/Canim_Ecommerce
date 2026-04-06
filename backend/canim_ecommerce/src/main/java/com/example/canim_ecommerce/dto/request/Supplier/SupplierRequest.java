@@ -1,30 +1,31 @@
-package com.example.canim_ecommerce.dto.request.Supplier;
+package com.example.canim_ecommerce.dto.request.supplier;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.experimental.FieldDefaults;
 
 @Data
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class SupplierRequest {
-    
-    @NotBlank(message = "Mã nhà cung cấp không được để trống")
-    private String code;
 
-    @NotBlank(message = "Tên nhà cung cấp không được để trống")
-    private String name;
+    @NotBlank(message = "Supplier code must not be blank")
+    @Size(max = 50, message = "Supplier code must not exceed 50 characters")
+    String code;
 
-    @NotBlank(message = "Người liên hệ không được để trống")
-    private String contactPerson;
+    @NotBlank(message = "Supplier name must not be blank")
+    String name;
 
-    @NotBlank(message = "Email không được để trống")
-    @Email(message = "Email không đúng định dạng")
-    private String email;
+    String contactPerson;
 
-    @NotBlank(message = "Số điện thoại không được để trống")
-    @Pattern(regexp = "(84|0[3|5|7|8|9])+([0-9]{8})\\b", message = "Số điện thoại không hợp lệ")
-    private String phone;
+    @NotBlank(message = "Email must not be blank")
+    @Email(message = "Invalid email format")
+    String email;
 
-    @NotBlank(message = "Địa chỉ không được để trống")
-    private String address;
+    @NotBlank(message = "Phone number must not be blank")
+    String phone;
+
+    String address;
 }

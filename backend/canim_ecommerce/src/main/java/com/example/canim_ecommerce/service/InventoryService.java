@@ -2,22 +2,9 @@ package com.example.canim_ecommerce.service;
 
 import com.example.canim_ecommerce.dto.request.inventory.InboundRequest;
 import com.example.canim_ecommerce.dto.request.inventory.OutboundRequest;
-import com.example.canim_ecommerce.dto.response.InboundResponse;
-import com.example.canim_ecommerce.dto.response.InventoryReportResponse;
-import com.example.canim_ecommerce.dto.response.InventorySummaryResponse;
-
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.util.List;
-
 public interface InventoryService {
-    InboundResponse createInboundReceipt(InboundRequest request);
-
+    void createInboundReceipt(InboundRequest request);
     void createOutboundReceipt(OutboundRequest request);
-
-    List<InventoryReportResponse> getInventoryReport();
-    
-    ByteArrayInputStream exportStocktakeReport() throws IOException;
-
-    InventorySummaryResponse getInventorySummary();
+    byte[] exportInventoryReport();
 }

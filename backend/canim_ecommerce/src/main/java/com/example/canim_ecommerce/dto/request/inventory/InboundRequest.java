@@ -1,70 +1,48 @@
-<<<<<<< HEAD
 package com.example.canim_ecommerce.dto.request.inventory;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
-=======
-package com.example.canim_ecommerce.dto.request.inventory; 
 
-import jakarta.validation.constraints.NotNull;
-import lombok.Data;
->>>>>>> main
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
-<<<<<<< HEAD
-@NoArgsConstructor
-@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class InboundRequest {
-    
-    @NotNull(message = "Supplier ID cannot be null")
+
+    @NotNull(message = "Supplier ID is required")
     Long supplierId;
-    
+
+    @NotBlank(message = "Reason code is required (e.g., PURCHASE, CUSTOMER_RETURN)")
+    String reasonCode;
+
     String note;
-    
+
     @NotEmpty(message = "Items list cannot be empty")
+    @Valid
     List<InboundItem> items;
 
     @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class InboundItem {
-        @NotNull(message = "Product ID cannot be null")
-        Long productId;
-        
-        @NotNull(message = "Quantity cannot be null")
-        Integer quantity;
-        
-        @NotNull(message = "Price cannot be null")
-        BigDecimal price;
-=======
-public class InboundRequest {
-    @NotNull(message = "Nhà cung cấp không được để trống")
-    private Long supplierId;
-    
-    private String note;
-    
-    @NotNull(message = "Danh sách sản phẩm không được trống")
-    private List<InboundItem> items;
+        @NotNull(message = "Variant ID is required")
+        Long variantId;
 
-    @Data
-    public static class InboundItem {
-        @NotNull(message = "ID sản phẩm không được trống")
-        private Long productId;
-        
-        @NotNull(message = "Số lượng nhập phải lớn hơn 0")
-        private Integer quantity; 
-        
-        @NotNull(message = "Giá nhập không được trống")
-        private BigDecimal price; 
->>>>>>> main
+        @NotNull(message = "Quantity is required")
+        @Min(value = 1, message = "Quantity must be greater than 0")
+        Integer quantity;
+
+        @NotNull(message = "Price is required")
+        @Min(value = 0, message = "Price cannot be negative")
+        BigDecimal price;
+
+        LocalDateTime expiredAt; 
     }
 }

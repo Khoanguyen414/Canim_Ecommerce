@@ -1,21 +1,45 @@
 package com.example.canim_ecommerce.mapper;
 
-import com.example.canim_ecommerce.dto.response.InboundResponse;
-import com.example.canim_ecommerce.entity.InventoryReceipt;
-import com.example.canim_ecommerce.entity.InventoryReceiptDetail;
+import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.NullValuePropertyMappingStrategy;
+
+import com.example.canim_ecommerce.dto.request.inventory.InboundRequest;
+import com.example.canim_ecommerce.dto.request.inventory.OutboundRequest;
+import com.example.canim_ecommerce.entity.InventoryReceipt;
 
 @Mapper(componentModel = "spring")
 public interface InventoryMapper {
 
-    @Mapping(target = "supplierName", source = "supplier.name")
-    @Mapping(target = "details", source = "details")
-    InboundResponse toInboundResponse(InventoryReceipt receipt);
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "receiptCode", ignore = true)
+    @Mapping(target = "warehouseId", ignore = true)
+    @Mapping(target = "type", ignore = true)
+    @Mapping(target = "supplier", ignore = true)
+    @Mapping(target = "orderId", ignore = true)
+    @Mapping(target = "status", ignore = true)
+    @Mapping(target = "isDeleted", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "updatedBy", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "details", ignore = true)
+    InventoryReceipt toReceiptFromInbound(InboundRequest request);
 
-    @Mapping(target = "productId", source = "product.id")
-    @Mapping(target = "productName", source = "product.name")
-    @Mapping(target = "sku", source = "batch.sku") // Map SKU from batch
-    @Mapping(target = "batchCode", source = "batch.batchCode")
-    InboundResponse.DetailResponse toDetailResponse(InventoryReceiptDetail detail);
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "receiptCode", ignore = true)
+    @Mapping(target = "warehouseId", ignore = true)
+    @Mapping(target = "type", ignore = true)
+    @Mapping(target = "supplier", ignore = true)
+    @Mapping(target = "status", ignore = true)
+    @Mapping(target = "isDeleted", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "updatedBy", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "details", ignore = true)
+    InventoryReceipt toReceiptFromOutbound(OutboundRequest request);
 }

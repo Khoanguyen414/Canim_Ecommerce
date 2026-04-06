@@ -1,5 +1,6 @@
 package com.example.canim_ecommerce.entity;
 
+import com.example.canim_ecommerce.enums.StockCheckStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -7,46 +8,39 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
-@Table(name = "suppliers")
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@Table(name = "stock_checks")
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class Supplier {
+public class StockCheck {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
+    @Column(name = "warehouse_id", nullable = false)
+    Long warehouseId;
+
     @Column(nullable = false, unique = true, length = 50)
     String code;
 
-    @Column(nullable = false, length = 255)
-    String name;
+    @Column(name = "staff_id")
+    Long staffId;
 
-    @Column(name = "contact_person", length = 100)
-    String contactPerson;
-
-    @Column(nullable = false, unique = true, length = 100)
-    String email;
-
-    @Column(nullable = false, length = 20)
-    String phone;
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    StockCheckStatus status = StockCheckStatus.DRAFT;
 
     @Column(columnDefinition = "TEXT")
-    String address;
+    String note;
 
-    @Column(name = "is_active")
-    @Builder.Default
-    Boolean isActive = true;
+    @Column(name = "created_by")
+    Long createdBy;
 
-    // Soft delete: Giữ lại data để không làm hỏng lịch sử nhập/xuất kho cũ
-    @Column(name = "is_deleted")
-    @Builder.Default
-    Boolean isDeleted = false;
+    @Column(name = "updated_by")
+    Long updatedBy;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -55,4 +49,7 @@ public class Supplier {
     @UpdateTimestamp
     @Column(name = "updated_at")
     LocalDateTime updatedAt;
+
+    @OneToMany(mappedBy = "stockCheck", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    List<StockCheckDetail> details;
 }

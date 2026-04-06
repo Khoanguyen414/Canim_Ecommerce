@@ -1,18 +1,18 @@
 package com.example.canim_ecommerce.entity;
 
+import com.example.canim_ecommerce.enums.TransactionType;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.CreationTimestamp;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "inventory_batches")
+@Table(name = "inventory_transactions")
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class InventoryBatch {
+public class InventoryTransaction {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,20 +25,25 @@ public class InventoryBatch {
     @JoinColumn(name = "variant_id", nullable = false)
     ProductVariant variant;
 
-    @Column(name = "batch_code", nullable = false)
-    String batchCode;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "batch_id")
+    InventoryBatch batch;
 
-    @Column(name = "sku_snapshot", length = 50)
-    String skuSnapshot;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    TransactionType type;
 
-    @Column(name = "quantity_remaining", nullable = false)
-    Integer quantityRemaining;
+    @Column(nullable = false)
+    Integer quantity; 
 
-    @Column(name = "import_price", precision = 15, scale = 2)
-    BigDecimal importPrice; // Dùng BigDecimal chuẩn kế toán thay cho Double
+    @Column(name = "reference_id")
+    Long referenceId;
 
-    @Column(name = "expired_at")
-    LocalDateTime expiredAt;
+    @Column(name = "reference_type", length = 50)
+    String referenceType; 
+
+    @Column(name = "created_by")
+    Long createdBy;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
