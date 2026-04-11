@@ -55,4 +55,10 @@ public class Supplier {
     @UpdateTimestamp
     @Column(name = "updated_at")
     LocalDateTime updatedAt;
+
+    @Column(name = "created_by")
+    Long createdBy; 
+
+    @Column(name = "updated_by")
+    Long updatedBy; 
 }

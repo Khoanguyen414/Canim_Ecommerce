@@ -8,7 +8,5 @@ import java.util.List;
 
 @Repository
 public interface WarehouseRepository extends JpaRepository<Warehouse, Long> {
-    
-    // Lấy danh sách kho chưa bị xóa, sắp xếp mới nhất lên đầu
     List<Warehouse> findByIsDeletedFalseOrderByIdDesc();
 }

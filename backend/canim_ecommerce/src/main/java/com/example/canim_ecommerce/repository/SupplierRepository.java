@@ -9,9 +9,8 @@ import java.util.Optional;
 
 @Repository
 public interface SupplierRepository extends JpaRepository<Supplier, Long> {
-    
-    List<Supplier> findByIsDeletedFalseOrderByIdDesc();
     Optional<Supplier> findByIdAndIsDeletedFalse(Long id);
+    List<Supplier> findByIsDeletedFalseOrderByIdDesc();
     boolean existsByCode(String code);
     boolean existsByEmail(String email);
 }

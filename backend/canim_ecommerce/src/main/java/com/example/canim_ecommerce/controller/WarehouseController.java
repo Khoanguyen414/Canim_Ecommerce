@@ -24,35 +24,30 @@ public class WarehouseController {
 
     WarehouseService warehouseService;
 
-    // 🟢 THỦ KHO ĐƯỢC XEM
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_WAREHOUSE')")
     public ApiResponse<List<Warehouse>> getAllWarehouses() {
         return ApiResponse.success(ApiStatus.SUCCESS, warehouseService.getAllWarehouses());
     }
 
-    // 🟢 THỦ KHO ĐƯỢC XEM CHI TIẾT
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_WAREHOUSE')")
     public ApiResponse<Warehouse> getWarehouseById(@PathVariable Long id) {
         return ApiResponse.success(ApiStatus.SUCCESS, warehouseService.getWarehouseById(id));
     }
 
-    // 🔴 CHỈ ADMIN ĐƯỢC TẠO
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<Warehouse> createWarehouse(@RequestBody @Valid WarehouseRequest request) {
         return ApiResponse.success(ApiStatus.SUCCESS, warehouseService.createWarehouse(request));
     }
 
-    // 🔴 CHỈ ADMIN ĐƯỢC SỬA
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<Warehouse> updateWarehouse(@PathVariable Long id, @RequestBody @Valid WarehouseRequest request) {
         return ApiResponse.success(ApiStatus.SUCCESS, warehouseService.updateWarehouse(id, request));
     }
 
-    // 🔴 CHỈ ADMIN ĐƯỢC XÓA
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<Void> deleteWarehouse(@PathVariable Long id) {

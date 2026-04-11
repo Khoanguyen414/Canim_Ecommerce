@@ -17,6 +17,9 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class InboundRequest {
 
+    @NotNull(message = "Warehouse ID is required")
+    Long warehouseId; // Đã bổ sung để fix lỗi getWarehouseId()
+
     @NotNull(message = "Supplier ID is required")
     Long supplierId;
 

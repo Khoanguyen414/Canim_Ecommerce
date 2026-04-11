@@ -13,9 +13,7 @@ import java.time.LocalDateTime;
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class InventoryBatch {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
     @Column(name = "warehouse_id", nullable = false)
@@ -25,9 +23,14 @@ public class InventoryBatch {
     @JoinColumn(name = "variant_id", nullable = false)
     ProductVariant variant;
 
-    @Column(name = "batch_code", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id")
+    Supplier supplier;
+
+    @Column(name = "batch_code", nullable = false, unique = true)
     String batchCode;
 
+    // --- ĐÂY LÀ TRƯỜNG BẠN CẦN THÊM ---
     @Column(name = "sku_snapshot", length = 50)
     String skuSnapshot;
 
@@ -35,7 +38,7 @@ public class InventoryBatch {
     Integer quantityRemaining;
 
     @Column(name = "import_price", precision = 15, scale = 2)
-    BigDecimal importPrice; // Dùng BigDecimal chuẩn kế toán thay cho Double
+    BigDecimal importPrice;
 
     @Column(name = "expired_at")
     LocalDateTime expiredAt;

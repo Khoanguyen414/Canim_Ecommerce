@@ -3,13 +3,13 @@ package com.example.canim_ecommerce.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.Formula;
 
 @Entity
 @Table(name = "stock_check_details")
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class StockCheckDetail {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
@@ -28,8 +28,7 @@ public class StockCheckDetail {
     @Column(name = "actual_quantity", nullable = false)
     Integer actualQuantity;
 
-   
-    @Column(insertable = false, updatable = false)
+    @Formula("actual_quantity - system_quantity")
     Integer difference; 
 
     @Column(columnDefinition = "TEXT")

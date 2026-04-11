@@ -14,6 +14,9 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class StockCheckRequest {
 
+    @NotNull(message = "Warehouse ID is required")
+    Long warehouseId; // Bổ sung để xác định kho cần kiểm kê
+
     String note;
 
     @NotEmpty(message = "Stock check items must not be empty")
