@@ -13,7 +13,7 @@ import com.example.canim_ecommerce.entity.Product;
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product>{
     boolean existsBySlug(String slug);
-    boolean existsBySku(String sku);
+   
 
     Optional<Product> findBySlug(String slug);
     // Optional<Inventory> findByProduct(Product product);

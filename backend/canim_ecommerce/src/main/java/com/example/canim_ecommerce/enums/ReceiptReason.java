@@ -5,5 +5,6 @@ public enum ReceiptReason {
     RETURN_TO_SUPPLIER,
     SALES_ORDER,        
     DAMAGE,            
-    STOCKTAKE_ADJUST   
+    STOCKTAKE_ADJUST,
+    RETURN_FROM_CUSTOMER
 }

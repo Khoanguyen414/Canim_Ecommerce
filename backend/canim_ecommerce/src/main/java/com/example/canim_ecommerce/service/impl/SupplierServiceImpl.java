@@ -1,7 +1,15 @@
 package com.example.canim_ecommerce.service.impl;
 
-import com.example.canim_ecommerce.dto.request.suppliers.SupplierRequest;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.canim_ecommerce.dto.request.supplier.SupplierRequest;
+import com.example.canim_ecommerce.dto.response.SupplierResponse;
 import com.example.canim_ecommerce.entity.Supplier;
+import com.example.canim_ecommerce.enums.ApiStatus;
+import com.example.canim_ecommerce.exception.ApiException;
 import com.example.canim_ecommerce.mapper.SupplierMapper;
 import com.example.canim_ecommerce.repository.SupplierRepository;
 import com.example.canim_ecommerce.service.SupplierService;
@@ -9,10 +17,6 @@ import com.example.canim_ecommerce.service.SupplierService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-
-import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,56 +27,58 @@ public class SupplierServiceImpl implements SupplierService {
     SupplierMapper supplierMapper;
 
     @Override
-    public Supplier createSupplier(SupplierRequest request) {
+    public List<SupplierResponse> getAllSuppliers() {
+        List<Supplier> suppliers = supplierRepository.findByIsDeletedFalseOrderByIdDesc();
+        return supplierMapper.toSupplierResponseList(suppliers);
+    }
+
+    @Override
+    public SupplierResponse getSupplierById(Long id) {
+        Supplier supplier = supplierRepository.findByIdAndIsDeletedFalse(id)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Supplier not found or has been deleted"));
+        return supplierMapper.toSupplierResponse(supplier);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public SupplierResponse createSupplier(SupplierRequest request) {
         if (supplierRepository.existsByCode(request.getCode())) {
-            throw new RuntimeException("Mã nhà cung cấp đã tồn tại: " + request.getCode());
+            throw new ApiException(ApiStatus.RESOURCE_EXIST, "Supplier code already exists.");
         }
         if (supplierRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email đã tồn tại: " + request.getEmail());
+            throw new ApiException(ApiStatus.RESOURCE_EXIST, "Supplier email already exists.");
         }
 
-        Supplier supplier = supplierMapper.toEntity(request);
-        supplier.setIsActive(true); 
-        return supplierRepository.save(supplier);
+        Supplier supplier = supplierMapper.toSupplier(request);
+        supplier.setCode(request.getCode().trim().toUpperCase());
+        supplier.setEmail(request.getEmail().trim().toLowerCase());
+        
+        return supplierMapper.toSupplierResponse(supplierRepository.save(supplier));
     }
 
     @Override
-    public List<Supplier> getAllSuppliers() {
-        return supplierRepository.findAll();
-    }
+    @Transactional(rollbackFor = Exception.class)
+    public SupplierResponse updateSupplier(Long id, SupplierRequest request) {
+        Supplier supplier = supplierRepository.findByIdAndIsDeletedFalse(id)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Supplier not found"));
 
-    @Override
-    public Supplier getSupplierById(Long id) {
-        return supplierRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy Supplier ID: " + id));
-    }
-
-    @Override
-    public Supplier updateSupplier(Long id, SupplierRequest request) {
-        Supplier existing = getSupplierById(id);
-
-        if (!existing.getCode().equals(request.getCode()) && supplierRepository.existsByCode(request.getCode())) {
-            throw new RuntimeException("Mã mới bị trùng");
-        }
-        if (!existing.getEmail().equals(request.getEmail()) && supplierRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email mới bị trùng");
+        if (!supplier.getCode().equalsIgnoreCase(request.getCode()) && supplierRepository.existsByCode(request.getCode())) {
+            throw new ApiException(ApiStatus.RESOURCE_EXIST, "Supplier code already exists.");
         }
 
-        supplierMapper.updateEntity(existing, request);
-        return supplierRepository.save(existing);
+        supplierMapper.updateSupplier(supplier, request);
+        supplier.setCode(request.getCode().trim().toUpperCase());
+        
+        return supplierMapper.toSupplierResponse(supplierRepository.save(supplier));
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteSupplier(Long id) {
-        Supplier existing = getSupplierById(id);
-        existing.setIsActive(false); // Soft delete
-        supplierRepository.save(existing);
-    }
-    @Override
-    
-    public void activateSupplier(Long id) {
-        Supplier existing = getSupplierById(id);
-        existing.setIsActive(true); // Bật lại trạng thái hoạt động
-        supplierRepository.save(existing);
+        Supplier supplier = supplierRepository.findByIdAndIsDeletedFalse(id)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Supplier not found"));
+        supplier.setIsDeleted(true);
+        supplier.setIsActive(false);
+        supplierRepository.save(supplier);
     }
 }
