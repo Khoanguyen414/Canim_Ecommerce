@@ -1,20 +1,27 @@
 package com.example.canim_ecommerce.mapper;
 
-import com.example.canim_ecommerce.dto.response.InboundResponse;
-import com.example.canim_ecommerce.entity.InventoryReceipt;
-import com.example.canim_ecommerce.entity.InventoryReceiptDetail;
+import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
+import org.mapstruct.NullValuePropertyMappingStrategy;
+
+import com.example.canim_ecommerce.dto.request.warehouse.WarehouseRequest;
+import com.example.canim_ecommerce.entity.Warehouse;
 
 @Mapper(componentModel = "spring")
 public interface WarehouseMapper {
-    @Mapping(target = "supplierName", source = "supplier.name")
-    @Mapping(target = "details", source = "details")
-    InboundResponse toResponse(InventoryReceipt receipt);
 
-    @Mapping(target = "productId", source = "product.id") 
-    @Mapping(target = "productName", source = "product.name")
-    @Mapping(target = "sku", source = "batch.sku") // Lấy SKU từ Batch
-    @Mapping(target = "batchCode", source = "batch.batchCode") 
-    InboundResponse.DetailResponse toDetail(InventoryReceiptDetail detail);
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "isActive", ignore = true)
+    @Mapping(target = "isDeleted", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    Warehouse toWarehouse(WarehouseRequest request);
+
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "isActive", ignore = true)
+    @Mapping(target = "isDeleted", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    void updateWarehouse(@MappingTarget Warehouse warehouse, WarehouseRequest request);
 }
