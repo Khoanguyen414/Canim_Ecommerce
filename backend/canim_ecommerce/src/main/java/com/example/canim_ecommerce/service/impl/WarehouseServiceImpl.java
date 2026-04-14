@@ -67,7 +67,7 @@ public class WarehouseServiceImpl implements WarehouseService {
             // Tạo Lô hàng mới (Batch)
             InventoryBatch batch = InventoryBatch.builder()
                     .product(product)
-                    .sku(product.getSku()) // Snapshot SKU
+                    // .sku(product.getSku()) // Snapshot SKU
                     .batchCode(CodeGenerator.generateBatchCode(product.getId()))
                     .quantityRemaining(item.getQuantity())
                     .importPrice(item.getPrice())
@@ -218,7 +218,7 @@ public class WarehouseServiceImpl implements WarehouseService {
             int col = 0;
             createCell(row, col++, item.getReceipt().getCreatedAt().toString(), dataStyle);
             createCell(row, col++, item.getReceipt().getReceiptCode(), dataStyle);
-            createCell(row, col++, item.getProduct().getSku(), dataStyle);
+            // createCell(row, col++, item.getProduct().getSku(), dataStyle);
             createCell(row, col++, item.getProduct().getName(), dataStyle);
             createCell(row, col++, item.getReceipt().getSupplier().getName(), dataStyle);
             createCell(row, col++, item.getQuantity(), dataStyle);
@@ -242,7 +242,7 @@ public class WarehouseServiceImpl implements WarehouseService {
             int col = 0;
             createCell(row, col++, item.getReceipt().getCreatedAt().toString(), dataStyle);
             createCell(row, col++, item.getReceipt().getReceiptCode(), dataStyle);
-            createCell(row, col++, item.getProduct().getSku(), dataStyle);
+            // createCell(row, col++, item.getProduct().getSku(), dataStyle);
             createCell(row, col++, item.getProduct().getName(), dataStyle);
             createCell(row, col++, item.getReceipt().getReason().toString(), dataStyle);
             createCell(row, col++, item.getQuantity(), dataStyle);
