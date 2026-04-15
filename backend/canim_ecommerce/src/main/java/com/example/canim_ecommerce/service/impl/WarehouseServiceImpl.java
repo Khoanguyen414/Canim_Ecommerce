@@ -1,48 +1,33 @@
 package com.example.canim_ecommerce.service.impl;
 
-import com.example.canim_ecommerce.dto.request.inventories.InboundRequest;
-import com.example.canim_ecommerce.dto.request.inventories.OutboundRequest;
-import com.example.canim_ecommerce.dto.response.InboundResponse;
-import com.example.canim_ecommerce.dto.response.InventoryReportResponse;
-import com.example.canim_ecommerce.entity.*;
-import com.example.canim_ecommerce.enums.ReceiptReason;
-import com.example.canim_ecommerce.enums.ReceiptStatus;
-import com.example.canim_ecommerce.enums.ReceiptType;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.canim_ecommerce.dto.request.warehouse.WarehouseRequest;
+import com.example.canim_ecommerce.entity.Warehouse;
+import com.example.canim_ecommerce.enums.ApiStatus;
+import com.example.canim_ecommerce.exception.ApiException;
 import com.example.canim_ecommerce.mapper.WarehouseMapper;
-import com.example.canim_ecommerce.repository.*;
+import com.example.canim_ecommerce.repository.WarehouseRepository;
 import com.example.canim_ecommerce.service.WarehouseService;
-import com.example.canim_ecommerce.utils.CodeGenerator;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class WarehouseServiceImpl implements WarehouseService {
 
-   InventoryReceiptRepository receiptRepo;
-   InventoryReceiptDetailRepository detailRepo;
-   InventoryBatchRepository batchRepo;
-   SupplierRepository supplierRepo;
-   ProductRepository productRepo;
-   WarehouseMapper warehouseMapper;
+    WarehouseRepository warehouseRepository;
+    WarehouseMapper warehouseMapper;
 
-    
     @Override
+    public List<Warehouse> getAllWarehouses() {
+        return warehouseRepository.findByIsDeletedFalseOrderByIdDesc();
     @Transactional(rollbackFor = Exception.class)
     public InboundResponse createInboundReceipt(InboundRequest request) {
         Supplier supplier = supplierRepo.findById(request.getSupplierId())
@@ -67,7 +52,7 @@ public class WarehouseServiceImpl implements WarehouseService {
             // Tạo Lô hàng mới (Batch)
             InventoryBatch batch = InventoryBatch.builder()
                     .product(product)
-                    .sku(product.getSku()) // Snapshot SKU
+                    // .sku(product.getSku()) // Snapshot SKU
                     .batchCode(CodeGenerator.generateBatchCode(product.getId()))
                     .quantityRemaining(item.getQuantity())
                     .importPrice(item.getPrice())
@@ -88,74 +73,27 @@ public class WarehouseServiceImpl implements WarehouseService {
         return warehouseMapper.toResponse(receipt);
     }
 
-    // --- 2. XUẤT KHO (FIFO Strategy) ---
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void createOutboundReceipt(OutboundRequest request) {
-        InventoryReceipt receipt = InventoryReceipt.builder()
-                .receiptCode(CodeGenerator.generateReceiptCode())
-                .type(ReceiptType.OUTBOUND)
-                .reason(request.getReason())
-                .status(ReceiptStatus.COMPLETED)
-                .note(request.getNote())
-                .build();
-        receipt = receiptRepo.save(receipt);
-
-        List<InventoryReceiptDetail> details = new ArrayList<>();
-
-        for (OutboundRequest.OutboundItem item : request.getItems()) {
-            Product product = productRepo.findById(item.getProductId())
-                    .orElseThrow(() -> new RuntimeException("Product not found ID: " + item.getProductId()));
-
-            int quantityNeeded = item.getQuantity();
-
-            // Tìm lô còn hàng, sắp xếp cũ nhất lên đầu (FIFO)
-            List<InventoryBatch> batches = batchRepo.findByProductIdAndQuantityRemainingGreaterThanOrderByCreatedAtAsc(
-                    item.getProductId(), 0
-            );
-
-            for (InventoryBatch batch : batches) {
-                if (quantityNeeded <= 0) break;
-
-                int takeQty = Math.min(batch.getQuantityRemaining(), quantityNeeded);
-                
-                // Trừ kho
-                batch.setQuantityRemaining(batch.getQuantityRemaining() - takeQty);
-                quantityNeeded -= takeQty;
-                batchRepo.save(batch);
-
-                InventoryReceiptDetail detail = InventoryReceiptDetail.builder()
-                        .receipt(receipt)
-                        .product(product)
-                        .batch(batch)
-                        .quantity(takeQty)
-                        .price(batch.getImportPrice())
-                        .build();
-                details.add(detail);
-            }
-
-            if (quantityNeeded > 0) {
-                throw new RuntimeException("Không đủ tồn kho cho sản phẩm: " + product.getName());
-            }
-        }
-        detailRepo.saveAll(details);
+    public Warehouse getWarehouseById(Long id) {
+        return warehouseRepository.findById(id)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Warehouse not found"));
     }
 
-    // --- 3. XEM TỒN KHO ---
     @Override
-    public List<InventoryReportResponse> getInventoryReport() {
-        List<Object[]> results = batchRepo.getInventoryReport();
-        return results.stream().map(row -> InventoryReportResponse.builder()
-                .productId((Long) row[0])
-                .productName((String) row[1])
-                .sku((String) row[2])
-                .totalQuantity((Long) row[3])
-                .build()
-        ).collect(Collectors.toList());
+    @Transactional
+    public Warehouse createWarehouse(WarehouseRequest request) {
+        Warehouse warehouse = warehouseMapper.toWarehouse(request);
+        warehouse.setIsActive(true);
+        warehouse.setIsDeleted(false);
+        return warehouseRepository.save(warehouse);
     }
 
-    // --- 4. XUẤT EXCEL KIỂM KÊ (4 SHEET) ---
     @Override
+    @Transactional
+    public Warehouse updateWarehouse(Long id, WarehouseRequest request) {
+        Warehouse warehouse = getWarehouseById(id);
+        warehouseMapper.updateWarehouse(warehouse, request);
+        return warehouseRepository.save(warehouse);
     public ByteArrayInputStream exportStocktakeReport() throws IOException {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             
@@ -218,7 +156,7 @@ public class WarehouseServiceImpl implements WarehouseService {
             int col = 0;
             createCell(row, col++, item.getReceipt().getCreatedAt().toString(), dataStyle);
             createCell(row, col++, item.getReceipt().getReceiptCode(), dataStyle);
-            createCell(row, col++, item.getProduct().getSku(), dataStyle);
+            // createCell(row, col++, item.getProduct().getSku(), dataStyle);
             createCell(row, col++, item.getProduct().getName(), dataStyle);
             createCell(row, col++, item.getReceipt().getSupplier().getName(), dataStyle);
             createCell(row, col++, item.getQuantity(), dataStyle);
@@ -242,7 +180,7 @@ public class WarehouseServiceImpl implements WarehouseService {
             int col = 0;
             createCell(row, col++, item.getReceipt().getCreatedAt().toString(), dataStyle);
             createCell(row, col++, item.getReceipt().getReceiptCode(), dataStyle);
-            createCell(row, col++, item.getProduct().getSku(), dataStyle);
+            // createCell(row, col++, item.getProduct().getSku(), dataStyle);
             createCell(row, col++, item.getProduct().getName(), dataStyle);
             createCell(row, col++, item.getReceipt().getReason().toString(), dataStyle);
             createCell(row, col++, item.getQuantity(), dataStyle);
@@ -251,69 +189,12 @@ public class WarehouseServiceImpl implements WarehouseService {
         autoSizeColumns(sheet, headers.length);
     }
 
-    // 🟢 SHEET 4: THÔNG TIN NCC
-    private void createSheet4_SupplierInfo(Workbook workbook, CellStyle headerStyle, CellStyle dataStyle) {
-        Sheet sheet = workbook.createSheet("4. NCC_INFO");
-        String[] headers = {"Mã NCC", "Tên NCC", "Người Liên Hệ", "Email", "SĐT", "Địa Chỉ"};
-        createHeaderRow(sheet, headers, headerStyle);
-
-        List<Supplier> suppliers = supplierRepo.findAll();
-        int rowIdx = 1;
-        for (Supplier s : suppliers) {
-            Row row = sheet.createRow(rowIdx++);
-            int col = 0;
-            createCell(row, col++, s.getCode(), dataStyle);
-            createCell(row, col++, s.getName(), dataStyle);
-            createCell(row, col++, s.getContactPerson(), dataStyle);
-            createCell(row, col++, s.getEmail(), dataStyle);
-            createCell(row, col++, s.getPhone(), dataStyle);
-            createCell(row, col++, s.getAddress(), dataStyle);
-        }
-        autoSizeColumns(sheet, headers.length);
-    }
-
-    // Styles & Format Utilities
-    private void createHeaderRow(Sheet sheet, String[] headers, CellStyle style) {
-        Row headerRow = sheet.createRow(0);
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(style);
-        }
-    }
-
-    private void createCell(Row row, int col, Object value, CellStyle style) {
-        Cell cell = row.createCell(col);
-        if (value instanceof Number) cell.setCellValue(((Number) value).doubleValue());
-        else cell.setCellValue(value != null ? value.toString() : "");
-        cell.setCellStyle(style);
-    }
-
-    private CellStyle createHeaderStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        Font font = workbook.createFont();
-        font.setBold(true);
-        font.setColor(IndexedColors.WHITE.getIndex());
-        style.setFont(font);
-        style.setFillForegroundColor(IndexedColors.ROYAL_BLUE.getIndex());
-        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        style.setBorderBottom(BorderStyle.THIN);
-        style.setBorderTop(BorderStyle.THIN);
-        style.setBorderRight(BorderStyle.THIN);
-        style.setBorderLeft(BorderStyle.THIN);
-        return style;
-    }
-
-    private CellStyle createDataStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        style.setBorderBottom(BorderStyle.THIN);
-        style.setBorderTop(BorderStyle.THIN);
-        style.setBorderRight(BorderStyle.THIN);
-        style.setBorderLeft(BorderStyle.THIN);
-        return style;
-    }
-
-    private void autoSizeColumns(Sheet sheet, int count) {
-        for (int i = 0; i < count; i++) sheet.autoSizeColumn(i);
+    @Override
+    @Transactional
+    public void deleteWarehouse(Long id) {
+        Warehouse warehouse = getWarehouseById(id);
+        warehouse.setIsDeleted(true);
+        warehouse.setIsActive(false);
+        warehouseRepository.save(warehouse);
     }
 }
