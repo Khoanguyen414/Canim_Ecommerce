@@ -1,73 +1,77 @@
 import { create } from "zustand"
+import { persist } from "zustand/middleware"
 
-export interface CartItem {
-  productId: string
-  name: string
+export interface CartLine {
+  lineId: string
+  productId: number
+  variantId: number
+  productName: string
+  sku: string
+  color?: string | null
+  size?: string | null
   price: number
   quantity: number
-  image?: string
-  color?: string
-  size?: string
+  imageUrl?: string
 }
 
 interface CartState {
-  items: CartItem[]
-  addItem: (item: CartItem) => void
-  removeItem: (productId: string) => void
-  updateQuantity: (productId: string, quantity: number) => void
-  clearCart: () => void
-  getTotalPrice: () => number
-  getTotalItems: () => number
+  lines: CartLine[]
+  addLine: (line: Omit<CartLine, "lineId"> & { lineId?: string }) => void
+  removeLine: (lineId: string) => void
+  setQuantity: (lineId: string, quantity: number) => void
+  clear: () => void
+  subtotal: () => number
+  totalItems: () => number
 }
 
-export const useCartStore = create<CartState>((set, get) => ({
-  items: [],
+function buildLineId(productId: number, variantId: number) {
+  return `${productId}-${variantId}`
+}
 
-  addItem: (item: CartItem) => {
-    set((state) => {
-      const existingItem = state.items.find(
-        (i) => i.productId === item.productId
-      )
-      if (existingItem) {
-        return {
-          items: state.items.map((i) =>
-            i.productId === item.productId
-              ? { ...i, quantity: i.quantity + item.quantity }
-              : i
-          ),
+export const useCartStore = create<CartState>()(
+  persist(
+    (set, get) => ({
+      lines: [],
+
+      addLine: (line) => {
+        const lineId = line.lineId ?? buildLineId(line.productId, line.variantId)
+        set((state) => {
+          const existing = state.lines.find((l) => l.lineId === lineId)
+          if (existing) {
+            return {
+              lines: state.lines.map((l) =>
+                l.lineId === lineId ? { ...l, quantity: l.quantity + line.quantity } : l,
+              ),
+            }
+          }
+          return { lines: [...state.lines, { ...line, lineId }] }
+        })
+      },
+
+      removeLine: (lineId) =>
+        set((state) => ({
+          lines: state.lines.filter((l) => l.lineId !== lineId),
+        })),
+
+      setQuantity: (lineId, quantity) => {
+        if (quantity <= 0) {
+          get().removeLine(lineId)
+          return
         }
-      }
-      return { items: [...state.items, item] }
-    })
-  },
+        set((state) => ({
+          lines: state.lines.map((l) => (l.lineId === lineId ? { ...l, quantity } : l)),
+        }))
+      },
 
-  removeItem: (productId: string) => {
-    set((state) => ({
-      items: state.items.filter((i) => i.productId !== productId),
-    }))
-  },
+      clear: () => set({ lines: [] }),
 
-  updateQuantity: (productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      get().removeItem(productId)
-    } else {
-      set((state) => ({
-        items: state.items.map((i) =>
-          i.productId === productId ? { ...i, quantity } : i
-        ),
-      }))
-    }
-  },
+      subtotal: () => get().lines.reduce((s, l) => s + l.price * l.quantity, 0),
 
-  clearCart: () => {
-    set({ items: [] })
-  },
-
-  getTotalPrice: () => {
-    return get().items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  },
-
-  getTotalItems: () => {
-    return get().items.reduce((sum, item) => sum + item.quantity, 0)
-  },
-}))
+      totalItems: () => get().lines.reduce((s, l) => s + l.quantity, 0),
+    }),
+    {
+      name: "canim-cart-v1",
+      partialize: (state) => ({ lines: state.lines }),
+    },
+  ),
+)

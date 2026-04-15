@@ -1,223 +1,200 @@
-import { useState } from "react"
-import { useParams } from "react-router-dom"
-import { Star, ShoppingCart, Heart, Share2, Check } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { useNavigate, useParams } from "react-router-dom"
+import { ShoppingCart, Heart, Share2, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Select } from "@/components/ui/select"
+import { productService } from "@/services/product.service"
+import type { ProductDetail as ProductModel, ProductVariant } from "@/types/api.types"
+import { LoadingSpinner } from "@/components/common/LoadingSpinner"
+import { ErrorState } from "@/components/common/ErrorState"
+import { getApiErrorMessage } from "@/lib/apiError"
+import { formatVnd, toNumber } from "@/lib/format"
+import { getProductMainImage } from "@/lib/product"
+import { useCartStore } from "@/store/cart.store"
 
 export default function ProductDetail() {
   const { id } = useParams()
-  const [quantity, setQuantity] = useState(1)
-  const [selectedColor, setSelectedColor] = useState("black")
-  const [selectedSize, setSelectedSize] = useState("M")
+  const navigate = useNavigate()
+  const addLine = useCartStore((s) => s.addLine)
 
-  // Mock data
-  const product = {
-    id,
-    name: "Áo thun nam cổ tròn cao cấp",
-    price: 199000,
-    originalPrice: 299000,
-    rating: 4.5,
-    reviews: 128,
-    inStock: true,
-    description:
-      "Áo thun nam cổ tròn thoải mái với chất liệu cotton 100%. Phù hợp cho mọi dịp từ casual đến semi-formal.",
-    images: [
-      "https://via.placeholder.com/500x500?text=Áo+thun+1",
-      "https://via.placeholder.com/500x500?text=Áo+thun+2",
-      "https://via.placeholder.com/500x500?text=Áo+thun+3",
-    ],
-    colors: ["black", "white", "navy", "gray"],
-    sizes: ["XS", "S", "M", "L", "XL", "XXL"],
-    details: {
-      material: "Cotton 100%",
-      care: "Giặt nước lạnh, không tẩy",
-      origin: "Việt Nam",
-      warranty: "12 tháng",
-    },
+  const [product, setProduct] = useState<ProductModel | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [quantity, setQuantity] = useState(1)
+  const [variantId, setVariantId] = useState<number | null>(null)
+  const [activeImage, setActiveImage] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    const pid = Number(id)
+    if (!Number.isFinite(pid)) {
+      setError("ID sản phẩm không hợp lệ")
+      setLoading(false)
+      return
+    }
+    void (async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const { data } = await productService.getById(pid)
+        if (!data.success || !data.result) throw new Error(data.message || "Không tìm thấy sản phẩm")
+        const p = data.result
+        setProduct(p)
+        const first = p.variants?.[0]
+        setVariantId(first?.id ?? null)
+        setActiveImage(getProductMainImage(p))
+      } catch (e) {
+        setError(getApiErrorMessage(e))
+        setProduct(null)
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [id])
+
+  const variant = useMemo(() => {
+    if (!product?.variants?.length) return null
+    return product.variants.find((v) => v.id === variantId) ?? product.variants[0]
+  }, [product, variantId])
+
+  const images = useMemo(() => {
+    if (!product?.images?.length) return []
+    return [...product.images].sort((a, b) => a.position - b.position)
+  }, [product])
+
+  const handleAddToCart = () => {
+    if (!product || !variant) return
+    const img = activeImage ?? getProductMainImage(product)
+    addLine({
+      productId: product.id,
+      variantId: variant.id,
+      productName: product.name,
+      sku: variant.sku,
+      color: variant.color,
+      size: variant.size,
+      price: toNumber(variant.price),
+      quantity,
+      imageUrl: img,
+    })
+    navigate("/cart")
   }
+
+  if (loading) return <LoadingSpinner label="Đang tải chi tiết..." />
+  if (error || !product) return <ErrorState message={error ?? "Không có dữ liệu"} />
+
+  const inStock = (product.variants?.length ?? 0) > 0
 
   return (
     <div className="container py-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        {/* Images */}
+      <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2">
         <div className="space-y-4">
-          <div className="bg-secondary rounded-lg overflow-hidden aspect-square">
-            <img
-              src={product.images[0]}
-              alt={product.name}
-              className="w-full h-full object-cover"
-            />
+          <div className="aspect-square overflow-hidden rounded-lg bg-secondary">
+            {activeImage ? (
+              <img src={activeImage} alt={product.name} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full items-center justify-center text-muted-foreground">Chưa có ảnh</div>
+            )}
           </div>
-          <div className="grid grid-cols-4 gap-2">
-            {product.images.map((img, i) => (
-              <button
-                key={i}
-                className="bg-secondary rounded-lg overflow-hidden aspect-square hover:ring-2 ring-primary transition-all"
-              >
-                <img src={img} alt={`View ${i + 1}`} className="w-full h-full object-cover" />
-              </button>
-            ))}
-          </div>
+          {images.length > 1 ? (
+            <div className="grid grid-cols-5 gap-2">
+              {images.map((img) => (
+                <button
+                  key={img.id}
+                  type="button"
+                  onClick={() => setActiveImage(img.url)}
+                  className={`aspect-square overflow-hidden rounded-md border-2 transition-all ${
+                    activeImage === img.url ? "border-primary ring-2 ring-primary/40" : "border-transparent"
+                  }`}
+                >
+                  <img src={img.url} alt="" className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
-        {/* Details */}
         <div className="space-y-6">
-          {/* Header */}
           <div>
-            <h1 className="text-3xl font-bold mb-2">{product.name}</h1>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1">
-                {[...Array(5)].map((_, i) => (
-                  <Star
-                    key={i}
-                    className={`w-4 h-4 ${
-                      i < Math.floor(product.rating)
-                        ? "fill-yellow-400 text-yellow-400"
-                        : "text-muted-foreground"
-                    }`}
-                  />
-                ))}
-              </div>
-              <span className="text-sm text-muted-foreground">
-                {product.rating} ({product.reviews} đánh giá)
-              </span>
-            </div>
+            <p className="text-sm text-muted-foreground">{product.categoryName}</p>
+            <h1 className="mb-2 text-3xl font-bold">{product.name}</h1>
+            <p className="text-muted-foreground">{product.shortDesc}</p>
           </div>
 
-          {/* Price */}
-          <div className="space-y-2">
-            <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-bold text-primary">
-                ${product.price.toLocaleString()}
-              </span>
-              <span className="text-xl text-muted-foreground line-through">
-                ${product.originalPrice?.toLocaleString()}
-              </span>
-              <span className="px-3 py-1 bg-destructive text-destructive-foreground rounded-full text-sm font-semibold">
-                -33%
-              </span>
-            </div>
-          </div>
+          {variant ? (
+            <div className="text-3xl font-bold text-primary">{formatVnd(toNumber(variant.price))}</div>
+          ) : null}
 
-          {/* Description */}
-          <p className="text-muted-foreground">{product.description}</p>
-
-          {/* Options */}
-          <div className="space-y-4 border-t border-b border-border py-4">
-            {/* Color */}
+          <div className="space-y-4 border-y border-border py-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">
-                Màu sắc: <span className="text-primary">{selectedColor}</span>
-              </label>
-              <div className="flex gap-2">
-                {product.colors.map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => setSelectedColor(color)}
-                    className={`w-8 h-8 rounded-full border-2 transition-all ${
-                      selectedColor === color
-                        ? "border-primary ring-2 ring-primary/50"
-                        : "border-border"
-                    }`}
-                    style={{
-                      backgroundColor: {
-                        black: "#000",
-                        white: "#fff",
-                        navy: "#001f3f",
-                        gray: "#999",
-                      }[color],
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Size */}
-            <div>
-              <label className="text-sm font-medium mb-2 block">
-                Kích cỡ: <span className="text-primary">{selectedSize}</span>
-              </label>
-              <Select value={selectedSize} onChange={(e) => setSelectedSize(e.target.value)}>
-                {product.sizes.map((size) => (
-                  <option key={size} value={size}>
-                    {size}
+              <label className="mb-2 block text-sm font-medium">Biến thể (SKU)</label>
+              <Select
+                value={variantId?.toString() ?? ""}
+                onChange={(e) => setVariantId(Number(e.target.value))}
+                disabled={!product.variants?.length}
+              >
+                {product.variants?.map((v: ProductVariant) => (
+                  <option key={v.id} value={v.id}>
+                    {[v.sku, v.color, v.size].filter(Boolean).join(" · ")}
                   </option>
                 ))}
               </Select>
             </div>
 
-            {/* Quantity */}
             <div>
-              <label className="text-sm font-medium mb-2 block">Số lượng</label>
+              <label className="mb-2 block text-sm font-medium">Số lượng</label>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                >
+                <Button variant="outline" size="sm" type="button" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>
                   -
                 </Button>
                 <input
                   type="number"
+                  min={1}
                   value={quantity}
-                  onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                  className="w-16 text-center border border-border rounded-md py-1"
+                  onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-16 rounded-md border border-border py-1 text-center text-sm"
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setQuantity(quantity + 1)}
-                >
+                <Button variant="outline" size="sm" type="button" onClick={() => setQuantity((q) => q + 1)}>
                   +
                 </Button>
               </div>
             </div>
           </div>
 
-          {/* Actions */}
           <div className="space-y-3">
-            <Button className="w-full h-11" disabled={!product.inStock}>
-              <ShoppingCart className="w-4 h-4 mr-2" />
+            <Button className="h-11 w-full" disabled={!inStock} type="button" onClick={handleAddToCart}>
+              <ShoppingCart className="mr-2 h-4 w-4" />
               Thêm vào giỏ hàng
             </Button>
             <div className="grid grid-cols-2 gap-3">
-              <Button variant="outline" className="h-11">
-                <Heart className="w-4 h-4 mr-2" />
+              <Button variant="outline" className="h-11" type="button">
+                <Heart className="mr-2 h-4 w-4" />
                 Yêu thích
               </Button>
-              <Button variant="outline" className="h-11">
-                <Share2 className="w-4 h-4 mr-2" />
+              <Button variant="outline" className="h-11" type="button">
+                <Share2 className="mr-2 h-4 w-4" />
                 Chia sẻ
               </Button>
             </div>
           </div>
 
-          {/* Status */}
-          <Card className="p-4 bg-green-50 border-green-200">
+          <Card className="border-emerald-200 bg-emerald-50 p-4">
             <div className="flex items-start gap-3">
-              <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
               <div className="text-sm">
-                <p className="font-medium text-green-900">Còn hàng</p>
-                <p className="text-green-700">Giao hàng nhanh trong 1-2 ngày</p>
+                <p className="font-medium text-emerald-900">{inStock ? "Đang kinh doanh" : "Không có biến thể"}</p>
+                <p className="text-emerald-800">Giao hàng dự kiến 2–5 ngày làm việc (demo)</p>
               </div>
             </div>
           </Card>
         </div>
       </div>
 
-      {/* Details Section */}
-      <Card className="p-6">
-        <h2 className="text-xl font-bold mb-4">Thông tin chi tiết</h2>
-        <div className="grid grid-cols-2 gap-4">
-          {Object.entries(product.details).map(([key, value]) => (
-            <div key={key} className="pb-3 border-b border-border last:border-0">
-              <p className="text-sm text-muted-foreground capitalize">{key}</p>
-              <p className="font-medium">{value}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
+      {product.longDesc ? (
+        <Card className="p-6">
+          <h2 className="mb-4 text-xl font-bold">Mô tả chi tiết</h2>
+          <div className="prose prose-sm max-w-none text-muted-foreground whitespace-pre-wrap">{product.longDesc}</div>
+        </Card>
+      ) : null}
     </div>
   )
 }

@@ -1,173 +1,177 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { Settings } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import ProductCard from "@/components/product/ProductCard"
+import { LoadingSpinner } from "@/components/common/LoadingSpinner"
+import { ErrorState } from "@/components/common/ErrorState"
+import { EmptyState } from "@/components/common/EmptyState"
+import { PackageOpen } from "lucide-react"
+import { usePublicProducts } from "@/hooks/usePublicProducts"
+import { categoryService } from "@/services/category.service"
+import type { CategoryNode, ProductDetail } from "@/types/api.types"
+import { getApiErrorMessage } from "@/lib/apiError"
+import { useCartStore } from "@/store/cart.store"
+import { getDefaultVariant, getProductMainImage } from "@/lib/product"
+import { toNumber } from "@/lib/format"
+import { useNavigate } from "react-router-dom"
 
 export default function Products() {
-  const [sortBy, setSortBy] = useState("latest")
-  const [priceRange, setPriceRange] = useState("all")
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const addLine = useCartStore((s) => s.addLine)
+  const {
+    page,
+    setPage,
+    keyword,
+    setKeyword,
+    categoryId,
+    setCategoryId,
+    products,
+    totalPages,
+    loading,
+    error,
+    reload,
+  } = usePublicProducts(12)
 
-  // Mock product data
-  const products = [
-    {
-      id: "1",
-      name: "Áo thun nam cổ tròn cao cấp",
-      price: 199000,
-      originalPrice: 299000,
-      image: "https://via.placeholder.com/300x300?text=Áo+thun",
-      rating: 4.5,
-      reviews: 128,
-      inStock: true,
-      isNew: true,
-      discount: 33,
-    },
-    {
-      id: "2",
-      name: "Quần jeans nam ôm sát",
-      price: 399000,
-      originalPrice: 599000,
-      image: "https://via.placeholder.com/300x300?text=Quần+jeans",
-      rating: 4,
-      reviews: 95,
-      inStock: true,
-      discount: 33,
-    },
-    {
-      id: "3",
-      name: "Giày sneaker thời trang",
-      price: 799000,
-      image: "https://via.placeholder.com/300x300?text=Giày+sneaker",
-      rating: 5,
-      reviews: 256,
-      inStock: true,
-    },
-    {
-      id: "4",
-      name: "Mũ snapback thể thao",
-      price: 149000,
-      image: "https://via.placeholder.com/300x300?text=Mũ",
-      rating: 4.5,
-      reviews: 72,
-      inStock: false,
-    },
-  ]
+  const [roots, setRoots] = useState<CategoryNode[]>([])
+  const [catLoading, setCatLoading] = useState(true)
+
+  useEffect(() => {
+    const raw = searchParams.get("categoryId")
+    if (raw) {
+      const n = Number(raw)
+      if (Number.isFinite(n)) setCategoryId(n)
+    }
+  }, [searchParams, setCategoryId])
+
+  useEffect(() => {
+    const q = searchParams.get("q")
+    if (q !== null) setKeyword(q)
+  }, [searchParams, setKeyword])
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { data } = await categoryService.getRoots()
+        if (data.success && data.result) setRoots(data.result)
+      } catch (e) {
+        console.error(getApiErrorMessage(e))
+      } finally {
+        setCatLoading(false)
+      }
+    })()
+  }, [])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setPage(1)
+  }
+
+  const handleQuickAdd = (p: ProductDetail) => {
+    const v = getDefaultVariant(p)
+    if (!v) return
+    addLine({
+      productId: p.id,
+      variantId: v.id,
+      productName: p.name,
+      sku: v.sku,
+      color: v.color,
+      size: v.size,
+      price: toNumber(v.price),
+      quantity: 1,
+      imageUrl: getProductMainImage(p),
+    })
+    navigate("/cart")
+  }
 
   return (
     <div className="container py-8">
-      {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Danh Sách Sản Phẩm</h1>
-        <p className="text-muted-foreground">
-          Khám phá bộ sưu tập các sản phẩm mới nhất
-        </p>
+        <h1 className="mb-2 text-3xl font-bold">Products</h1>
+        <p className="text-muted-foreground">Public catalog with pagination</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Filters Sidebar */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
         <div className="lg:col-span-1">
-          <Card className="p-6 space-y-6">
-            <div>
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
-                <Settings className="w-4 h-4" />
-                Bộ Lọc
-              </h3>
-            </div>
-
-            {/* Search */}
+          <Card className="space-y-6 p-6">
+            <h3 className="flex items-center gap-2 font-semibold">
+              <Settings className="h-4 w-4" />
+              Filters
+            </h3>
+            <form onSubmit={handleSearch} className="space-y-2">
+              <label className="text-sm font-medium">Keyword</label>
+              <Input
+                placeholder="Product name..."
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+              />
+              <Button type="submit" className="w-full">
+                Apply
+              </Button>
+            </form>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Tìm kiếm</label>
-              <Input placeholder="Tên sản phẩm..." />
-            </div>
-
-            {/* Price Range */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Giá</label>
-              <Select value={priceRange} onChange={(e) => setPriceRange(e.target.value)}>
-                <option value="all">Tất cả giá</option>
-                <option value="0-200">Dưới 200K</option>
-                <option value="200-500">200K - 500K</option>
-                <option value="500-1000">500K - 1M</option>
-                <option value="1000">Trên 1M</option>
+              <label className="text-sm font-medium">Root category</label>
+              <Select
+                value={categoryId?.toString() ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setCategoryId(v ? Number(v) : undefined)
+                  setPage(1)
+                }}
+                disabled={catLoading}
+              >
+                <option value="">All</option>
+                {roots.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </Select>
             </div>
-
-            {/* Categories */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Danh Mục</label>
-              <div className="space-y-2">
-                {["Áo", "Quần", "Giày", "Phụ kiện"].map((cat) => (
-                  <label key={cat} className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" className="w-4 h-4 rounded" />
-                    {cat}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Rating */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Đánh Giá</label>
-              <div className="space-y-2">
-                {["5", "4", "3"].map((star) => (
-                  <label key={star} className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" className="w-4 h-4 rounded" />
-                    {star} sao trở lên
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <Button className="w-full" variant="outline">
-              Đặt Lại Bộ Lọc
-            </Button>
           </Card>
         </div>
 
-        {/* Products Grid */}
         <div className="lg:col-span-3">
-          {/* Sort */}
-          <div className="mb-6 flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">
-              Hiển thị {products.length} sản phẩm
-            </p>
-            <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="latest">Mới nhất</option>
-              <option value="popular">Bán chạy</option>
-              <option value="price-low">Giá: Thấp đến Cao</option>
-              <option value="price-high">Giá: Cao đến Thấp</option>
-              <option value="rating">Đánh giá cao nhất</option>
-            </Select>
-          </div>
+          {loading ? <LoadingSpinner label="Đang tải sản phẩm..." /> : null}
+          {!loading && error ? <ErrorState message={error} onRetry={() => void reload()} /> : null}
+          {!loading && !error && products.length === 0 ? (
+            <EmptyState
+              icon={PackageOpen}
+              title="No products found"
+              description="Try a different keyword or category."
+              actionLabel="Clear filters"
+              onAction={() => {
+                setKeyword("")
+                setCategoryId(undefined)
+                setPage(1)
+              }}
+            />
+          ) : null}
 
-          {/* Product Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {products.map((product) => (
-              <ProductCard
-                key={product.id}
-                {...product}
-                onAddToCart={(id) => console.log("Add to cart:", id)}
-              />
-            ))}
-          </div>
-
-          {/* Pagination */}
-          <div className="mt-8 flex justify-center gap-2">
-            <Button variant="outline" disabled>
-              Trước
-            </Button>
-            {[1, 2, 3].map((page) => (
-              <Button
-                key={page}
-                variant={page === 1 ? "default" : "outline"}
-              >
-                {page}
-              </Button>
-            ))}
-            <Button variant="outline">Tiếp</Button>
-          </div>
+          {!loading && !error && products.length > 0 ? (
+            <>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Page {page} / {totalPages}
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {products.map((p) => (
+                  <ProductCard key={p.id} product={p} onAddToCart={handleQuickAdd} />
+                ))}
+              </div>
+              <div className="mt-8 flex flex-wrap justify-center gap-2">
+                <Button variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                  Previous
+                </Button>
+                <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                  Next
+                </Button>
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
     </div>

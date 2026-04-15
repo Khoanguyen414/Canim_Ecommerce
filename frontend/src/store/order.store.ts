@@ -1,51 +1,44 @@
 import { create } from "zustand"
+import { persist } from "zustand/middleware"
+import type { CartLine } from "@/store/cart.store"
 
-export interface OrderItem {
-  productId: string
-  name: string
-  price: number
-  quantity: number
-  image?: string
-}
+export type OrderStatus = "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled"
 
-export interface Order {
+export interface PlacedOrder {
   id: string
   orderCode: string
-  items: OrderItem[]
-  totalPrice: number
-  status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled"
-  createdAt: string
-  deliveryAddress: string
+  items: CartLine[]
+  subtotal: number
+  shipping: number
+  tax: number
+  total: number
+  deliverySummary: string
   paymentMethod: string
-  notes?: string
+  createdAt: string
+  status: OrderStatus
 }
 
 interface OrderState {
-  orders: Order[]
-  selectedOrder: Order | null
-  addOrder: (order: Order) => void
-  setSelectedOrder: (order: Order | null) => void
-  getOrderById: (id: string) => Order | undefined
-  fetchOrders: () => void
+  orders: PlacedOrder[]
+  addOrder: (order: PlacedOrder) => void
+  getById: (id: string) => PlacedOrder | undefined
 }
 
-export const useOrderStore = create<OrderState>((set, get) => ({
-  orders: [],
-  selectedOrder: null,
+export const useOrderStore = create<OrderState>()(
+  persist(
+    (set, get) => ({
+      orders: [],
 
-  addOrder: (order) => {
-    set((state) => ({
-      orders: [...state.orders, order],
-    }))
-  },
+      addOrder: (order) =>
+        set((state) => ({
+          orders: [order, ...state.orders],
+        })),
 
-  setSelectedOrder: (order) => set({ selectedOrder: order }),
-
-  getOrderById: (id) => {
-    return get().orders.find((order) => order.id === id)
-  },
-
-  fetchOrders: () => {
-    // TODO: Fetch orders from API
-  },
-}))
+      getById: (id) => get().orders.find((o) => o.id === id),
+    }),
+    {
+      name: "canim-orders-v1",
+      partialize: (state) => ({ orders: state.orders }),
+    },
+  ),
+)

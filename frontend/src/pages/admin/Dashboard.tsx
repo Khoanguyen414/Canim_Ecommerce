@@ -1,4 +1,5 @@
 import { BarChart3, Users, ShoppingBag, TrendingUp } from "lucide-react"
+import { Link } from "react-router-dom"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
@@ -46,18 +47,18 @@ export default function AdminDashboard() {
           <Card className="p-6">
             <h2 className="text-xl font-bold mb-4">Quản Lý Sản Phẩm</h2>
             <div className="space-y-3">
-              <Button className="w-full justify-start" variant="outline">
-                Thêm Sản Phẩm Mới
+              <Button className="w-full justify-start" variant="outline" asChild>
+                <Link to="/products">Xem cửa hàng (public)</Link>
               </Button>
-              <Button className="w-full justify-start" variant="outline">
-                Chỉnh Sửa Sản Phẩm
+              <Button className="w-full justify-start" variant="outline" asChild>
+                <Link to="/categories">Danh mục</Link>
               </Button>
-              <Button className="w-full justify-start" variant="outline">
-                Quản Lý Danh Mục
+              <Button className="w-full justify-start" variant="outline" asChild>
+                <Link to="/warehouse">Tồn kho &amp; kho</Link>
               </Button>
-              <Button className="w-full justify-start" variant="outline">
-                Xem Tồn Kho
-              </Button>
+              <p className="text-xs text-muted-foreground">
+                CRUD sản phẩm qua Swagger/backend; dashboard này là hub điều hướng nhanh.
+              </p>
             </div>
           </Card>
 

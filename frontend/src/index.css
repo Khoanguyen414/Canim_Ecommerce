@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@config "../tailwind.config.js";
 
 @layer base {
   :root {
@@ -48,7 +49,7 @@
 }
 
 * {
-  @apply border-border;
+  border-color: hsl(var(--border));
 }
 
 body {
@@ -64,4 +65,28 @@ html {
   transition-property: background-color, border-color, color, fill, stroke;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 200ms;
+}
+
+/* Hero carousel autoplay progress (duration set via --hero-ms on parent) */
+@keyframes hero-carousel-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.hero-carousel-progress-fill {
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: hero-carousel-progress var(--hero-ms, 5000ms) linear forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-carousel-progress-fill {
+    animation: none;
+    transform: scaleX(1);
+    opacity: 0.35;
+  }
 }
