@@ -42,6 +42,12 @@ public class InventoryServiceImpl implements InventoryService {
     static DateTimeFormatter FULL_TIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
     @Override
+    public Integer getAvailableQuantityForVariant(Long variantId) {
+        return inventoryRepo.findByVariantId(variantId)
+                .map(inv -> Math.max(0, inv.getQuantity() - inv.getReserved()))
+                .orElse(0);
+    }
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void createInboundReceipt(InboundRequest request) {
         Long warehouseId = (request.getWarehouseId() != null) ? request.getWarehouseId() : DEFAULT_WAREHOUSE_ID;
@@ -53,14 +59,12 @@ public class InventoryServiceImpl implements InventoryService {
         receipt.setReceiptCode(CodeGenerator.generateReceiptCode("IN"));
         receipt.setType(ReceiptType.INBOUND);
         receipt.setSupplier(supplier);
-        receipt.setWarehouseStaffId(CURRENT_USER_ID);
         receipt.setStatus(ReceiptStatus.COMPLETED);
         receipt.setCreatedBy(CURRENT_USER_ID);
         receipt = receiptRepo.save(receipt);
 
         for (var item : request.getItems()) {
-            ProductVariant variant = variantRepo.findById(item.getVariantId())
-                    .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Biến thể không tồn tại"));
+            ProductVariant variant = variantRepo.findById(item.getVariantId()).orElseThrow();
 
             InventoryBatch batch = InventoryBatch.builder()
                     .warehouseId(warehouseId)
@@ -82,7 +86,6 @@ public class InventoryServiceImpl implements InventoryService {
             syncInventory(variant, warehouseId, item.getQuantity(), true);
         }
     }
-
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void createOutboundReceipt(OutboundRequest request) {
@@ -91,22 +94,23 @@ public class InventoryServiceImpl implements InventoryService {
         receipt.setWarehouseId(warehouseId);
         receipt.setReceiptCode(CodeGenerator.generateReceiptCode("OUT"));
         receipt.setType(ReceiptType.OUTBOUND);
-        receipt.setWarehouseStaffId(CURRENT_USER_ID);
         receipt.setStatus(ReceiptStatus.COMPLETED);
         receipt = receiptRepo.save(receipt);
 
         for (var item : request.getItems()) {
             int needed = item.getQuantity();
             ProductVariant variant = variantRepo.findById(item.getVariantId()).orElseThrow();
-            
-            // Dùng hàm FIFO đã định nghĩa trong Repository
             List<InventoryBatch> batches = batchRepo.findAvailableBatchesForFIFO(warehouseId, variant.getId());
+
+            int actualExported = 0; 
 
             for (InventoryBatch batch : batches) {
                 if (needed <= 0) break;
                 int take = Math.min(batch.getQuantityRemaining(), needed);
+                
                 batch.setQuantityRemaining(batch.getQuantityRemaining() - take);
                 needed -= take;
+                actualExported += take;
                 batchRepo.save(batch);
 
                 detailRepo.save(InventoryReceiptDetail.builder()
@@ -115,24 +119,23 @@ public class InventoryServiceImpl implements InventoryService {
 
                 logTransaction(variant, warehouseId, batch, TransactionType.OUT, take, receipt.getId(), "RECEIPT");
             }
+            
             if (needed > 0) throw new ApiException(ApiStatus.INVALID_INPUT, "Kho không đủ hàng xuất SKU: " + variant.getSku());
-            syncInventory(variant, warehouseId, item.getQuantity(), false);
+            
+            syncInventory(variant, warehouseId, actualExported, false); 
         }
     }
-
     @Override
     public byte[] exportInventoryReport() {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             
             CellStyle headerStyle = createStyle(workbook, true, IndexedColors.GREY_25_PERCENT, false);
-            CellStyle numberStyle = workbook.createCellStyle();
-            numberStyle.setDataFormat(workbook.createDataFormat().getFormat("#,##0"));
+            CellStyle moneyStyle = workbook.createCellStyle();
+            moneyStyle.setDataFormat(workbook.createDataFormat().getFormat("#,##0"));
             CellStyle alertStyle = createStyle(workbook, true, null, true);
 
-            // SHEET 1: TỔNG HỢP
             Sheet s1 = workbook.createSheet("1. Tổng Hợp Tồn Kho");
             createRow(s1, 0, headerStyle, "SKU", "Sản Phẩm", "Danh Mục", "Phân loại", "Tồn", "Giá Vốn TB", "Thành Tiền", "Cảnh Báo");
-            
             List<Inventory> invs = inventoryRepo.findAll();
             int rowIdx = 1;
             for (Inventory inv : invs) {
@@ -141,17 +144,16 @@ public class InventoryServiceImpl implements InventoryService {
                 double wac = calculateWAC(v.getId());
                 r.createCell(0).setCellValue(v.getSku());
                 r.createCell(1).setCellValue(v.getProduct().getName());
-                r.createCell(2).setCellValue(v.getProduct().getCategory() != null ? v.getProduct().getCategory().getName() : "-");
+                r.createCell(2).setCellValue(v.getProduct().getCategory().getName());
                 r.createCell(3).setCellValue(formatVariant(v));
                 r.createCell(4).setCellValue(inv.getQuantity());
-                Cell cWac = r.createCell(5); cWac.setCellValue(wac); cWac.setCellStyle(numberStyle);
-                Cell cTotal = r.createCell(6); cTotal.setCellValue(wac * inv.getQuantity()); cTotal.setCellStyle(numberStyle);
+                Cell cWac = r.createCell(5); cWac.setCellValue(wac); cWac.setCellStyle(moneyStyle);
+                Cell cTotal = r.createCell(6); cTotal.setCellValue(wac * inv.getQuantity()); cTotal.setCellStyle(moneyStyle);
                 if (inv.getQuantity() <= inv.getMinStock()) {
                     Cell cAlert = r.createCell(7); cAlert.setCellValue("SẮP HẾT HÀNG"); cAlert.setCellStyle(alertStyle);
                 }
             }
 
-            // SHEET 2: LÔ HÀNG (SỬA LỖI findAllByQuantityRemainingGreaterThan)
             Sheet s2 = workbook.createSheet("2. Chi Tiết Lô Hàng");
             createRow(s2, 0, headerStyle, "Mã Lô", "SKU", "Sản Phẩm", "Nhà Cung Cấp", "SĐT NCC", "Email NCC", "Tồn Lô", "Giá Nhập", "Ngày Nhập");
             List<InventoryBatch> batches = batchRepo.findAllByQuantityRemainingGreaterThan(0);
@@ -166,11 +168,10 @@ public class InventoryServiceImpl implements InventoryService {
                 r.createCell(4).setCellValue(sup != null ? sup.getPhone() : "-");
                 r.createCell(5).setCellValue(sup != null ? sup.getEmail() : "-");
                 r.createCell(6).setCellValue(b.getQuantityRemaining());
-                Cell cPrice = r.createCell(7); cPrice.setCellValue(b.getImportPrice().doubleValue()); cPrice.setCellStyle(numberStyle);
+                Cell cPrice = r.createCell(7); cPrice.setCellValue(b.getImportPrice().doubleValue()); cPrice.setCellStyle(moneyStyle);
                 r.createCell(8).setCellValue(b.getCreatedAt().format(FULL_TIME_FORMAT));
             }
 
-            // SHEET 3: NHẬT KÝ (SỬA LỖI findAllByOrderByCreatedAtDesc)
             Sheet s3 = workbook.createSheet("3. Nhật Ký Giao Dịch");
             createRow(s3, 0, headerStyle, "Ngày Giờ", "Mã Chứng Từ", "Loại", "SKU", "Số Lượng", "Đối Tác", "Lý Do", "Người Thực Hiện");
             List<InventoryTransaction> txs = transactionRepo.findAllByOrderByCreatedAtDesc();
@@ -192,10 +193,9 @@ public class InventoryServiceImpl implements InventoryService {
             workbook.write(out); return out.toByteArray();
         } catch (Exception e) { throw new RuntimeException("Excel Error: " + e.getMessage()); }
     }
-
     private void syncInventory(ProductVariant v, Long warehouseId, int qty, boolean add) {
         Inventory inv = inventoryRepo.findByVariantIdAndWarehouseId(v.getId(), warehouseId)
-                .orElse(Inventory.builder().variant(v).warehouseId(warehouseId).quantity(0).build());
+                .orElse(Inventory.builder().variant(v).warehouseId(warehouseId).quantity(0).reserved(0).build());
         inv.setQuantity(add ? inv.getQuantity() + qty : inv.getQuantity() - qty);
         inventoryRepo.save(inv);
     }
@@ -219,7 +219,9 @@ public class InventoryServiceImpl implements InventoryService {
 
     private void createRow(Sheet s, int idx, CellStyle st, String... vals) {
         Row r = s.createRow(idx);
-        for (int i = 0; i < vals.length; i++) { Cell c = r.createCell(i); c.setCellValue(vals[i]); c.setCellStyle(st); }
+        for (int i = 0; i < vals.length; i++) {
+            Cell c = r.createCell(i); c.setCellValue(vals[i]); c.setCellStyle(st);
+        }
     }
 
     private CellStyle createStyle(Workbook wb, boolean bold, IndexedColors bg, boolean redText) {

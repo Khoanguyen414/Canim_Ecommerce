@@ -1,5 +1,6 @@
 -- V5__create_inventory_tables.sql
 -- Mô tả: Khởi tạo hệ thống quản lý kho (WMS) - Thiết kế Đa kho, vận hành 1 kho.
+
 CREATE TABLE IF NOT EXISTS warehouses (
     id         BIGINT AUTO_INCREMENT PRIMARY KEY,
     name       VARCHAR(255) NOT NULL,
@@ -9,7 +10,6 @@ CREATE TABLE IF NOT EXISTS warehouses (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 
 INSERT IGNORE INTO warehouses (id, name, address) VALUES (1, 'Kho Chính TP.HCM', 'Quận 1, TP.HCM');
 
@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS inventory_receipt_details (
     quantity   INT NOT NULL,
     unit_price DECIMAL(15,2) NULL,
     CONSTRAINT fk_rd_receipt FOREIGN KEY (receipt_id) REFERENCES inventory_receipts (id) ON DELETE CASCADE,
-    CONSTRAINT fk_rd_batch   FOREIGN KEY (batch_id)   REFERENCES inventory_batches (id)
+    CONSTRAINT fk_rd_batch   FOREIGN KEY (batch_id)   REFERENCES inventory_batches (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS stock_checks (
@@ -128,7 +128,8 @@ CREATE TABLE IF NOT EXISTS inventory_transactions (
 
 ALTER TABLE inventory 
     ADD COLUMN warehouse_id BIGINT NOT NULL DEFAULT 1,
-    ADD COLUMN min_stock INT DEFAULT 0;
+    ADD COLUMN min_stock INT DEFAULT 0,
+    ADD COLUMN reserved INT DEFAULT 0;
 
 ALTER TABLE inventory ADD CONSTRAINT uk_inv_wh_variant UNIQUE (variant_id, warehouse_id);
 ALTER TABLE inventory ADD CONSTRAINT fk_inventory_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id);

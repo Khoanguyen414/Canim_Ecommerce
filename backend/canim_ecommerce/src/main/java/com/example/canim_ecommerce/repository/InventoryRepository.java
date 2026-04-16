@@ -13,19 +13,17 @@ import java.util.Optional;
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 
     Optional<Inventory> findByVariantIdAndWarehouseId(Long variantId, Long warehouseId);
+
+ 
     default Optional<Inventory> findByVariantId(Long variantId) {
         return findByVariantIdAndWarehouseId(variantId, 1L);
     }
+
     boolean existsByVariantIdAndWarehouseId(Long variantId, Long warehouseId);
-    @Query("SELECT i FROM Inventory i " +
-           "JOIN i.variant v " +
-           "JOIN v.product p " +
-           "WHERE p.category.id = :categoryId")
+
+    @Query("SELECT i FROM Inventory i JOIN i.variant v JOIN v.product p WHERE p.category.id = :categoryId")
     List<Inventory> findAllByCategoryId(@Param("categoryId") Integer categoryId);
-    @Query("SELECT i FROM Inventory i " +
-           "JOIN i.variant v " +
-           "JOIN v.product p " +
-           "WHERE p.category.id = :categoryId AND i.warehouseId = :warehouseId")
-    List<Inventory> findAllByCategoryIdAndWarehouseId(@Param("categoryId") Integer categoryId, 
-                                                      @Param("warehouseId") Long warehouseId);
+
+    @Query("SELECT i FROM Inventory i JOIN i.variant v JOIN v.product p WHERE p.category.id = :categoryId AND i.warehouseId = :warehouseId")
+    List<Inventory> findAllByCategoryIdAndWarehouseId(@Param("categoryId") Integer categoryId, @Param("warehouseId") Long warehouseId);
 }
