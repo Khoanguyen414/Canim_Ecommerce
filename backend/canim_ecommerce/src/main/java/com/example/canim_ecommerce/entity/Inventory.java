@@ -27,15 +27,15 @@ public class Inventory {
 
     @Column(nullable = false)
     @Builder.Default
-    Integer quantity = 0;
+    Integer quantity = 0; 
 
-    @Column(nullable = false)
+    @Column(name = "reserved", nullable = false)
     @Builder.Default
-    Integer reserved = 0;
+    Integer reserved = 0; 
 
     @Column(name = "min_stock")
     @Builder.Default
-    Integer minStock = 0;
+    Integer minStock = 0; 
 
     @UpdateTimestamp
     @Column(name = "updated_at")

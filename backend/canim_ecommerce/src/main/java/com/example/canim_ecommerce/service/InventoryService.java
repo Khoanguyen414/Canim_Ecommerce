@@ -7,4 +7,5 @@ public interface InventoryService {
     void createInboundReceipt(InboundRequest request);
     void createOutboundReceipt(OutboundRequest request);
     byte[] exportInventoryReport();
+    Integer getAvailableQuantityForVariant(Long variantId);
 }

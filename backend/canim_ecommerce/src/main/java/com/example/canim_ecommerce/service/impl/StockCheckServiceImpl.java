@@ -33,11 +33,9 @@ public class StockCheckServiceImpl implements StockCheckService {
 
     static Long DEFAULT_WAREHOUSE_ID = 1L;
     static Long CURRENT_USER_ID = 1L;
-
     @Override
     @Transactional(rollbackFor = Exception.class)
     public StockCheck createDraftCheck(StockCheckRequest request) {
-        // Lấy warehouseId từ request để hỗ trợ đa kho
         Long warehouseId = (request.getWarehouseId() != null) ? request.getWarehouseId() : DEFAULT_WAREHOUSE_ID;
 
         StockCheck check = StockCheck.builder()
@@ -52,7 +50,7 @@ public class StockCheckServiceImpl implements StockCheckService {
 
         for (StockCheckRequest.StockCheckItem item : request.getItems()) {
             ProductVariant variant = variantRepo.findById(item.getVariantId())
-                    .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Variant not found"));
+                    .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Không tìm thấy biến thể sản phẩm ID: " + item.getVariantId()));
 
             detailRepo.save(StockCheckDetail.builder()
                     .stockCheck(check)
@@ -64,12 +62,11 @@ public class StockCheckServiceImpl implements StockCheckService {
         }
         return check;
     }
-
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void completeStockCheck(Long stockCheckId) {
         StockCheck check = stockCheckRepo.findById(stockCheckId)
-                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Stock check not found"));
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Không tìm thấy phiếu kiểm kê"));
 
         if (check.getStatus() != StockCheckStatus.DRAFT) {
             throw new ApiException(ApiStatus.INVALID_INPUT, "Chỉ có thể hoàn tất phiếu ở trạng thái DRAFT");
@@ -85,52 +82,59 @@ public class StockCheckServiceImpl implements StockCheckService {
             ProductVariant variant = detail.getVariant();
 
             if (difference > 0) {
-                // Thừa hàng: Tạo một lô điều chỉnh mới
                 InventoryBatch adjustBatch = InventoryBatch.builder()
                         .warehouseId(whId)
                         .variant(variant)
-                        .batchCode(CodeGenerator.generateAdjustBatchCode())
+                        .batchCode(CodeGenerator.generateAdjustBatchCode()) 
                         .skuSnapshot(variant.getSku())
                         .quantityRemaining(difference)
                         .importPrice(BigDecimal.ZERO) 
                         .build();
                 adjustBatch = batchRepo.save(adjustBatch);
-
                 logTransaction(variant, whId, adjustBatch, TransactionType.ADJUST, difference, check.getId(), "STOCK_CHECK");
                 syncInventory(variant, whId, difference, true);
+
             } else {
-                // Thiếu hàng: Trừ từ các lô hiện có theo FIFO
                 int missingQty = Math.abs(difference);
                 List<InventoryBatch> batches = batchRepo.findAvailableBatchesForFIFO(whId, variant.getId());
 
                 for (InventoryBatch batch : batches) {
                     if (missingQty <= 0) break;
                     int take = Math.min(batch.getQuantityRemaining(), missingQty);
+                    
                     batch.setQuantityRemaining(batch.getQuantityRemaining() - take);
                     missingQty -= take;
                     batchRepo.save(batch);
-
                     logTransaction(variant, whId, batch, TransactionType.ADJUST, take, check.getId(), "STOCK_CHECK");
                 }
                 syncInventory(variant, whId, Math.abs(difference), false);
             }
         }
-
         check.setStatus(StockCheckStatus.COMPLETED);
         check.setUpdatedBy(CURRENT_USER_ID);
         stockCheckRepo.save(check);
     }
-
     private void logTransaction(ProductVariant v, Long whId, InventoryBatch b, TransactionType type, int qty, Long refId, String refType) {
         transactionRepo.save(InventoryTransaction.builder()
-                .warehouseId(whId).variant(v).batch(b).type(type).quantity(qty)
-                .referenceId(refId).referenceType(refType).createdBy(CURRENT_USER_ID).build());
+                .warehouseId(whId)
+                .variant(v)
+                .batch(b)
+                .type(type)
+                .quantity(qty)
+                .referenceId(refId)
+                .referenceType(refType)
+                .createdBy(CURRENT_USER_ID)
+                .build());
     }
 
     private void syncInventory(ProductVariant v, Long whId, int qty, boolean isAdd) {
-        // FIX LỖI: Tìm theo Variant + Warehouse để đảm bảo đa kho
         Inventory inv = inventoryRepo.findByVariantIdAndWarehouseId(v.getId(), whId)
-                .orElse(Inventory.builder().variant(v).warehouseId(whId).quantity(0).build());
+                .orElse(Inventory.builder()
+                        .variant(v)
+                        .warehouseId(whId)
+                        .quantity(0)
+                        .reserved(0)
+                        .build());
         
         inv.setQuantity(isAdd ? inv.getQuantity() + qty : inv.getQuantity() - qty);
         inventoryRepo.save(inv);
