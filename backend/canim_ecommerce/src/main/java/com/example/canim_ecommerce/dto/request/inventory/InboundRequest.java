@@ -18,7 +18,7 @@ import java.util.List;
 public class InboundRequest {
 
     @NotNull(message = "Warehouse ID is required")
-    Long warehouseId; // Đã bổ sung để fix lỗi getWarehouseId()
+    Long warehouseId; 
 
     @NotNull(message = "Supplier ID is required")
     Long supplierId;

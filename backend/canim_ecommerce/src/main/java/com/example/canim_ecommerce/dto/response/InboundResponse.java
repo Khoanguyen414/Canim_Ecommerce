@@ -19,7 +19,7 @@ public class InboundResponse {
         private Long productId; 
         private String productName;
         private String sku;     
-        private String batchCode; //mã lô
+        private String batchCode; 
         private Integer quantity;
         private BigDecimal price;
     }

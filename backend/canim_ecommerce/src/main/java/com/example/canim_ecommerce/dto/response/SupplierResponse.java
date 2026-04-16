@@ -15,35 +15,20 @@ import java.time.LocalDateTime;
 public class SupplierResponse {
     
     private Long id;  
-    
     private String supplierCode;  
-    
     private String name;  
-    
     private String contactName;  
-    
     private String email; 
-    
     private String phone;  
-    
     private String address;  
-    
     private String taxId;  
-    
-    private String paymentTerms;  // NET30, COD, ADVANCE
-    
+    private String paymentTerms;  
     private BigDecimal rating;  
-    
     private Integer totalOrders;  
-    
     private Boolean isActive;  
-    
     private Long createdBy;  
-    
     private LocalDateTime createdAt; 
-    
     private Long updatedBy;  
-    
     private LocalDateTime updatedAt;
 
 }

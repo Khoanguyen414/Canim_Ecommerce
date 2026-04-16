@@ -47,6 +47,7 @@ public class InventoryServiceImpl implements InventoryService {
                 .map(inv -> Math.max(0, inv.getQuantity() - inv.getReserved()))
                 .orElse(0);
     }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void createInboundReceipt(InboundRequest request) {
@@ -64,7 +65,9 @@ public class InventoryServiceImpl implements InventoryService {
         receipt = receiptRepo.save(receipt);
 
         for (var item : request.getItems()) {
-            ProductVariant variant = variantRepo.findById(item.getVariantId()).orElseThrow();
+            // CẬP NHẬT: Thêm ApiException thay vì orElseThrow() trống
+            ProductVariant variant = variantRepo.findById(item.getVariantId())
+                    .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Không tìm thấy biến thể sản phẩm ID: " + item.getVariantId()));
 
             InventoryBatch batch = InventoryBatch.builder()
                     .warehouseId(warehouseId)
@@ -86,6 +89,7 @@ public class InventoryServiceImpl implements InventoryService {
             syncInventory(variant, warehouseId, item.getQuantity(), true);
         }
     }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void createOutboundReceipt(OutboundRequest request) {
@@ -99,7 +103,9 @@ public class InventoryServiceImpl implements InventoryService {
 
         for (var item : request.getItems()) {
             int needed = item.getQuantity();
-            ProductVariant variant = variantRepo.findById(item.getVariantId()).orElseThrow();
+            ProductVariant variant = variantRepo.findById(item.getVariantId())
+                    .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Không tìm thấy biến thể sản phẩm ID: " + item.getVariantId()));
+            
             List<InventoryBatch> batches = batchRepo.findAvailableBatchesForFIFO(warehouseId, variant.getId());
 
             int actualExported = 0; 
@@ -125,6 +131,7 @@ public class InventoryServiceImpl implements InventoryService {
             syncInventory(variant, warehouseId, actualExported, false); 
         }
     }
+
     @Override
     public byte[] exportInventoryReport() {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -193,6 +200,7 @@ public class InventoryServiceImpl implements InventoryService {
             workbook.write(out); return out.toByteArray();
         } catch (Exception e) { throw new RuntimeException("Excel Error: " + e.getMessage()); }
     }
+
     private void syncInventory(ProductVariant v, Long warehouseId, int qty, boolean add) {
         Inventory inv = inventoryRepo.findByVariantIdAndWarehouseId(v.getId(), warehouseId)
                 .orElse(Inventory.builder().variant(v).warehouseId(warehouseId).quantity(0).reserved(0).build());
