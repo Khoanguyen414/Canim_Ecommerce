@@ -24,6 +24,9 @@ public class ProductResponse {
     String slug;
     String shortDesc;
     String longDesc;
+    
+    BigDecimal maxPrice;
+    BigDecimal minPrice;
 
     List<ProductVariantResponse> variants;
 

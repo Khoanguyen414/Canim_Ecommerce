@@ -27,6 +27,7 @@ import com.example.canim_ecommerce.dto.request.products.ProductStatusRequest;
 import com.example.canim_ecommerce.dto.request.products.ProductUpdateRequest;
 import com.example.canim_ecommerce.dto.response.PageResponse;
 import com.example.canim_ecommerce.dto.response.ProductResponse;
+import com.example.canim_ecommerce.dto.response.ProductVariantResponse;
 import com.example.canim_ecommerce.entity.Category;
 import com.example.canim_ecommerce.entity.Product;
 import com.example.canim_ecommerce.entity.ProductVariant;
@@ -38,6 +39,7 @@ import com.example.canim_ecommerce.repository.CategoryRepository;
 import com.example.canim_ecommerce.repository.ProductRepository;
 import com.example.canim_ecommerce.repository.ProductVariantRepository;
 import com.example.canim_ecommerce.repository.specification.ProductSpecification;
+import com.example.canim_ecommerce.service.InventoryService;
 import com.example.canim_ecommerce.service.ProductService;
 import com.example.canim_ecommerce.utils.SlugUtils;
 
@@ -53,6 +55,7 @@ public class ProductServiceImpl implements ProductService {
     ProductVariantRepository productVariantRepository;
     CategoryRepository categoryRepository;
     ProductMapper productMapper;
+    InventoryService inventoryService;
 
     @Override
     public PageResponse<ProductResponse> getProducts(ProductFilterRequest filterRequest, int pageNum, int sizePage, String sortBy, String sortDir) {
@@ -62,7 +65,11 @@ public class ProductServiceImpl implements ProductService {
         Page<Product> pageData = productRepository.findAll(spec, pageable);
 
         List<ProductResponse> data = pageData.getContent().stream()
-                .map(productMapper::toProductResponse)
+                .map(product -> {
+                    ProductResponse response = productMapper.toProductResponse(product);
+                    enrichProductData(response);
+                    return response;
+                })
                 .toList();
 
         return PageResponse.<ProductResponse>builder()
@@ -78,7 +85,10 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse getProductById(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
-        return productMapper.toProductResponse(product);
+        ProductResponse response = productMapper.toProductResponse(product);
+
+        enrichProductData(response);
+        return response;
     }
 
     @Override
@@ -87,7 +97,15 @@ public class ProductServiceImpl implements ProductService {
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product variant not found with sku: " + sku));
 
         Product product = variant.getProduct();
-        return productMapper.toProductResponse(product);
+
+        if (product.getStatus() == ProductStatus.HIDDEN) {
+            throw new ApiException(ApiStatus.NOT_FOUND, "This product has been discontinued or removed.");
+        }
+
+        ProductResponse response = productMapper.toProductResponse(product);
+
+        enrichProductData(response);  
+        return response;
     }
 
     @Override
@@ -96,9 +114,7 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found with slug: " + slug));
         ProductResponse response = productMapper.toProductResponse(product);
 
-        // Inventory inventory =
-        // inventoryRepository.findByProduct(product).orElse(null);
-        // response.setQuantity(inventory != null ? inventory.getQuantity() : 0);
+        enrichProductData(response);
         return response;
     }
 
@@ -197,7 +213,7 @@ public class ProductServiceImpl implements ProductService {
 
                 if (productVariantRepository.existsBySku(sku)) {
                     throw new ApiException(
-                            ApiStatus.NOT_FOUND,
+                            ApiStatus.RESOURCE_EXIST, 
                             "The line " + (rowIndex + 1) + ": SKU " + sku + " already exists!");
                 }
 
@@ -242,4 +258,30 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
+    private void enrichProductData(ProductResponse response) {
+        if (response.getVariants() == null || response.getVariants().isEmpty()) {
+            return;
+        }
+
+        BigDecimal min = null;
+        BigDecimal max = null;
+
+        for (ProductVariantResponse variantResponse : response.getVariants()) {
+            Integer availableQty = inventoryService.getAvailableQuantityForVariant(variantResponse.getId());
+            variantResponse.setQuantity(availableQty);
+
+            BigDecimal currentPrice = variantResponse.getPrice();
+            if (currentPrice != null) {
+                if (min == null || currentPrice.compareTo(min) < 0) {
+                    min = currentPrice;
+                }
+                if (max == null || currentPrice.compareTo(max) > 0) {
+                    max = currentPrice;
+                }
+            }
+        }
+
+        response.setMinPrice(min);
+        response.setMaxPrice(max);
+    }
 }

@@ -20,5 +20,6 @@ public class ProductVariantResponse {
     String color;
     String size;
     BigDecimal price;
+    Integer quantity;
 
 }

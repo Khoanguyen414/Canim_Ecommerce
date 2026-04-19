@@ -6,9 +6,11 @@ import com.example.canim_ecommerce.enums.ApiStatus;
 import com.example.canim_ecommerce.enums.StockCheckStatus;
 import com.example.canim_ecommerce.enums.TransactionType;
 import com.example.canim_ecommerce.exception.ApiException;
+import com.example.canim_ecommerce.helper.InventoryHelper;
 import com.example.canim_ecommerce.repository.*;
 import com.example.canim_ecommerce.service.StockCheckService;
 import com.example.canim_ecommerce.utils.CodeGenerator;
+import com.example.canim_ecommerce.utils.SecurityUtils;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -24,35 +26,34 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class StockCheckServiceImpl implements StockCheckService {
 
-    StockCheckRepository stockCheckRepo;
-    StockCheckDetailRepository detailRepo;
-    ProductVariantRepository variantRepo;
-    InventoryBatchRepository batchRepo;
-    InventoryTransactionRepository transactionRepo;
-    InventoryRepository inventoryRepo;
+    StockCheckRepository stockCheckRepository;
+    StockCheckDetailRepository stockCheckDetailRepository;
+    ProductVariantRepository variantRepository;
+    InventoryBatchRepository batchRepository;
+    InventoryHelper inventoryHelper;
 
-    static Long DEFAULT_WAREHOUSE_ID = 1L;
-    static Long CURRENT_USER_ID = 1L;
     @Override
     @Transactional(rollbackFor = Exception.class)
     public StockCheck createDraftCheck(StockCheckRequest request) {
-        Long warehouseId = (request.getWarehouseId() != null) ? request.getWarehouseId() : DEFAULT_WAREHOUSE_ID;
+        Long warehouseId = request.getWarehouseId();
+        Long currentUserId = SecurityUtils.getCurrentUserId();
 
         StockCheck check = StockCheck.builder()
                 .warehouseId(warehouseId)
                 .code(CodeGenerator.generateReceiptCode("CHK"))
-                .staffId(CURRENT_USER_ID)
+                .staffId(currentUserId)
                 .status(StockCheckStatus.DRAFT)
                 .note(request.getNote())
-                .createdBy(CURRENT_USER_ID)
+                .createdBy(currentUserId)
                 .build();
-        check = stockCheckRepo.save(check);
+        check = stockCheckRepository.save(check);
 
         for (StockCheckRequest.StockCheckItem item : request.getItems()) {
-            ProductVariant variant = variantRepo.findById(item.getVariantId())
-                    .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Không tìm thấy biến thể sản phẩm ID: " + item.getVariantId()));
+            ProductVariant variant = variantRepository.findById(item.getVariantId())
+                    .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND,
+                            "Không tìm thấy biến thể sản phẩm ID: " + item.getVariantId()));
 
-            detailRepo.save(StockCheckDetail.builder()
+            stockCheckDetailRepository.save(StockCheckDetail.builder()
                     .stockCheck(check)
                     .variant(variant)
                     .systemQuantity(item.getSystemQuantity())
@@ -62,22 +63,25 @@ public class StockCheckServiceImpl implements StockCheckService {
         }
         return check;
     }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void completeStockCheck(Long stockCheckId) {
-        StockCheck check = stockCheckRepo.findById(stockCheckId)
+        StockCheck check = stockCheckRepository.findById(stockCheckId)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Không tìm thấy phiếu kiểm kê"));
 
         if (check.getStatus() != StockCheckStatus.DRAFT) {
             throw new ApiException(ApiStatus.INVALID_INPUT, "Chỉ có thể hoàn tất phiếu ở trạng thái DRAFT");
         }
 
+        Long currentUserId = SecurityUtils.getCurrentUserId();
         Long whId = check.getWarehouseId();
         List<StockCheckDetail> details = check.getDetails();
 
         for (StockCheckDetail detail : details) {
             int difference = detail.getActualQuantity() - detail.getSystemQuantity();
-            if (difference == 0) continue; 
+            if (difference == 0)
+                continue;
 
             ProductVariant variant = detail.getVariant();
 
@@ -85,58 +89,35 @@ public class StockCheckServiceImpl implements StockCheckService {
                 InventoryBatch adjustBatch = InventoryBatch.builder()
                         .warehouseId(whId)
                         .variant(variant)
-                        .batchCode(CodeGenerator.generateAdjustBatchCode()) 
+                        .batchCode(CodeGenerator.generateAdjustBatchCode())
                         .skuSnapshot(variant.getSku())
                         .quantityRemaining(difference)
-                        .importPrice(BigDecimal.ZERO) 
+                        .importPrice(BigDecimal.ZERO)
                         .build();
-                adjustBatch = batchRepo.save(adjustBatch);
-                logTransaction(variant, whId, adjustBatch, TransactionType.ADJUST, difference, check.getId(), "STOCK_CHECK");
-                syncInventory(variant, whId, difference, true);
+                adjustBatch = batchRepository.save(adjustBatch);
+                inventoryHelper.logTransaction(variant, whId, adjustBatch, TransactionType.ADJUST, difference, check.getId(),
+                        "STOCK_CHECK");
+                inventoryHelper.syncInventory(variant, whId, difference, true);
 
             } else {
                 int missingQty = Math.abs(difference);
-                List<InventoryBatch> batches = batchRepo.findAvailableBatchesForFIFO(whId, variant.getId());
+                List<InventoryBatch> batches = batchRepository.findAvailableBatchesForFIFO(whId, variant.getId());
 
                 for (InventoryBatch batch : batches) {
-                    if (missingQty <= 0) break;
+                    if (missingQty <= 0)
+                        break;
                     int take = Math.min(batch.getQuantityRemaining(), missingQty);
-                    
+
                     batch.setQuantityRemaining(batch.getQuantityRemaining() - take);
                     missingQty -= take;
-                    batchRepo.save(batch);
-                    logTransaction(variant, whId, batch, TransactionType.ADJUST, take, check.getId(), "STOCK_CHECK");
+                    batchRepository.save(batch);
+                    inventoryHelper.logTransaction(variant, whId, batch, TransactionType.ADJUST, take, check.getId(), "STOCK_CHECK");
                 }
-                syncInventory(variant, whId, Math.abs(difference), false);
+                inventoryHelper.syncInventory(variant, whId, Math.abs(difference), false);
             }
         }
         check.setStatus(StockCheckStatus.COMPLETED);
-        check.setUpdatedBy(CURRENT_USER_ID);
-        stockCheckRepo.save(check);
-    }
-    private void logTransaction(ProductVariant v, Long whId, InventoryBatch b, TransactionType type, int qty, Long refId, String refType) {
-        transactionRepo.save(InventoryTransaction.builder()
-                .warehouseId(whId)
-                .variant(v)
-                .batch(b)
-                .type(type)
-                .quantity(qty)
-                .referenceId(refId)
-                .referenceType(refType)
-                .createdBy(CURRENT_USER_ID)
-                .build());
-    }
-
-    private void syncInventory(ProductVariant v, Long whId, int qty, boolean isAdd) {
-        Inventory inv = inventoryRepo.findByVariantIdAndWarehouseId(v.getId(), whId)
-                .orElse(Inventory.builder()
-                        .variant(v)
-                        .warehouseId(whId)
-                        .quantity(0)
-                        .reserved(0)
-                        .build());
-        
-        inv.setQuantity(isAdd ? inv.getQuantity() + qty : inv.getQuantity() - qty);
-        inventoryRepo.save(inv);
+        check.setUpdatedBy(currentUserId);
+        stockCheckRepository.save(check);
     }
 }
