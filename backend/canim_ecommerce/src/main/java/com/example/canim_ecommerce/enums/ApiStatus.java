@@ -22,8 +22,6 @@ public enum ApiStatus {
     CONFLICT(409, "Conflict"),
     INTERNAL_SERVER_ERROR(500, "Internal server error");
 
-    
-
     int statusCode;
     String message;
 }
