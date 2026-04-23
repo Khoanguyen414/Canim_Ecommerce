@@ -20,11 +20,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.example.canim_ecommerce.dto.request.productVariants.ProductVariantRequest;
-import com.example.canim_ecommerce.dto.request.products.ProductCreationRequest;
-import com.example.canim_ecommerce.dto.request.products.ProductFilterRequest;
-import com.example.canim_ecommerce.dto.request.products.ProductStatusRequest;
-import com.example.canim_ecommerce.dto.request.products.ProductUpdateRequest;
+import com.example.canim_ecommerce.dto.request.product.ProductCreationRequest;
+import com.example.canim_ecommerce.dto.request.product.ProductFilterRequest;
+import com.example.canim_ecommerce.dto.request.product.ProductStatusRequest;
+import com.example.canim_ecommerce.dto.request.product.ProductUpdateRequest;
+import com.example.canim_ecommerce.dto.request.productVariant.ProductVariantRequest;
 import com.example.canim_ecommerce.dto.response.PageResponse;
 import com.example.canim_ecommerce.dto.response.ProductResponse;
 import com.example.canim_ecommerce.dto.response.ProductVariantResponse;

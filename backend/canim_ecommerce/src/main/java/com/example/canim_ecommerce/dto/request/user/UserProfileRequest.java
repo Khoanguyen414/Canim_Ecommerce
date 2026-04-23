@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.dto.request.categories;
+package com.example.canim_ecommerce.dto.request.user;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -10,8 +10,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class CategoryUpdateRequest {
-    String name;
-    String description;
-    Integer parentId;
+public class UserProfileRequest {
+    String fullName;
+    String phone;
 }

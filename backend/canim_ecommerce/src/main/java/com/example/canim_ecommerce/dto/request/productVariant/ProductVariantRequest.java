@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.dto.request.productVariants;
+package com.example.canim_ecommerce.dto.request.productVariant;
 
 import java.math.BigDecimal;
 

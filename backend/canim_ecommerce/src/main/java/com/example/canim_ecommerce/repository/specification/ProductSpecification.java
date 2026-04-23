@@ -5,7 +5,7 @@ import java.util.List;
 
 import org.springframework.data.jpa.domain.Specification;
 
-import com.example.canim_ecommerce.dto.request.products.ProductFilterRequest;
+import com.example.canim_ecommerce.dto.request.product.ProductFilterRequest;
 import com.example.canim_ecommerce.entity.Category;
 import com.example.canim_ecommerce.entity.Product;
 import com.example.canim_ecommerce.entity.ProductVariant;

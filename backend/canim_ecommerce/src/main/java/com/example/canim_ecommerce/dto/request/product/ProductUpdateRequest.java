@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.dto.request.products;
+package com.example.canim_ecommerce.dto.request.product;
 
 import java.math.BigDecimal;
 

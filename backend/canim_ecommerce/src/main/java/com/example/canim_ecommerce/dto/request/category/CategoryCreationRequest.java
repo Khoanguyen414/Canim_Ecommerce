@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.dto.request.categories;
+package com.example.canim_ecommerce.dto.request.category;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.AccessLevel;

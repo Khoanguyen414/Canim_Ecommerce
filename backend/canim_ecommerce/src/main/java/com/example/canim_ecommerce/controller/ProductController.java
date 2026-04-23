@@ -4,10 +4,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.canim_ecommerce.dto.request.products.ProductCreationRequest;
-import com.example.canim_ecommerce.dto.request.products.ProductFilterRequest;
-import com.example.canim_ecommerce.dto.request.products.ProductStatusRequest;
-import com.example.canim_ecommerce.dto.request.products.ProductUpdateRequest;
+import com.example.canim_ecommerce.dto.request.product.ProductCreationRequest;
+import com.example.canim_ecommerce.dto.request.product.ProductFilterRequest;
+import com.example.canim_ecommerce.dto.request.product.ProductStatusRequest;
+import com.example.canim_ecommerce.dto.request.product.ProductUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.PageResponse;
 import com.example.canim_ecommerce.dto.response.ProductResponse;

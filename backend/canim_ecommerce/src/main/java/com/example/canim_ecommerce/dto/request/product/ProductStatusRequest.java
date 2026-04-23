@@ -1,6 +1,4 @@
-package com.example.canim_ecommerce.dto.request.products;
-
-import java.math.BigDecimal;
+package com.example.canim_ecommerce.dto.request.product;
 
 import com.example.canim_ecommerce.enums.ProductStatus;
 
@@ -14,10 +12,6 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class ProductFilterRequest {
-    String keyWord;
-    Long categoryId;
-    BigDecimal minPrice;
-    BigDecimal maxPrice;
+public class ProductStatusRequest {
     ProductStatus status;
 }

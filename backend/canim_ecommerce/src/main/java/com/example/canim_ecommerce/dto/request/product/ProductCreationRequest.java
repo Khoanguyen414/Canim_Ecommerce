@@ -1,8 +1,8 @@
-package com.example.canim_ecommerce.dto.request.products;
+package com.example.canim_ecommerce.dto.request.product;
 
 import java.util.List;
 
-import com.example.canim_ecommerce.dto.request.productVariants.ProductVariantRequest;
+import com.example.canim_ecommerce.dto.request.productVariant.ProductVariantRequest;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

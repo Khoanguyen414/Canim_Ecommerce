@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.dto.request.auths;
+package com.example.canim_ecommerce.dto.request.category;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -10,6 +10,8 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class RefreshTokenRequest {
-    String refreshToken;
+public class CategoryUpdateRequest {
+    String name;
+    String description;
+    Integer parentId;
 }

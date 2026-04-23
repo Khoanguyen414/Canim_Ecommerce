@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.dto.request.users;
+package com.example.canim_ecommerce.dto.request.role;
 
 import java.util.List;
 
@@ -12,10 +12,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class UserCreationRequest {
-    String email;
-    String password;
-    String fullName;
-    String phone;
-    List<String> roles;
+public class RoleRequest {
+    String name; 
+    List<Integer> permissionIds;
 }
