@@ -98,7 +98,7 @@ CREATE TABLE
 CREATE TABLE
     IF NOT EXISTS carts (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        user_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL UNIQUE,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -110,7 +110,6 @@ CREATE TABLE
         cart_id BIGINT NOT NULL,
         variant_id BIGINT NOT NULL,
         quantity INT NOT NULL,
-        price DECIMAL(15, 2) NOT NULL,
         added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT fk_ci_cart FOREIGN KEY (cart_id) REFERENCES carts (id) ON DELETE CASCADE,
         CONSTRAINT fk_ci_variant FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE CASCADE
@@ -122,16 +121,22 @@ CREATE TABLE
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
         order_no VARCHAR(64) NOT NULL UNIQUE,
         user_id BIGINT,
-        total_amount DECIMAL(15, 2) NOT NULL,
+        sub_total DECIMAL(15, 2) NOT NULL,
+        shipping_fee DECIMAL(15, 2) DEFAULT 0,
         discount_amount DECIMAL(15, 2) DEFAULT 0,
-        status ENUM (
+        total_amount DECIMAL(15, 2) NOT NULL,
+        receiver_name VARCHAR(100) NOT NULL,
+        receiver_phone VARCHAR(20) NOT NULL,
+        shipping_address TEXT NOT NULL,
+        order_note TEXT,
+        payment_method ENUM ('COD', 'VNPAY', 'MOMO') DEFAULT 'COD',
+        payment_status ENUM ('UNPAID', 'PAID', 'REFUNDED') DEFAULT 'UNPAID',
+        order_status ENUM (
             'PENDING',
-            'PAID',
             'PROCESSING',
             'SHIPPED',
             'DELIVERED',
-            'CANCELLED',
-            'REFUNDED'
+            'CANCELLED'
         ) DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -143,6 +148,7 @@ CREATE TABLE
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
         order_id BIGINT NOT NULL,
         variant_id BIGINT NOT NULL,
+        variant_name VARCHAR(255) NOT NULL,
         quantity INT NOT NULL,
         price DECIMAL(15, 2) NOT NULL,
         CONSTRAINT fk_oi_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
@@ -155,6 +161,8 @@ CREATE INDEX idx_products_category ON products (category_id);
 CREATE INDEX idx_inventory_variant ON inventory (variant_id);
 
 CREATE INDEX idx_orders_created_at ON orders (created_at);
+
+CREATE INDEX idx_orders_user_id ON orders (user_id);
 
 -- 10. user_events (lightweight for AI later)
 CREATE TABLE
