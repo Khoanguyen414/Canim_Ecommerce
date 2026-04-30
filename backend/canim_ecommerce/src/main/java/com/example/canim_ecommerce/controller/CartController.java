@@ -1,6 +1,7 @@
 package com.example.canim_ecommerce.controller;
 
 import com.example.canim_ecommerce.dto.request.cart.AddToCartRequest;
+import com.example.canim_ecommerce.dto.request.cart.ToggleSelectionRequest;
 import com.example.canim_ecommerce.dto.request.cart.UpdateCartItemRequest;
 import com.example.canim_ecommerce.dto.response.CartResponse;
 import com.example.canim_ecommerce.service.CartService;
@@ -35,6 +36,12 @@ public class CartController {
     @PutMapping("/update")
     public ResponseEntity<CartResponse> updateCartItem(@Valid @RequestBody UpdateCartItemRequest request) {
         CartResponse response = cartService.updateCartItem(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/selection")
+    public ResponseEntity<CartResponse> toggleSelection(@Valid @RequestBody ToggleSelectionRequest request) {
+        CartResponse response = cartService.toggleItemSelection(request);
         return ResponseEntity.ok(response);
     }
 

@@ -23,4 +23,5 @@ public class CartItemResponse {
     Boolean isAvailable;       
     Integer availableStock;   
     String warningMessage;    
+    String imageUrl; 
 }

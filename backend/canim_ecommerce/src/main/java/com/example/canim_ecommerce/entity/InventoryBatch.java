@@ -30,7 +30,6 @@ public class InventoryBatch {
     @Column(name = "batch_code", nullable = false, unique = true)
     String batchCode;
 
-    // --- ĐÂY LÀ TRƯỜNG BẠN CẦN THÊM ---
     @Column(name = "sku_snapshot", length = 50)
     String skuSnapshot;
 

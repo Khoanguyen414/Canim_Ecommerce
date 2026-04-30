@@ -68,7 +68,6 @@ public class InventoryServiceImpl implements InventoryService {
         receipt = inventoryReceiptRepository.save(receipt);
 
         for (var item : request.getItems()) {
-            // CẬP NHẬT: Thêm ApiException thay vì orElseThrow() trống
             ProductVariant variant = productVariantRepository.findById(item.getVariantId())
                     .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND,
                             "Không tìm thấy biến thể sản phẩm ID: " + item.getVariantId()));
@@ -227,6 +226,38 @@ public class InventoryServiceImpl implements InventoryService {
         } catch (Exception e) {
             throw new RuntimeException("Excel Error: " + e.getMessage());
         }
+    }
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reserveStock(Long variantId, int quantity) {
+        Inventory inventory = inventoryRepository.findByVariantId(variantId)
+                .orElseThrow(() -> new RuntimeException("Inventory not found"));
+        
+        int available = inventory.getQuantity() - inventory.getReserved();
+        if (available < quantity) {
+            throw new RuntimeException("Not enough stock to reserve");
+        }
+        inventory.setReserved(inventory.getReserved() + quantity);
+        inventoryRepository.save(inventory);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void unreserveStock(Long variantId, int quantity) {
+        Inventory inventory = inventoryRepository.findByVariantId(variantId)
+                .orElseThrow(() -> new RuntimeException("Inventory not found"));
+        inventory.setReserved(Math.max(0, inventory.getReserved() - quantity));
+        inventoryRepository.save(inventory);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void releaseAndExportStock(Long variantId, int quantity) {
+        Inventory inventory = inventoryRepository.findByVariantId(variantId)
+                .orElseThrow(() -> new RuntimeException("Inventory not found"));
+        inventory.setQuantity(Math.max(0, inventory.getQuantity() - quantity));
+        inventory.setReserved(Math.max(0, inventory.getReserved() - quantity));
+        inventoryRepository.save(inventory);
     }
 
     private double calculateWAC(Long variantId) {

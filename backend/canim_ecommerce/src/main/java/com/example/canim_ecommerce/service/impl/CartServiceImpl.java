@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.canim_ecommerce.dto.request.cart.AddToCartRequest;
+import com.example.canim_ecommerce.dto.request.cart.ToggleSelectionRequest;
 import com.example.canim_ecommerce.dto.request.cart.UpdateCartItemRequest;
 import com.example.canim_ecommerce.dto.response.CartResponse;
 import com.example.canim_ecommerce.entity.Cart;
@@ -19,11 +20,13 @@ import com.example.canim_ecommerce.enums.EventType;
 import com.example.canim_ecommerce.enums.ProductStatus;
 import com.example.canim_ecommerce.exception.ApiException;
 import com.example.canim_ecommerce.mapper.CartMapper;
+import com.example.canim_ecommerce.repository.CartItemRepository;
 import com.example.canim_ecommerce.repository.CartRepository;
+import com.example.canim_ecommerce.repository.ProductImageRepository;
 import com.example.canim_ecommerce.repository.ProductVariantRepository;
 import com.example.canim_ecommerce.service.CartService;
 import com.example.canim_ecommerce.service.InventoryService;
-import com.example.canim_ecommerce.service.UserEventService; // Import Service mật thám
+import com.example.canim_ecommerce.service.UserEventService;
 import com.example.canim_ecommerce.utils.SecurityUtils;
 
 import lombok.AccessLevel;
@@ -41,12 +44,10 @@ public class CartServiceImpl implements CartService {
     ProductVariantRepository productVariantRepository;
     CartMapper cartMapper;
     InventoryService inventoryService;
-    
-    // [CACHE] Redis để tăng tốc độ truy xuất
-    RedisTemplate<String, Object> redisTemplate; 
-    
-    // [AI TRACKING] Tiêm Service Mật thám vào
     UserEventService userEventService; 
+    RedisTemplate<String, Object> redisTemplate; 
+    CartItemRepository cartItemRepository;
+    ProductImageRepository productImageRepository;
     
     static final String REDIS_CART_KEY = "cart:user:";
 
@@ -54,22 +55,20 @@ public class CartServiceImpl implements CartService {
     public CartResponse getMyCart() {
         Long userId = SecurityUtils.getCurrentUserId();
         String redisKey = REDIS_CART_KEY + userId;
-
-        CartResponse cachedResponse = (CartResponse) redisTemplate.opsForValue().get(redisKey);
-        if (cachedResponse != null) {
+        Cart cart = (Cart) redisTemplate.opsForValue().get(redisKey);
+        
+        if (cart == null) {
+            log.warn("🐢 MISS CACHE MySQL: User {}", userId);
+            cart = cartRepository.findByUserId(userId).orElse(null);
+            if (cart == null) return CartResponse.builder().userId(userId).totalAmount(BigDecimal.ZERO).build();
+            redisTemplate.opsForValue().set(redisKey, cart, 7, TimeUnit.DAYS);
+        } else {
             log.info("🚀 HIT CACHE Redis: User {}", userId);
-            return cachedResponse;
         }
 
-        log.warn("🐢 MISS CACHE MySQL: User {}", userId);
-        Cart cart = cartRepository.findByUserId(userId).orElse(null);
-        
-        if (cart == null) return CartResponse.builder().userId(userId).totalAmount(BigDecimal.ZERO).build();
-        
         CartResponse response = cartMapper.toCartResponse(cart);
-        enrichCartData(response);
-
-        redisTemplate.opsForValue().set(redisKey, response, 7, TimeUnit.DAYS);
+        enrichCartData(response); 
+        
         return response;
     }
 
@@ -98,7 +97,7 @@ public class CartServiceImpl implements CartService {
 
         int availableQty = inventoryService.getAvailableQuantityForVariant(variant.getId());
         if (currentQtyInCart + request.getQuantity() > availableQty) {
-            throw new ApiException(ApiStatus.BAD_REQUEST, "Not enough stock. Only " + availableQty + " items available.");
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Not enough stock.");
         }
 
         Optional<CartItem> existingItem = cart.getItems().stream()
@@ -109,27 +108,18 @@ public class CartServiceImpl implements CartService {
             CartItem item = existingItem.get();
             item.setQuantity(item.getQuantity() + request.getQuantity());
         } else {
-            CartItem newItem = CartItem.builder()
-                    .variant(variant)
-                    .quantity(request.getQuantity())
-                    .isSelected(false) 
-                    .cart(cart) 
-                    .build();
-            cart.getItems().add(newItem);
+            cart.getItems().add(CartItem.builder()
+                    .variant(variant).quantity(request.getQuantity())
+                    .isSelected(false).cart(cart).build());
         }
 
         cart = cartRepository.save(cart);
+        redisTemplate.opsForValue().set(REDIS_CART_KEY + userId, cart, 7, TimeUnit.DAYS);
+
         CartResponse response = cartMapper.toCartResponse(cart);
         enrichCartData(response);
 
-        // [CACHE]: Lưu đè Redis
-        redisTemplate.opsForValue().set(REDIS_CART_KEY + userId, response, 7, TimeUnit.DAYS);
-
-        // [AI TRACKING]: Bắn sự kiện ngầm cho hệ thống theo dõi hành vi
-        // Chú ý: Bốc ID của bảng Product gốc ra thay vì Variant, vì thuật toán AI gợi ý Sản phẩm gốc.
-        Long productId = variant.getProduct().getId();
-        userEventService.logEventAsync(userId, productId, EventType.ADD_TO_CART, "{\"quantity\":" + request.getQuantity() + "}");
-
+        userEventService.logEventAsync(userId, variant.getProduct().getId(), EventType.ADD_TO_CART, "{\"quantity\":" + request.getQuantity() + "}");
         return response;
     }
 
@@ -152,7 +142,7 @@ public class CartServiceImpl implements CartService {
         if (request.getQuantity() > 0) {
             int availableQty = inventoryService.getAvailableQuantityForVariant(request.getVariantId());
             if (request.getQuantity() > availableQty && Boolean.TRUE.equals(request.getIsSelected())) {
-                throw new ApiException(ApiStatus.BAD_REQUEST, "Not enough stock. Only " + availableQty + " items available.");
+                throw new ApiException(ApiStatus.BAD_REQUEST, "Not enough stock.");
             }
             item.setQuantity(request.getQuantity());
             item.setIsSelected(request.getIsSelected());
@@ -162,12 +152,34 @@ public class CartServiceImpl implements CartService {
         }
 
         cart = cartRepository.save(cart);
+        redisTemplate.opsForValue().set(REDIS_CART_KEY + userId, cart, 7, TimeUnit.DAYS);
+
         CartResponse response = cartMapper.toCartResponse(cart);
         enrichCartData(response);
-
-        redisTemplate.opsForValue().set(REDIS_CART_KEY + userId, response, 7, TimeUnit.DAYS);
-
         return response;
+    }
+    @Override
+    @Transactional
+    public CartResponse toggleItemSelection(ToggleSelectionRequest request) {
+        Long userId = SecurityUtils.getCurrentUserId(); 
+        
+        Cart cart = cartRepository.findByUserId(userId)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Không tìm thấy giỏ hàng"));
+
+        boolean isUpdated = false;
+        for (CartItem item : cart.getItems()) {
+            if (request.getVariantIds().contains(item.getVariant().getId())) {
+                item.setIsSelected(request.getIsSelected());
+                isUpdated = true;
+            }
+        }
+
+        if (isUpdated) {
+            cart = cartRepository.save(cart);
+            redisTemplate.opsForValue().set(REDIS_CART_KEY + userId, cart, 7, TimeUnit.DAYS); 
+        }
+
+        return getMyCart(); 
     }
 
     @Override
@@ -175,11 +187,10 @@ public class CartServiceImpl implements CartService {
     public void clearCart() {
         Long userId = SecurityUtils.getCurrentUserId();
         cartRepository.findByUserId(userId).ifPresent(cart -> {
-            cart.getItems().forEach(item -> item.setCart(null));
-            cart.getItems().clear();
-            cartRepository.save(cart);
+            cartItemRepository.deleteAllByCartId(cart.getId()); 
             log.info("User {} cleared cart", userId);
-
+            cart.getItems().clear();
+            
             redisTemplate.delete(REDIS_CART_KEY + userId);
         });
     }
@@ -195,7 +206,11 @@ public class CartServiceImpl implements CartService {
         for (var item : response.getItems()) {
             ProductVariant variant = productVariantRepository.findById(item.getVariantId()).orElse(null);
             int availableQty = inventoryService.getAvailableQuantityForVariant(item.getVariantId());
-            
+            if (variant != null) {
+                productImageRepository.findByProductIdAndIsMainTrue(variant.getProduct().getId())
+                    .ifPresent(img -> item.setImageUrl(img.getUrl()));
+            }
+
             item.setAvailableStock(availableQty);
             item.setIsAvailable(true);
             item.setWarningMessage(null);
@@ -208,6 +223,8 @@ public class CartServiceImpl implements CartService {
                 item.setIsAvailable(false);
                 item.setWarningMessage("Quantity exceeds available stock (" + availableQty + ")");
             }
+            
+            // ĐIỂM ĂN TIỀN: Chỉ tính tổng tiền nếu món hàng được chọn (isSelected = true)
             if (Boolean.TRUE.equals(item.getIsSelected()) && Boolean.TRUE.equals(item.getIsAvailable())) {
                 calculatedTotal = calculatedTotal.add(item.getSubTotal());
             }

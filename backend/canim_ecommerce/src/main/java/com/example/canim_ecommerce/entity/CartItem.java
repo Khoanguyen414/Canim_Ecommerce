@@ -1,5 +1,6 @@
 package com.example.canim_ecommerce.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore; // 👇 Chú ý import thư viện này
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -17,6 +18,7 @@ public class CartItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
+    @JsonIgnore 
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
