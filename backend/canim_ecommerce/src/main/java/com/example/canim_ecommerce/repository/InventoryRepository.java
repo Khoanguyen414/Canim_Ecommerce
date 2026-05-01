@@ -26,4 +26,5 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 
     @Query("SELECT i FROM Inventory i JOIN i.variant v JOIN v.product p WHERE p.category.id = :categoryId AND i.warehouseId = :warehouseId")
     List<Inventory> findAllByCategoryIdAndWarehouseId(@Param("categoryId") Integer categoryId, @Param("warehouseId") Long warehouseId);
+    List<Inventory> findAllByOrderByWarehouseIdAscVariant_SkuAsc();
 }

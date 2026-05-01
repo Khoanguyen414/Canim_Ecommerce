@@ -15,7 +15,7 @@ import java.util.List;
 public class StockCheckRequest {
 
     @NotNull(message = "Warehouse ID is required")
-    Long warehouseId; // Bổ sung để xác định kho cần kiểm kê
+    Long warehouseId; 
 
     String note;
 

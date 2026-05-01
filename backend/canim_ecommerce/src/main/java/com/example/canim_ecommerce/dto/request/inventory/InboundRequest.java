@@ -2,7 +2,6 @@ package com.example.canim_ecommerce.dto.request.inventory;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
@@ -22,9 +21,6 @@ public class InboundRequest {
 
     @NotNull(message = "Supplier ID is required")
     Long supplierId;
-
-    @NotBlank(message = "Reason code is required (e.g., PURCHASE, CUSTOMER_RETURN)")
-    String reasonCode;
 
     String note;
 
