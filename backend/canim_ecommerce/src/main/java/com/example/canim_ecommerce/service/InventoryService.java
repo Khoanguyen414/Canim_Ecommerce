@@ -8,4 +8,8 @@ public interface InventoryService {
     void createOutboundReceipt(OutboundRequest request);
     byte[] exportInventoryReport();
     Integer getAvailableQuantityForVariant(Long variantId);
+    
+    void reserveStock(Long variantId, int quantity);
+    void unreserveStock(Long variantId, int quantity);
+    void releaseAndExportStock(Long variantId, int quantity);
 }

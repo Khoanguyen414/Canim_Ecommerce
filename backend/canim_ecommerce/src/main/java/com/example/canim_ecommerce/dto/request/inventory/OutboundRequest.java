@@ -2,7 +2,6 @@ package com.example.canim_ecommerce.dto.request.inventory;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
@@ -16,10 +15,7 @@ import java.util.List;
 public class OutboundRequest {
 
     @NotNull(message = "Warehouse ID is required")
-    Long warehouseId; // Đã bổ sung để fix lỗi getWarehouseId()
-
-    @NotBlank(message = "Reason code is required (e.g., SALES_ORDER, RETURN_TO_SUPPLIER)")
-    String reasonCode;
+    Long warehouseId; 
 
     Long orderId; 
 
