@@ -11,6 +11,7 @@ public interface CartService {
     CartResponse addToCart(AddToCartRequest request);
     CartResponse updateCartItem(UpdateCartItemRequest request);
     CartResponse toggleItemSelection(ToggleSelectionRequest request);
+    CartResponse removeCartItem(Long variantId);
     void clearCart();
     
 }

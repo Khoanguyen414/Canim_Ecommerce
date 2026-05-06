@@ -26,14 +26,12 @@ public class CartController {
         CartResponse response = cartService.getMyCart();
         return ResponseEntity.ok(response);
     }
-
-    @PostMapping("/add")
+    @PostMapping("/items")
     public ResponseEntity<CartResponse> addToCart(@Valid @RequestBody AddToCartRequest request) {
         CartResponse response = cartService.addToCart(request);
         return ResponseEntity.ok(response); 
     }
-
-    @PutMapping("/update")
+    @PutMapping("/items")
     public ResponseEntity<CartResponse> updateCartItem(@Valid @RequestBody UpdateCartItemRequest request) {
         CartResponse response = cartService.updateCartItem(request);
         return ResponseEntity.ok(response);
@@ -45,7 +43,12 @@ public class CartController {
         return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/clear")
+    @DeleteMapping("/items/{variantId}")
+    public ResponseEntity<CartResponse> removeCartItem(@PathVariable Long variantId) {
+        CartResponse response = cartService.removeCartItem(variantId);
+        return ResponseEntity.ok(response);
+    }
+    @DeleteMapping
     public ResponseEntity<String> clearCart() {
         cartService.clearCart();
         return ResponseEntity.ok("Cleared cart successfully"); 

@@ -158,8 +158,9 @@ public class CartServiceImpl implements CartService {
         enrichCartData(response);
         return response;
     }
+    
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public CartResponse toggleItemSelection(ToggleSelectionRequest request) {
         Long userId = SecurityUtils.getCurrentUserId(); 
         
@@ -180,6 +181,31 @@ public class CartServiceImpl implements CartService {
         }
 
         return getMyCart(); 
+    }
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CartResponse removeCartItem(Long variantId) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        Cart cart = cartRepository.findByUserId(userId)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Giỏ hàng hiện đang trống"));
+
+        boolean isRemoved = cart.getItems().removeIf(item -> {
+            if (item.getVariant().getId().equals(variantId)) {
+                item.setCart(null); // Bắt buộc để tránh lỗi Orphan Record trong Hibernate
+                return true;
+            }
+            return false;
+        });
+
+        if (!isRemoved) {
+            throw new ApiException(ApiStatus.NOT_FOUND, "Không tìm thấy sản phẩm này trong giỏ hàng");
+        }
+        cart = cartRepository.save(cart);
+        redisTemplate.opsForValue().set(REDIS_CART_KEY + userId, cart, 7, TimeUnit.DAYS);
+
+        CartResponse response = cartMapper.toCartResponse(cart);
+        enrichCartData(response);
+        return response;
     }
 
     @Override
@@ -223,8 +249,6 @@ public class CartServiceImpl implements CartService {
                 item.setIsAvailable(false);
                 item.setWarningMessage("Quantity exceeds available stock (" + availableQty + ")");
             }
-            
-            // ĐIỂM ĂN TIỀN: Chỉ tính tổng tiền nếu món hàng được chọn (isSelected = true)
             if (Boolean.TRUE.equals(item.getIsSelected()) && Boolean.TRUE.equals(item.getIsAvailable())) {
                 calculatedTotal = calculatedTotal.add(item.getSubTotal());
             }

@@ -1,5 +1,6 @@
 package com.example.canim_ecommerce.dto.request.cart;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
@@ -15,5 +16,6 @@ public class AddToCartRequest {
 
     @NotNull(message = "Quantity cannot be null")
     @Min(value = 1, message = "Quantity must be at least 1")
+    @Max(value = 99, message = "Quantity cannot exceed 99 items per request")
     Integer quantity;
 }

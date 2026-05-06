@@ -1,5 +1,6 @@
 package com.example.canim_ecommerce.dto.request.cart;
 
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.Data;
@@ -10,10 +11,9 @@ import java.util.List;
 @Data
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ToggleSelectionRequest {
-    
-    @NotNull(message = "Danh sách sản phẩm không được để trống")
+    @NotEmpty(message = "Variant IDs list cannot be empty")
     List<Long> variantIds; 
 
-    @NotNull(message = "Trạng thái chọn không được để trống")
+    @NotNull(message = "Selection status cannot be null")
     Boolean isSelected; 
 }
