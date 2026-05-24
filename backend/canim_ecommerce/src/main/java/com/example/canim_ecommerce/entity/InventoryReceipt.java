@@ -30,7 +30,6 @@ public class InventoryReceipt {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     ReceiptType type;
-
     
     @Column(name = "reason_code", nullable = false, length = 50)
     String reasonCode;

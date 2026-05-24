@@ -1,7 +1,11 @@
 package com.example.canim_ecommerce.repository;
 
 import com.example.canim_ecommerce.entity.Inventory;
+
+import jakarta.persistence.LockModeType;
+
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -11,10 +15,19 @@ import java.util.Optional;
 
 @Repository
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {
-
     Optional<Inventory> findByVariantIdAndWarehouseId(Long variantId, Long warehouseId);
 
- 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT i
+            FROM Inventory i
+            WHERE i.variant.id = :variantId
+              AND i.warehouseId = :warehouseId
+            """)
+    Optional<Inventory> findByVariantIdAndWarehouseIdForUpdate(
+            @Param("variantId") Long variantId,
+            @Param("warehouseId") Long warehouseId);
+
     default Optional<Inventory> findByVariantId(Long variantId) {
         return findByVariantIdAndWarehouseId(variantId, 1L);
     }
@@ -25,6 +38,8 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     List<Inventory> findAllByCategoryId(@Param("categoryId") Integer categoryId);
 
     @Query("SELECT i FROM Inventory i JOIN i.variant v JOIN v.product p WHERE p.category.id = :categoryId AND i.warehouseId = :warehouseId")
-    List<Inventory> findAllByCategoryIdAndWarehouseId(@Param("categoryId") Integer categoryId, @Param("warehouseId") Long warehouseId);
+    List<Inventory> findAllByCategoryIdAndWarehouseId(@Param("categoryId") Integer categoryId,
+            @Param("warehouseId") Long warehouseId);
+
     List<Inventory> findAllByOrderByWarehouseIdAscVariant_SkuAsc();
 }

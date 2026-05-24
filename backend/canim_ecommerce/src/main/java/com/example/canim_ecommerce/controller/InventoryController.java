@@ -41,7 +41,7 @@ public class InventoryController {
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_WAREHOUSE')")
     public ResponseEntity<byte[]> exportInventoryReport() {
         byte[] excelData = inventoryService.exportInventoryReport();
-        
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
         headers.setContentDispositionFormData("attachment", "Bao_Cao_Ton_Kho_" + System.currentTimeMillis() + ".xlsx");
