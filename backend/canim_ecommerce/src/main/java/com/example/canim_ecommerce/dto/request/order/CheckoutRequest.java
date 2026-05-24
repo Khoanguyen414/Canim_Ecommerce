@@ -15,17 +15,17 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class CheckoutRequest {
-    @NotBlank(message = "Recipient name cannot be blank")
+    @NotBlank(message = "Recipient name is required")
     String receiverName;
 
-    @NotBlank(message = "The phone number cannot be blank")
+    @NotBlank(message = "Receiver phone number is required")
     String receiverPhone;
 
-    @NotBlank(message = "Shipping address cannot be blank")
+    @NotBlank(message = "Shipping address is required")
     String shippingAddress;
 
     String orderNote;
-    
-    @NotNull(message = "Payment method is invalid")
+
+    @NotNull(message = "Payment method must be specified")
     PaymentMethod paymentMethod;
 }

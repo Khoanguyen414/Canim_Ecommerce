@@ -8,11 +8,7 @@ import com.example.canim_ecommerce.enums.OrderStatus;
 import com.example.canim_ecommerce.enums.PaymentMethod;
 import com.example.canim_ecommerce.enums.PaymentStatus;
 
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 @Data
@@ -23,11 +19,25 @@ import lombok.experimental.FieldDefaults;
 public class OrderResponse {
     Long id;
     String orderNo;
+    Long userId;
 
+    BigDecimal subTotal;
+    BigDecimal shippingFee;
+    BigDecimal discountAmount;
     BigDecimal totalAmount;
 
-    OrderStatus orderStatus;
+    String receiverName;
+    String receiverPhone;
+    String shippingAddress;
+    String orderNote;
+
+    PaymentMethod paymentMethod;
     PaymentStatus paymentStatus;
+    OrderStatus orderStatus;
 
     LocalDateTime createdAt;
+    LocalDateTime updatedAt;
+
+    List<OrderItemResponse> items;
+    List<OrderStatusHistoryResponse> histories;
 }

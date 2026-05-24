@@ -18,8 +18,8 @@ public class OrderItemResponse {
     Long id;
     Long variantId;
     String variantName;
-    String imageUrl;
     Integer quantity;
     BigDecimal price;
-    BigDecimal subTotal;
+    BigDecimal lineTotal;
+    String imageUrl;
 }

@@ -45,4 +45,12 @@ public class OrderItem {
     @CreationTimestamp
     @Column(name = "added_at", updatable = false)
     LocalDateTime addedAt;
+
+    public BigDecimal getLineTotal() {
+        if (price == null || quantity == null) {
+            return BigDecimal.ZERO;
+        }
+
+        return price.multiply(BigDecimal.valueOf(quantity));
+    }
 }

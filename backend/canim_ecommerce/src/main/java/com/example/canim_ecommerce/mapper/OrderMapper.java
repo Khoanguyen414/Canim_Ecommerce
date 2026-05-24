@@ -7,43 +7,27 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 import org.mapstruct.ReportingPolicy;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import com.example.canim_ecommerce.dto.response.OrderDetailResponse;
 import com.example.canim_ecommerce.dto.response.OrderItemResponse;
 import com.example.canim_ecommerce.dto.response.OrderResponse;
+import com.example.canim_ecommerce.dto.response.OrderStatusHistoryResponse;
 import com.example.canim_ecommerce.entity.Order;
 import com.example.canim_ecommerce.entity.OrderItem;
-import com.example.canim_ecommerce.repository.ProductImageRepository;
+import com.example.canim_ecommerce.entity.OrderStatusHistory;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
-public abstract class OrderMapper {
-    @Autowired
-    protected ProductImageRepository productImageRepository;
+public interface OrderMapper {
+    OrderResponse toOrderResponse(Order order);
 
-    public abstract OrderResponse toOrderResponse(Order order);
-    public abstract List<OrderResponse> toOrderResponseList(List<Order> orders);
+    OrderDetailResponse toDetailResponse(Order order);
 
-    public abstract OrderDetailResponse toOrderDetailResponse(Order order);
+    @Mapping(target = "imageUrl", ignore = true)
+    OrderItemResponse toItemResponse(OrderItem item);
 
-    @Mapping(target = "subTotal", source = "orderItem", qualifiedByName = "calcItemSubTotal")
-    @Mapping(target = "imageUrl", source = "orderItem", qualifiedByName = "fetchImageUrl")
-    public abstract OrderItemResponse toOrderItemResponse(OrderItem orderItem);
+    OrderStatusHistoryResponse toHistoryResponse(OrderStatusHistory history);
 
-    @Named("calcItemSubTotal")
-    protected BigDecimal calcItemSubTotal(OrderItem item) {
-        if (item == null || item.getPrice() == null || item.getQuantity() == null) {
-            return BigDecimal.ZERO;
-        }
-        return item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
-    }
+    List<OrderItemResponse> toItemResponses(List<OrderItem> items);
 
-    @Named("fetchImageUrl")
-    protected String fetchImageUrl(OrderItem item) {
-        if (item == null || item.getVariantId() == null) return null;
-        
-        return productImageRepository.findByProductIdAndIsMainTrue(item.getVariantId())
-                .map(img -> img.getUrl())
-                .orElse(null); 
-    }
+    List<OrderResponse> toResponses(List<Order> orders);
 }
