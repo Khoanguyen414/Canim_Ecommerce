@@ -8,7 +8,11 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "inventory_receipt_details")
-@Data @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class InventoryReceiptDetail {
 
@@ -32,5 +36,5 @@ public class InventoryReceiptDetail {
     Integer quantity;
 
     @Column(name = "unit_price", precision = 15, scale = 2)
-    BigDecimal unitPrice; 
+    BigDecimal unitPrice;
 }

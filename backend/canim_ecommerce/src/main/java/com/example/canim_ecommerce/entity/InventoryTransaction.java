@@ -10,7 +10,11 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "inventory_transactions")
-@Data @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class InventoryTransaction {
 
@@ -34,13 +38,13 @@ public class InventoryTransaction {
     TransactionType type;
 
     @Column(nullable = false)
-    Integer quantity; 
+    Integer quantity;
 
     @Column(name = "reference_id")
     Long referenceId;
 
     @Column(name = "reference_type", length = 50)
-    String referenceType; 
+    String referenceType;
 
     @Column(name = "created_by")
     Long createdBy;
