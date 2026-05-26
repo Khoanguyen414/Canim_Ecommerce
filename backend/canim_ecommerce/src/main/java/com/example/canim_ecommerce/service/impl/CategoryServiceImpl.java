@@ -1,6 +1,9 @@
 package com.example.canim_ecommerce.service.impl;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -105,5 +108,28 @@ public class CategoryServiceImpl implements CategoryService{
         Category category = categoryRepository.findById(id)
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
         categoryRepository.delete(category);
+    }
+
+    @Override
+    public List<Integer> collectDescendantIds(int rootId) {
+        List<Category> all = categoryRepository.findAll();
+        Map<Integer, List<Category>> childrenByParent = all.stream()
+                .filter(c -> c.getParent() != null)
+                .collect(Collectors.groupingBy(c -> c.getParent().getId()));
+
+        List<Integer> ids = new ArrayList<>();
+        collectDescendantIdsRecursive(rootId, childrenByParent, ids);
+        return ids;
+    }
+
+    private void collectDescendantIdsRecursive(
+            int currentId,
+            Map<Integer, List<Category>> childrenByParent,
+            List<Integer> ids) {
+        ids.add(currentId);
+        List<Category> children = childrenByParent.getOrDefault(currentId, List.of());
+        for (Category child : children) {
+            collectDescendantIdsRecursive(child.getId(), childrenByParent, ids);
+        }
     }
 }

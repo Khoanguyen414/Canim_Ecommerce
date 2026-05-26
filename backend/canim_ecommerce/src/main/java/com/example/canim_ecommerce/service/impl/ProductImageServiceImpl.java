@@ -15,18 +15,22 @@ import com.example.canim_ecommerce.exception.ApiException;
 import com.example.canim_ecommerce.repository.ProductImageRepository;
 import com.example.canim_ecommerce.repository.ProductRepository;
 import com.example.canim_ecommerce.service.CloudinaryService;
+import com.example.canim_ecommerce.service.ImageStorageService;
 import com.example.canim_ecommerce.service.ProductImageService;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ProductImageServiceImpl implements ProductImageService{
     ProductRepository productRepository;
     ProductImageRepository productImageRepository;
+    ImageStorageService imageStorageService;
     CloudinaryService cloudinaryService;
     
     @Override
@@ -37,15 +41,20 @@ public class ProductImageServiceImpl implements ProductImageService{
 
         List<ProductImageResponse> responses = new ArrayList<>();
 
+        log.info("Uploading {} image(s) for product id={}", files.size(), productId);
+
         for (MultipartFile file: files) {
+            if (file == null || file.isEmpty()) {
+                continue;
+            }
             try {
-                String url = cloudinaryService.uploadImage(file);
+                String url = imageStorageService.store(file);
 
                 ProductImage image = ProductImage.builder()
                     .product(product)
                     .url(url)
                     .isMain(false)
-                    .position(0)
+                    .position(responses.size())
                     .build();
 
                 if (product.getImages().isEmpty() && responses.isEmpty()) {
@@ -53,6 +62,7 @@ public class ProductImageServiceImpl implements ProductImageService{
                 }
 
                 productImageRepository.save(image);
+                product.getImages().add(image);
 
                 responses.add(ProductImageResponse.builder()
                     .id(image.getId())
@@ -74,10 +84,12 @@ public class ProductImageServiceImpl implements ProductImageService{
     public void deleteProductImage(Long productId) {
         ProductImage image = productImageRepository.findById(productId)
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Image not found"));
-        try {
-            cloudinaryService.deleteImage(image.getUrl());
-        } catch (Exception e){
-
+        if (image.getUrl() != null && image.getUrl().contains("cloudinary.com")) {
+            try {
+                cloudinaryService.deleteImage(image.getUrl());
+            } catch (Exception ignored) {
+                // ignore cloudinary delete errors
+            }
         }
 
         if (Boolean.TRUE.equals(image.getIsMain())) {

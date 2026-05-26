@@ -1,26 +1,29 @@
 @import "tailwindcss";
+@config "../tailwind.config.js";
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.6%;
+    --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    --background: 30 33% 98%;
+    --foreground: 12 12% 18%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.6%;
+    --card-foreground: 12 12% 18%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.6%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 84.2% 60.2%;
-    --accent-foreground: 0 0% 100%;
+    --popover-foreground: 12 12% 18%;
+    --muted: 26 40% 95%;
+    --muted-foreground: 18 12% 42%;
+    --accent: 22 85% 94%;
+    --accent-foreground: 14 45% 28%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --primary: 0 84.2% 60.2%;
+    --border: 24 24% 88%;
+    --input: 24 24% 88%;
+    /* Storefront primary — warm gold tone from logo */
+    --primary: 31 82% 67%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 3.6%;
-    --ring: 0 84.2% 60.2%;
+    --secondary: 24 42% 94%;
+    --secondary-foreground: 12 14% 20%;
+    --ring: 31 82% 67%;
     --radius: 0.5rem;
   }
 
@@ -48,20 +51,134 @@
 }
 
 * {
-  @apply border-border;
+  border-color: hsl(var(--border));
 }
 
 body {
-  @apply bg-background text-foreground;
+  @apply bg-background text-foreground antialiased;
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01" 1;
+  min-height: 100vh;
+  text-rendering: optimizeLegibility;
 }
 
 html {
   scroll-behavior: smooth;
 }
 
-/* Smooth transitions */
+::selection {
+  background-color: hsl(var(--primary) / 0.22);
+  color: hsl(var(--foreground));
+}
+
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Smooth transitions on interactive elements only */
 * {
-  transition-property: background-color, border-color, color, fill, stroke;
+  scrollbar-color: hsl(var(--primary) / 0.45) transparent;
+}
+
+a,
+button,
+input,
+textarea,
+select,
+[role="button"] {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow, transform;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 200ms;
+  transition-duration: 180ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@utility surface-glass {
+  @apply border border-white/30 bg-white/70 backdrop-blur-xl;
+}
+
+@utility section-shell {
+  @apply rounded-2xl border border-border/70 bg-white/80 shadow-sm ring-1 ring-black/[0.02];
+}
+
+/* Hero carousel autoplay progress (duration set via --hero-ms on parent) */
+@keyframes hero-carousel-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.hero-carousel-progress-fill {
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: hero-carousel-progress var(--hero-ms, 5000ms) linear forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-carousel-progress-fill {
+    animation: none;
+    transform: scaleX(1);
+    opacity: 0.35;
+  }
+}
+
+/* Nest home promo — slow zoom on active slide image */
+@keyframes home-promo-ken {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.07);
+  }
+}
+
+.home-promo-ken {
+  animation: home-promo-ken 10s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-promo-ken {
+    animation: none;
+  }
+}
+
+.shop-logo-link {
+  line-height: 0;
+}
+
+.shop-logo-img {
+  height: 3rem;
+  width: auto;
+  max-width: min(300px, 58vw);
+  object-fit: contain;
+  object-position: left center;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+@media (min-width: 640px) {
+  .shop-logo-img {
+    height: 3.35rem;
+    max-width: 320px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .shop-logo-img {
+    height: 3.75rem;
+    max-width: 360px;
+  }
 }

@@ -32,9 +32,11 @@ public class ProductImageController {
     @PostMapping(value = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<List<ProductImageResponse>> uploadImages(
-        @PathVariable Long id, 
-        @RequestParam("files") List<MultipartFile> files) 
-        {
+        @PathVariable Long id,
+        @RequestParam(value = "files", required = false) List<MultipartFile> files) {
+        if (files == null || files.isEmpty()) {
+            return ApiResponse.error(ApiStatus.INVALID_INPUT, "No files provided. Use form field 'files'.");
+        }
         var result = productImageService.uploadImages(id, files);
         return ApiResponse.success(
             ApiStatus.SUCCESS, 

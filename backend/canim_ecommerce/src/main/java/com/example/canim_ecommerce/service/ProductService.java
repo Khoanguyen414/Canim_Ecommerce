@@ -17,6 +17,10 @@ public interface ProductService {
     ProductResponse createProduct(ProductCreationRequest request);
     ProductResponse updateProduct(Long id, ProductUpdateRequest request);
     void changeProductStatus(Long id, ProductStatusRequest request);
-    void deleteProduct(Long id);
+    void deleteProduct(Long id, boolean permanent);
+
+    void restoreProduct(Long id);
+
+    ProductResponse getPublicProductById(Long id);
     void importProducts(MultipartFile file);
 }

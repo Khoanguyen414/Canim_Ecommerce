@@ -64,31 +64,6 @@
   margin-bottom: 15px;
 }
 
-/* ===== CATEGORY ===== */
-.category-list {
-  display: flex;
-  gap: 20px;
-  overflow-x: auto;
-}
-
-.category-item {
-  text-align: center;
-  min-width: 90px;
-}
-
-.category-item img {
-  width: 70px;
-  height: 70px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.category-item span {
-  font-size: 13px;
-  margin-top: 6px;
-  display: block;
-}
-
 /* ===== PRODUCT ===== */
 .product-grid {
   display: grid;
