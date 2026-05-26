@@ -16,7 +16,7 @@ import com.example.canim_ecommerce.entity.ProductVariant;
 
 @Mapper(componentModel = "spring")
 public interface ProductMapper {
-@Mapping(target = "id", ignore = true)
+    @Mapping(target = "id", ignore = true)
     @Mapping(target = "slug", ignore = true)
     @Mapping(target = "category", ignore = true)
     @Mapping(target = "images", ignore = true)
@@ -24,7 +24,6 @@ public interface ProductMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     Product toProduct(ProductCreationRequest request);
-
 
     @Mapping(target = "categoryId", ignore = true)
     @Mapping(target = "categoryName", ignore = true)

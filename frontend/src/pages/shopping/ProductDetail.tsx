@@ -1,223 +1,287 @@
-import { useState } from "react"
-import { useParams } from "react-router-dom"
-import { Star, ShoppingCart, Heart, Share2, Check } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Link, useNavigate, useParams } from "react-router-dom"
+import { ChevronRight, ShoppingCart, Heart, GitCompare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Select } from "@/components/ui/select"
+import { productService } from "@/services/product.service"
+import type { ProductDetail as ProductModel, ProductVariant } from "@/types/api.types"
+import { LoadingSpinner } from "@/components/common/LoadingSpinner"
+import { ErrorState } from "@/components/common/ErrorState"
+import { getApiErrorMessage } from "@/lib/apiError"
+import { formatVnd, toNumber } from "@/lib/format"
+import { getProductMainImage } from "@/lib/product"
+import { useCartStore } from "@/store/cart.store"
+import { productToWishlistItem, useWishlistStore } from "@/store/wishlist.store"
+import { cn } from "@/lib/cn"
+import { ShopSidebar } from "@/components/shop/ShopSidebar"
 
 export default function ProductDetail() {
   const { id } = useParams()
-  const [quantity, setQuantity] = useState(1)
-  const [selectedColor, setSelectedColor] = useState("black")
-  const [selectedSize, setSelectedSize] = useState("M")
+  const navigate = useNavigate()
+  const addLine = useCartStore((s) => s.addLine)
+  const toggleWishlist = useWishlistStore((s) => s.toggle)
 
-  // Mock data
-  const product = {
-    id,
-    name: "Áo thun nam cổ tròn cao cấp",
-    price: 199000,
-    originalPrice: 299000,
-    rating: 4.5,
-    reviews: 128,
-    inStock: true,
-    description:
-      "Áo thun nam cổ tròn thoải mái với chất liệu cotton 100%. Phù hợp cho mọi dịp từ casual đến semi-formal.",
-    images: [
-      "https://via.placeholder.com/500x500?text=Áo+thun+1",
-      "https://via.placeholder.com/500x500?text=Áo+thun+2",
-      "https://via.placeholder.com/500x500?text=Áo+thun+3",
-    ],
-    colors: ["black", "white", "navy", "gray"],
-    sizes: ["XS", "S", "M", "L", "XL", "XXL"],
-    details: {
-      material: "Cotton 100%",
-      care: "Giặt nước lạnh, không tẩy",
-      origin: "Việt Nam",
-      warranty: "12 tháng",
-    },
+  const [product, setProduct] = useState<ProductModel | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [quantity, setQuantity] = useState(1)
+  const [variantId, setVariantId] = useState<number | null>(null)
+  const [activeImage, setActiveImage] = useState<string | undefined>(undefined)
+  const [tab, setTab] = useState<"desc" | "info" | "reviews">("desc")
+  useEffect(() => {
+    const pid = Number(id)
+    if (!Number.isFinite(pid)) {
+      setError("ID sản phẩm không hợp lệ")
+      setLoading(false)
+      return
+    }
+    void (async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const { data } = await productService.getPublicById(pid)
+        if (!data.success || !data.result) throw new Error(data.message || "Không tìm thấy sản phẩm")
+        const p = data.result
+        setProduct(p)
+        const first = p.variants?.[0]
+        setVariantId(first?.id ?? null)
+        setActiveImage(getProductMainImage(p))
+      } catch (e) {
+        setError(getApiErrorMessage(e))
+        setProduct(null)
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [id])
+
+  const variant = useMemo(() => {
+    if (!product?.variants?.length) return null
+    return product.variants.find((v) => v.id === variantId) ?? product.variants[0]
+  }, [product, variantId])
+
+  const images = useMemo(() => {
+    if (!product?.images?.length) return []
+    return [...product.images].sort((a, b) => a.position - b.position)
+  }, [product])
+
+  const productIdNum = Number(id)
+  const isWishlisted = useWishlistStore((s) =>
+    Number.isFinite(productIdNum) ? s.isWishlisted(productIdNum) : false,
+  )
+
+  const handleToggleWishlist = () => {
+    if (!product) return
+    toggleWishlist(productToWishlistItem(product))
   }
 
+  const handleAddToCart = () => {
+    if (!product || !variant) return
+    const img = activeImage ?? getProductMainImage(product)
+    addLine({
+      productId: product.id,
+      variantId: variant.id,
+      productName: product.name,
+      sku: variant.sku,
+      color: variant.color,
+      size: variant.size,
+      price: toNumber(variant.price),
+      quantity,
+      imageUrl: img,
+    })
+    navigate("/cart")
+  }
+
+  if (loading) return <LoadingSpinner label="Đang tải chi tiết..." />
+  if (error || !product) return <ErrorState message={error ?? "Không có dữ liệu"} />
+
+  const inStock = (product.variants?.length ?? 0) > 0
+  const price = variant ? toNumber(variant.price) : 0
+
   return (
-    <div className="container py-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        {/* Images */}
-        <div className="space-y-4">
-          <div className="bg-secondary rounded-lg overflow-hidden aspect-square">
-            <img
-              src={product.images[0]}
-              alt={product.name}
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {product.images.map((img, i) => (
-              <button
-                key={i}
-                className="bg-secondary rounded-lg overflow-hidden aspect-square hover:ring-2 ring-primary transition-all"
-              >
-                <img src={img} alt={`View ${i + 1}`} className="w-full h-full object-cover" />
-              </button>
-            ))}
-          </div>
-        </div>
+    <div className="container py-6">
+      <nav className="mb-6 flex flex-wrap items-center gap-1 text-sm text-gray-500">
+        <Link to="/" className="hover:text-primary">
+          Home
+        </Link>
+        <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+        <Link to="/products" className="hover:text-primary">
+          Shop
+        </Link>
+        <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+        <span className="line-clamp-1 text-gray-800">{product.categoryName}</span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+        <span className="line-clamp-1 font-medium text-[#253d4e]">{product.name}</span>
+      </nav>
 
-        {/* Details */}
-        <div className="space-y-6">
-          {/* Header */}
-          <div>
-            <h1 className="text-3xl font-bold mb-2">{product.name}</h1>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1">
-                {[...Array(5)].map((_, i) => (
-                  <Star
-                    key={i}
-                    className={`w-4 h-4 ${
-                      i < Math.floor(product.rating)
-                        ? "fill-yellow-400 text-yellow-400"
-                        : "text-muted-foreground"
-                    }`}
-                  />
-                ))}
+      <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+        <div className="min-w-0 flex-1 space-y-8">
+          <div className="grid grid-cols-1 gap-8 rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm lg:grid-cols-2 lg:p-8">
+            <div className="space-y-4">
+              <div className="aspect-square overflow-hidden rounded-xl border border-gray-100 bg-[#f8f8f8]">
+                {activeImage ? (
+                  <img src={activeImage} alt={product.name} className="h-full w-full object-contain" />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-muted-foreground">Chưa có ảnh</div>
+                )}
               </div>
-              <span className="text-sm text-muted-foreground">
-                {product.rating} ({product.reviews} đánh giá)
-              </span>
+              {images.length > 1 ? (
+                <div className="grid grid-cols-5 gap-2">
+                  {images.map((img) => (
+                    <button
+                      key={img.id}
+                      type="button"
+                      onClick={() => setActiveImage(img.url)}
+                      className={`aspect-square overflow-hidden rounded-lg border-2 transition-all ${
+                        activeImage === img.url ? "border-primary ring-2 ring-primary/30" : "border-transparent"
+                      }`}
+                    >
+                      <img src={img.url} alt="" className="h-full w-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
-          </div>
 
-          {/* Price */}
-          <div className="space-y-2">
-            <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-bold text-primary">
-                ${product.price.toLocaleString()}
-              </span>
-              <span className="text-xl text-muted-foreground line-through">
-                ${product.originalPrice?.toLocaleString()}
-              </span>
-              <span className="px-3 py-1 bg-destructive text-destructive-foreground rounded-full text-sm font-semibold">
-                -33%
-              </span>
-            </div>
-          </div>
-
-          {/* Description */}
-          <p className="text-muted-foreground">{product.description}</p>
-
-          {/* Options */}
-          <div className="space-y-4 border-t border-b border-border py-4">
-            {/* Color */}
-            <div>
-              <label className="text-sm font-medium mb-2 block">
-                Màu sắc: <span className="text-primary">{selectedColor}</span>
-              </label>
-              <div className="flex gap-2">
-                {product.colors.map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => setSelectedColor(color)}
-                    className={`w-8 h-8 rounded-full border-2 transition-all ${
-                      selectedColor === color
-                        ? "border-primary ring-2 ring-primary/50"
-                        : "border-border"
-                    }`}
-                    style={{
-                      backgroundColor: {
-                        black: "#000",
-                        white: "#fff",
-                        navy: "#001f3f",
-                        gray: "#999",
-                      }[color],
-                    }}
-                  />
-                ))}
+            <div className="space-y-5">
+              <div>
+                <span className="mb-2 inline-block rounded bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-600">
+                  Sale
+                </span>
+                <h1 className="text-2xl font-bold leading-tight text-[#253d4e] md:text-3xl">{product.name}</h1>
+                <p className="mt-2 text-sm text-gray-500">SKU: {variant?.sku ?? "—"}</p>
               </div>
-            </div>
 
-            {/* Size */}
-            <div>
-              <label className="text-sm font-medium mb-2 block">
-                Kích cỡ: <span className="text-primary">{selectedSize}</span>
-              </label>
-              <Select value={selectedSize} onChange={(e) => setSelectedSize(e.target.value)}>
-                {product.sizes.map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </Select>
-            </div>
+              <div className="flex flex-wrap items-baseline gap-3">
+                <span className="text-3xl font-extrabold text-primary">{formatVnd(price)}</span>
+              </div>
 
-            {/* Quantity */}
-            <div>
-              <label className="text-sm font-medium mb-2 block">Số lượng</label>
-              <div className="flex items-center gap-2">
+              {product.shortDesc ? <p className="text-sm leading-relaxed text-gray-600">{product.shortDesc}</p> : null}
+
+              <div className="space-y-4 border-y border-gray-100 py-4">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#253d4e]">Variant</label>
+                  <Select
+                    value={variantId?.toString() ?? ""}
+                    onChange={(e) => setVariantId(Number(e.target.value))}
+                    disabled={!product.variants?.length}
+                  >
+                    {product.variants?.map((v: ProductVariant) => (
+                      <option key={v.id} value={v.id}>
+                        {[v.sku, v.color, v.size].filter(Boolean).join(" · ")}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#253d4e]">Quantity</label>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" type="button" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>
+                      -
+                    </Button>
+                    <input
+                      type="number"
+                      min={1}
+                      value={quantity}
+                      onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+                      className="w-16 rounded-md border border-gray-200 py-1.5 text-center text-sm"
+                    />
+                    <Button variant="outline" size="sm" type="button" onClick={() => setQuantity((q) => q + 1)}>
+                      +
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  className="min-h-11 flex-1 bg-primary font-bold hover:bg-primary/90 sm:flex-none sm:px-10"
+                  disabled={!inStock}
+                  type="button"
+                  onClick={handleAddToCart}
+                >
+                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  Add to cart
+                </Button>
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  size="icon"
+                  type="button"
+                  className={cn("h-11 w-11 shrink-0", isWishlisted && "border-red-200 text-red-500")}
+                  aria-label={isWishlisted ? "Bỏ yêu thích" : "Thêm yêu thích"}
+                  aria-pressed={isWishlisted}
+                  onClick={handleToggleWishlist}
                 >
-                  -
+                  <Heart className={cn("h-5 w-5", isWishlisted && "fill-current")} />
                 </Button>
-                <input
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                  className="w-16 text-center border border-border rounded-md py-1"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setQuantity(quantity + 1)}
-                >
-                  +
+                <Button variant="outline" size="icon" type="button" className="h-11 w-11 shrink-0" aria-label="Compare">
+                  <GitCompare className="h-5 w-5" />
                 </Button>
               </div>
+
+              <dl className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-lg bg-[#f4f6f8] p-3">
+                  <dt className="text-gray-500">Category</dt>
+                  <dd className="font-semibold text-[#253d4e]">{product.categoryName}</dd>
+                </div>
+                <div className="rounded-lg bg-[#f4f6f8] p-3">
+                  <dt className="text-gray-500">Stock</dt>
+                  <dd className="font-semibold text-primary">{inStock ? "In stock" : "Unavailable"}</dd>
+                </div>
+              </dl>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="space-y-3">
-            <Button className="w-full h-11" disabled={!product.inStock}>
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              Thêm vào giỏ hàng
-            </Button>
-            <div className="grid grid-cols-2 gap-3">
-              <Button variant="outline" className="h-11">
-                <Heart className="w-4 h-4 mr-2" />
-                Yêu thích
-              </Button>
-              <Button variant="outline" className="h-11">
-                <Share2 className="w-4 h-4 mr-2" />
-                Chia sẻ
-              </Button>
+          <Card className="overflow-hidden border-gray-200/80 shadow-sm">
+            <div className="flex flex-wrap border-b border-gray-100 bg-white">
+              {(
+                [
+                  { id: "desc" as const, label: "Description" },
+                  { id: "info" as const, label: "Additional info" },
+                  { id: "reviews" as const, label: "Reviews" },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  className={`border-b-2 px-5 py-3 text-sm font-bold transition-colors ${
+                    tab === t.id ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-[#253d4e]"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
-          </div>
-
-          {/* Status */}
-          <Card className="p-4 bg-green-50 border-green-200">
-            <div className="flex items-start gap-3">
-              <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-green-900">Còn hàng</p>
-                <p className="text-green-700">Giao hàng nhanh trong 1-2 ngày</p>
-              </div>
+            <div className="p-6">
+              {tab === "desc" ? (
+                product.longDesc ? (
+                  <div className="prose prose-sm max-w-none whitespace-pre-wrap text-gray-600">{product.longDesc}</div>
+                ) : (
+                  <p className="text-sm text-gray-500">No long description for this product.</p>
+                )
+              ) : null}
+              {tab === "info" ? (
+                <ul className="space-y-2 text-sm text-gray-600">
+                  <li>
+                    <span className="font-semibold text-[#253d4e]">Category: </span>
+                    {product.categoryName}
+                  </li>
+                  <li>
+                    <span className="font-semibold text-[#253d4e]">Variants: </span>
+                    {product.variants?.length ?? 0}
+                  </li>
+                </ul>
+              ) : null}
+              {tab === "reviews" ? <p className="text-sm text-gray-500">Reviews will appear here when you add a review feature.</p> : null}
             </div>
           </Card>
         </div>
-      </div>
 
-      {/* Details Section */}
-      <Card className="p-6">
-        <h2 className="text-xl font-bold mb-4">Thông tin chi tiết</h2>
-        <div className="grid grid-cols-2 gap-4">
-          {Object.entries(product.details).map(([key, value]) => (
-            <div key={key} className="pb-3 border-b border-border last:border-0">
-              <p className="text-sm text-muted-foreground capitalize">{key}</p>
-              <p className="font-medium">{value}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
+        <ShopSidebar newProducts={[]} className="hidden lg:block lg:max-w-[280px]" />
+      </div>
     </div>
   )
 }

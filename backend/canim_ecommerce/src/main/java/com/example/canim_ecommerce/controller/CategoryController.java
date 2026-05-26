@@ -51,7 +51,7 @@ public class CategoryController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<CategoryResponse> GetCategoryBySlug(@PathVariable int id) {
+    public ApiResponse<CategoryResponse> getCategoryById(@PathVariable int id) {
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
             "Get category successfully",
@@ -59,8 +59,8 @@ public class CategoryController {
         );
     }
     
-    @GetMapping("/{slug}")
-    public ApiResponse<CategoryResponse> GetCategoryBySlug(@PathVariable String slug) {
+    @GetMapping("/slug/{slug}")
+    public ApiResponse<CategoryResponse> getCategoryBySlug(@PathVariable String slug) {
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
             "Get category successfully",

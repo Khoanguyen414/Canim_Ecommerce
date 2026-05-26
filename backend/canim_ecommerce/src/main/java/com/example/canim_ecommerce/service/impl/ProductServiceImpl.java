@@ -16,6 +16,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -36,11 +38,19 @@ import com.example.canim_ecommerce.enums.ProductStatus;
 import com.example.canim_ecommerce.exception.ApiException;
 import com.example.canim_ecommerce.mapper.ProductMapper;
 import com.example.canim_ecommerce.repository.CategoryRepository;
+import com.example.canim_ecommerce.dto.response.ProductImageResponse;
+import com.example.canim_ecommerce.entity.ProductImage;
+import com.example.canim_ecommerce.repository.ProductImageRepository;
 import com.example.canim_ecommerce.repository.ProductRepository;
 import com.example.canim_ecommerce.repository.ProductVariantRepository;
 import com.example.canim_ecommerce.repository.specification.ProductSpecification;
+import com.example.canim_ecommerce.service.CategoryService;
+import com.example.canim_ecommerce.service.CloudinaryService;
 import com.example.canim_ecommerce.service.InventoryService;
 import com.example.canim_ecommerce.service.ProductService;
+import java.util.Optional;
+
+import com.example.canim_ecommerce.util.FacetCategoryResolver;
 import com.example.canim_ecommerce.utils.SlugUtils;
 
 import lombok.AccessLevel;
@@ -53,13 +63,17 @@ import lombok.experimental.FieldDefaults;
 public class ProductServiceImpl implements ProductService {
     ProductRepository productRepository;
     ProductVariantRepository productVariantRepository;
+    ProductImageRepository productImageRepository;
     CategoryRepository categoryRepository;
+    CategoryService categoryService;
     ProductMapper productMapper;
     InventoryService inventoryService;
+    CloudinaryService cloudinaryService;
 
     @Override
     public PageResponse<ProductResponse> getProducts(ProductFilterRequest filterRequest, int pageNum, int sizePage, String sortBy, String sortDir) {
-        Sort sort = sortDir.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+        enrichCategoryScope(filterRequest);
+        Sort sort = resolveSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(pageNum - 1, sizePage, sort);
         Specification<Product> spec = ProductSpecification.filterProducts(filterRequest);
         Page<Product> pageData = productRepository.findAll(spec, pageable);
@@ -85,8 +99,21 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse getProductById(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
+        if (!isAdminCaller()) {
+            assertVisibleOnShop(product);
+        }
         ProductResponse response = productMapper.toProductResponse(product);
 
+        enrichProductData(response);
+        return response;
+    }
+
+    @Override
+    public ProductResponse getPublicProductById(Long id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
+        assertVisibleOnShop(product);
+        ProductResponse response = productMapper.toProductResponse(product);
         enrichProductData(response);
         return response;
     }
@@ -112,6 +139,7 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse getProductBySlug(String slug) {
         Product product = productRepository.findBySlug(slug)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found with slug: " + slug));
+        assertVisibleOnShop(product);
         ProductResponse response = productMapper.toProductResponse(product);
 
         enrichProductData(response);
@@ -149,7 +177,9 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Product savedProduct = productRepository.save(product);
-        return productMapper.toProductResponse(savedProduct);
+        ProductResponse response = productMapper.toProductResponse(savedProduct);
+        enrichProductData(response);
+        return response;
     }
 
     @Override
@@ -180,16 +210,67 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public void deleteProduct(Long id) {
+    @Transactional
+    public void restoreProduct(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
 
-        if (product.getStatus() == ProductStatus.HIDDEN) {
+        if (product.getStatus() != ProductStatus.HIDDEN) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Only hidden products can be restored.");
+        }
+
+        product.setStatus(ProductStatus.ACTIVE);
+        productRepository.save(product);
+    }
+
+    @Override
+    @Transactional
+    public void deleteProduct(Long id, boolean permanent) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
+
+        if (permanent) {
+            permanentlyDelete(product);
             return;
+        }
+
+        if (product.getStatus() == ProductStatus.HIDDEN) {
+            throw new ApiException(
+                    ApiStatus.BAD_REQUEST,
+                    "Product is already hidden. Use permanent=true to delete permanently.");
         }
 
         product.setStatus(ProductStatus.HIDDEN);
         productRepository.save(product);
+    }
+
+    private void permanentlyDelete(Product product) {
+        List<ProductImage> images = productImageRepository.findByProduct_IdOrderByPositionAscIdAsc(product.getId());
+        for (ProductImage image : images) {
+            if (image.getUrl() != null && image.getUrl().contains("cloudinary.com")) {
+                try {
+                    cloudinaryService.deleteImage(image.getUrl());
+                } catch (Exception ignored) {
+                    // best-effort Cloudinary cleanup
+                }
+            }
+        }
+        productRepository.delete(product);
+    }
+
+    private static void assertVisibleOnShop(Product product) {
+        if (product.getStatus() != ProductStatus.ACTIVE) {
+            throw new ApiException(ApiStatus.NOT_FOUND, "Product not found");
+        }
+    }
+
+    private static boolean isAdminCaller() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return false;
+        }
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
     }
 
     @Override
@@ -259,6 +340,20 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private void enrichProductData(ProductResponse response) {
+        if (response.getId() != null) {
+            List<ProductImage> images = productImageRepository.findByProduct_IdOrderByPositionAscIdAsc(response.getId());
+            if (!images.isEmpty()) {
+                response.setImages(images.stream()
+                        .map(img -> ProductImageResponse.builder()
+                                .id(img.getId())
+                                .url(img.getUrl())
+                                .position(img.getPosition())
+                                .isMain(img.getIsMain())
+                                .build())
+                        .toList());
+            }
+        }
+
         if (response.getVariants() == null || response.getVariants().isEmpty()) {
             return;
         }
@@ -283,5 +378,67 @@ public class ProductServiceImpl implements ProductService {
 
         response.setMinPrice(min);
         response.setMaxPrice(max);
+    }
+
+    private Sort resolveSort(String sortBy, String sortDir) {
+        String key = sortBy == null ? "newest" : sortBy.trim().toLowerCase();
+        boolean asc = "asc".equalsIgnoreCase(sortDir);
+        return switch (key) {
+            case "price-asc" -> Sort.by("name").ascending();
+            case "price-desc" -> Sort.by("name").descending();
+            case "bestseller" -> Sort.by("id").descending();
+            case "name-asc" -> Sort.by("name").ascending();
+            case "name-desc" -> Sort.by("name").descending();
+            case "updatedat", "updated-at" -> asc ? Sort.by("updatedAt").ascending() : Sort.by("updatedAt").descending();
+            case "createdat", "created-at" -> asc ? Sort.by("createdAt").ascending() : Sort.by("createdAt").descending();
+            case "newest", "default" -> Sort.by("createdAt").descending();
+            default -> {
+                String property = sortBy == null ? "createdAt" : sortBy.trim();
+                yield asc ? Sort.by(property).ascending() : Sort.by(property).descending();
+            }
+        };
+    }
+
+    private void enrichCategoryScope(ProductFilterRequest filterRequest) {
+        if (filterRequest.getCategoryId() != null) {
+            filterRequest.setCategoryIds(
+                    categoryService.collectDescendantIds(filterRequest.getCategoryId().intValue()));
+            filterRequest.setCategoryFacetResolved(true);
+            return;
+        }
+
+        if (filterRequest.getCategorySlug() != null && !filterRequest.getCategorySlug().isBlank()) {
+            applyCategorySlug(filterRequest, filterRequest.getCategorySlug().trim(), true);
+            return;
+        }
+
+        Optional<FacetCategoryResolver.ResolvedCategory> resolved = FacetCategoryResolver.resolve(
+                filterRequest.getGender(),
+                filterRequest.getGroup(),
+                filterRequest.getFacet());
+
+        if (resolved.isEmpty()) {
+            return;
+        }
+
+        FacetCategoryResolver.ResolvedCategory target = resolved.get();
+        if (applyCategorySlug(filterRequest, target.slug(), target.leaf())) {
+            return;
+        }
+
+        if (target.leaf()) {
+            FacetCategoryResolver.resolveGroupFallbackSlug(filterRequest.getGender(), filterRequest.getGroup())
+                    .ifPresent(fallbackSlug -> applyCategorySlug(filterRequest, fallbackSlug, false));
+        }
+    }
+
+    private boolean applyCategorySlug(ProductFilterRequest filterRequest, String slug, boolean leafCategory) {
+        return categoryRepository.findBySlug(slug)
+                .map(category -> {
+                    filterRequest.setCategoryIds(categoryService.collectDescendantIds(category.getId()));
+                    filterRequest.setCategoryFacetResolved(leafCategory);
+                    return true;
+                })
+                .orElse(false);
     }
 }

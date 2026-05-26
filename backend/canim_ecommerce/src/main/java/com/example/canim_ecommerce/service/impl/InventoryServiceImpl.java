@@ -44,7 +44,12 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     public Integer getAvailableQuantityForVariant(Long variantId) {
-        return inventoryRepository.findByVariantId(variantId)
+        return getAvailableQuantityForVariant(InventoryService.DEFAULT_WAREHOUSE_ID, variantId);
+    }
+
+    @Override
+    public Integer getAvailableQuantityForVariant(Long warehouseId, Long variantId) {
+        return inventoryRepository.findByVariantIdAndWarehouseId(variantId, warehouseId)
                 .map(inv -> Math.max(0, inv.getQuantity() - inv.getReserved()))
                 .orElse(0);
     }
@@ -62,9 +67,9 @@ public class InventoryServiceImpl implements InventoryService {
         receipt.setWarehouseId(warehouseId);
         receipt.setReceiptCode(CodeGenerator.generateReceiptCode("IN"));
         receipt.setType(ReceiptType.INBOUND);
-        
-        receipt.setReasonCode("PURCHASE"); 
-        
+
+        receipt.setReasonCode("PURCHASE");
+
         receipt.setSupplier(supplier);
         receipt.setStatus(ReceiptStatus.COMPLETED);
         receipt.setCreatedBy(currentUserId);
@@ -91,7 +96,8 @@ public class InventoryServiceImpl implements InventoryService {
                     .receipt(receipt).variant(variant).batch(batch)
                     .quantity(item.getQuantity()).unitPrice(item.getPrice()).build());
 
-            inventoryHelper.logTransaction(variant, warehouseId, batch, TransactionType.IN, item.getQuantity(), receipt.getId(),
+            inventoryHelper.logTransaction(variant, warehouseId, batch, TransactionType.IN, item.getQuantity(),
+                    receipt.getId(),
                     "PURCHASE");
             inventoryHelper.syncInventory(variant, warehouseId, item.getQuantity(), true);
         }
@@ -105,9 +111,9 @@ public class InventoryServiceImpl implements InventoryService {
         receipt.setWarehouseId(warehouseId);
         receipt.setReceiptCode(CodeGenerator.generateReceiptCode("OUT"));
         receipt.setType(ReceiptType.OUTBOUND);
-        
-        receipt.setReasonCode("SALES_ORDER"); 
-        
+
+        receipt.setReasonCode("SALES_ORDER");
+
         receipt.setStatus(ReceiptStatus.COMPLETED);
         receipt = inventoryReceiptRepository.save(receipt);
 
@@ -117,12 +123,14 @@ public class InventoryServiceImpl implements InventoryService {
                     .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND,
                             "Product variant not found with ID: " + item.getVariantId()));
 
-            List<InventoryBatch> batches = inventoryBatchRepository.findAvailableBatchesForFIFO(warehouseId, variant.getId());
+            List<InventoryBatch> batches = inventoryBatchRepository.findAvailableBatchesForFIFO(warehouseId,
+                    variant.getId());
 
             int actualExported = 0;
 
             for (InventoryBatch batch : batches) {
-                if (needed <= 0) break;
+                if (needed <= 0)
+                    break;
                 int take = Math.min(batch.getQuantityRemaining(), needed);
 
                 batch.setQuantityRemaining(batch.getQuantityRemaining() - take);
@@ -134,7 +142,8 @@ public class InventoryServiceImpl implements InventoryService {
                         .receipt(receipt).variant(variant).batch(batch)
                         .quantity(take).unitPrice(batch.getImportPrice()).build());
 
-                inventoryHelper.logTransaction(variant, warehouseId, batch, TransactionType.OUT, take, receipt.getId(), "SALES_ORDER");
+                inventoryHelper.logTransaction(variant, warehouseId, batch, TransactionType.OUT, take, receipt.getId(),
+                        "SALES_ORDER");
             }
 
             if (needed > 0)
@@ -155,31 +164,32 @@ public class InventoryServiceImpl implements InventoryService {
 
             // --- SHEET 1: BÁO CÁO TỔNG HỢP ---
             Sheet s1 = workbook.createSheet("1. Tổng Hợp Tồn Kho");
-            createRow(s1, 0, headerStyle, "Mã Kho", "SKU", "Sản Phẩm", "Danh Mục", "Phân loại", "Tồn", "Giá Vốn TB", "Thành Tiền", "Cảnh Báo");
-            
+            createRow(s1, 0, headerStyle, "Mã Kho", "SKU", "Sản Phẩm", "Danh Mục", "Phân loại", "Tồn", "Giá Vốn TB",
+                    "Thành Tiền", "Cảnh Báo");
+
             List<Inventory> invs = inventoryRepository.findAllByOrderByWarehouseIdAscVariant_SkuAsc();
             int rowIdx = 1;
             for (Inventory inv : invs) {
                 Row r = s1.createRow(rowIdx++);
                 ProductVariant v = inv.getVariant();
-                
-                double wac = calculateWAC(v.getId(), inv.getWarehouseId()); 
-                
-                r.createCell(0).setCellValue("Kho " + inv.getWarehouseId()); 
+
+                double wac = calculateWAC(v.getId(), inv.getWarehouseId());
+
+                r.createCell(0).setCellValue("Kho " + inv.getWarehouseId());
                 r.createCell(1).setCellValue(v.getSku());
                 r.createCell(2).setCellValue(v.getProduct().getName());
                 r.createCell(3).setCellValue(v.getProduct().getCategory().getName());
                 r.createCell(4).setCellValue(formatVariant(v));
                 r.createCell(5).setCellValue(inv.getQuantity());
-                
+
                 Cell cWac = r.createCell(6);
                 cWac.setCellValue(wac);
                 cWac.setCellStyle(moneyStyle);
-                
+
                 Cell cTotal = r.createCell(7);
                 cTotal.setCellValue(wac * inv.getQuantity());
                 cTotal.setCellStyle(moneyStyle);
-                
+
                 if (inv.getQuantity() <= inv.getMinStock()) {
                     Cell cAlert = r.createCell(8);
                     cAlert.setCellValue("SẮP HẾT HÀNG");
@@ -187,9 +197,9 @@ public class InventoryServiceImpl implements InventoryService {
                 }
             }
 
-    
             Sheet s2 = workbook.createSheet("2. Chi Tiết Lô Hàng");
-            createRow(s2, 0, headerStyle, "Mã Kho", "Mã Lô", "SKU", "Sản Phẩm", "Nhà Cung Cấp", "SĐT NCC", "Tồn Lô", "Giá Nhập", "Ngày Nhập");
+            createRow(s2, 0, headerStyle, "Mã Kho", "Mã Lô", "SKU", "Sản Phẩm", "Nhà Cung Cấp", "SĐT NCC", "Tồn Lô",
+                    "Giá Nhập", "Ngày Nhập");
             List<InventoryBatch> batches = inventoryBatchRepository.findAllByQuantityRemainingGreaterThan(0);
             rowIdx = 1;
             for (InventoryBatch b : batches) {
@@ -202,17 +212,17 @@ public class InventoryServiceImpl implements InventoryService {
                 r.createCell(4).setCellValue(sup != null ? sup.getName() : "N/A");
                 r.createCell(5).setCellValue(sup != null ? sup.getPhone() : "-");
                 r.createCell(6).setCellValue(b.getQuantityRemaining());
-                
+
                 Cell cPrice = r.createCell(7);
                 cPrice.setCellValue(b.getImportPrice().doubleValue());
                 cPrice.setCellStyle(moneyStyle);
-                
+
                 r.createCell(8).setCellValue(b.getCreatedAt().format(FULL_TIME_FORMAT));
             }
 
-        
             Sheet s3 = workbook.createSheet("3. Nhật Ký Giao Dịch");
-            createRow(s3, 0, headerStyle, "Ngày Giờ", "Mã Kho", "Mã Chứng Từ", "Loại", "SKU", "Số Lượng", "Lý Do", "Người Thực Hiện");
+            createRow(s3, 0, headerStyle, "Ngày Giờ", "Mã Kho", "Mã Chứng Từ", "Loại", "SKU", "Số Lượng", "Lý Do",
+                    "Người Thực Hiện");
             List<InventoryTransaction> txs = inventoryTransactionRepository.findAllByOrderByCreatedAtDesc();
             rowIdx = 1;
             for (InventoryTransaction tx : txs) {
@@ -223,7 +233,7 @@ public class InventoryServiceImpl implements InventoryService {
                 r.createCell(3).setCellValue(tx.getType().toString());
                 r.createCell(4).setCellValue(tx.getVariant().getSku());
                 r.createCell(5).setCellValue(tx.getQuantity());
-                r.createCell(6).setCellValue(tx.getReferenceType()); 
+                r.createCell(6).setCellValue(tx.getReferenceType());
                 r.createCell(7).setCellValue("Nhân viên ID: " + tx.getCreatedBy());
             }
 
@@ -241,50 +251,152 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void reserveStock(Long variantId, int quantity) {
-        Inventory inventory = inventoryRepository.findByVariantId(variantId)
+    public void checkAndLockStock(Long warehouseId, Long variantId, int quantity) {
+        validatePositiveQuantity(quantity);
+
+        Inventory inventory = inventoryRepository
+                .findByVariantIdAndWarehouseIdForUpdate(variantId, warehouseId)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Inventory not found"));
-        
+
         int available = inventory.getQuantity() - inventory.getReserved();
+
+        if (available < quantity) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Not enough stock");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reserveStock(Long warehouseId, Long variantId, int quantity) {
+        validatePositiveQuantity(quantity);
+
+        Inventory inventory = inventoryRepository
+                .findByVariantIdAndWarehouseIdForUpdate(variantId, warehouseId)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Inventory not found"));
+
+        int available = inventory.getQuantity() - inventory.getReserved();
+
         if (available < quantity) {
             throw new ApiException(ApiStatus.BAD_REQUEST, "Not enough stock to reserve");
         }
+
         inventory.setReserved(inventory.getReserved() + quantity);
         inventoryRepository.save(inventory);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void unreserveStock(Long variantId, int quantity) {
-        Inventory inventory = inventoryRepository.findByVariantId(variantId)
+    public void unreserveStock(Long warehouseId, Long variantId, int quantity) {
+        validatePositiveQuantity(quantity);
+
+        Inventory inventory = inventoryRepository
+                .findByVariantIdAndWarehouseIdForUpdate(variantId, warehouseId)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Inventory not found"));
-        inventory.setReserved(Math.max(0, inventory.getReserved() - quantity));
+
+        if (inventory.getReserved() < quantity) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Reserved stock is not enough to release");
+        }
+
+        inventory.setReserved(inventory.getReserved() - quantity);
         inventoryRepository.save(inventory);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void releaseAndExportStock(Long variantId, int quantity) {
-        Inventory inventory = inventoryRepository.findByVariantId(variantId)
+    public void releaseAndExportStock(Long warehouseId, Long variantId, int quantity, Long orderId) {
+        validatePositiveQuantity(quantity);
+
+        Inventory inventory = inventoryRepository
+                .findByVariantIdAndWarehouseIdForUpdate(variantId, warehouseId)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Inventory not found"));
-        inventory.setQuantity(Math.max(0, inventory.getQuantity() - quantity));
-        inventory.setReserved(Math.max(0, inventory.getReserved() - quantity));
+
+        if (inventory.getReserved() < quantity) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Reserved stock is not enough to export");
+        }
+
+        if (inventory.getQuantity() < quantity) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Physical stock is not enough to export");
+        }
+
+        ProductVariant variant = productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product variant not found"));
+
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
+        InventoryReceipt receipt = InventoryReceipt.builder()
+                .warehouseId(warehouseId)
+                .receiptCode(CodeGenerator.generateReceiptCode("OUT"))
+                .type(ReceiptType.OUTBOUND)
+                .reasonCode("SALES_ORDER")
+                .orderId(orderId)
+                .warehouseStaffId(currentUserId)
+                .status(ReceiptStatus.COMPLETED)
+                .createdBy(currentUserId)
+                .build();
+
+        receipt = inventoryReceiptRepository.save(receipt);
+
+        int needed = quantity;
+        int actualExported = 0;
+
+        List<InventoryBatch> batches = inventoryBatchRepository.findAvailableBatchesForFIFO(
+                warehouseId,
+                variantId);
+
+        for (InventoryBatch batch : batches) {
+            if (needed <= 0) {
+                break;
+            }
+
+            int take = Math.min(batch.getQuantityRemaining(), needed);
+
+            batch.setQuantityRemaining(batch.getQuantityRemaining() - take);
+            inventoryBatchRepository.save(batch);
+
+            inventoryReceiptDetailRepository.save(
+                    InventoryReceiptDetail.builder()
+                            .receipt(receipt)
+                            .variant(variant)
+                            .batch(batch)
+                            .quantity(take)
+                            .unitPrice(batch.getImportPrice())
+                            .build());
+
+            inventoryHelper.logTransaction(
+                    variant,
+                    warehouseId,
+                    batch,
+                    TransactionType.OUT,
+                    take,
+                    receipt.getId(),
+                    "SALES_ORDER");
+
+            needed -= take;
+            actualExported += take;
+        }
+
+        if (needed > 0) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Not enough batch stock for SKU: " + variant.getSku());
+        }
+
+        inventory.setQuantity(inventory.getQuantity() - actualExported);
+        inventory.setReserved(inventory.getReserved() - actualExported);
         inventoryRepository.save(inventory);
     }
 
     private double calculateWAC(Long variantId, Long warehouseId) {
         List<InventoryBatch> batches = inventoryBatchRepository.findAllByVariantId(variantId);
-        
+
         double totalVal = batches.stream()
                 .filter(b -> b.getWarehouseId().equals(warehouseId))
                 .mapToDouble(b -> b.getImportPrice().doubleValue() * b.getQuantityRemaining())
                 .sum();
-        
+
         int totalQty = batches.stream()
                 .filter(b -> b.getWarehouseId().equals(warehouseId))
                 .mapToInt(InventoryBatch::getQuantityRemaining)
                 .sum();
-                
+
         return totalQty == 0 ? 0 : totalVal / totalQty;
     }
 
@@ -318,5 +430,11 @@ public class InventoryServiceImpl implements InventoryService {
         s.setBorderLeft(BorderStyle.THIN);
         s.setBorderRight(BorderStyle.THIN);
         return s;
+    }
+
+    private void validatePositiveQuantity(int quantity) {
+        if (quantity <= 0) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Quantity must be greater than 0");
+        }
     }
 }

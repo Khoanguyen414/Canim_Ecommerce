@@ -44,16 +44,15 @@ public class SecurityConfig {
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/categories/**",
-            "/products/**"
+            "/products/**",
+            "/uploads/**"
     };
 
-    // ===================== PASSWORD =====================
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder(10);
     }
 
-    // ===================== JWT DECODER =====================
     @Bean
     JwtDecoder jwtDecoder() {
         SecretKeySpec secretKeySpec =
@@ -65,14 +64,12 @@ public class SecurityConfig {
                 .build();
     }
 
-    // ===================== AUTH MANAGER =====================
     @Bean
     AuthenticationManager authenticationManager(
             AuthenticationConfiguration authConfig) throws Exception {
         return authConfig.getAuthenticationManager();
     }
 
-    // ===================== JWT ROLE CONVERTER =====================
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter =
@@ -88,15 +85,15 @@ public class SecurityConfig {
         return converter;
     }
 
-    // ===================== CORS CONFIG =====================
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
         config.setAllowCredentials(true);
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
+        // Allow storefront and standalone admin app on any local dev port (5173/5174/...)
+        config.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
         config.setAllowedMethods(List.of(
-                "GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("Authorization"));
 
@@ -107,7 +104,6 @@ public class SecurityConfig {
         return source;
     }
 
-    // ===================== SECURITY FILTER =====================
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http

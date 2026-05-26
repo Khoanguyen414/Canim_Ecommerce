@@ -16,8 +16,6 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;
 
-import org.springframework.web.HttpRequestMethodNotSupportedException;
-
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
