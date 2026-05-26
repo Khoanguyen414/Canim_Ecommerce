@@ -42,8 +42,10 @@ public class ProductController {
     public ApiResponse<PageResponse<ProductResponse>> getProducts(
         @ModelAttribute ProductFilterRequest filterRequest,
         @RequestParam(defaultValue = "1") int pageNum,
-        @RequestParam(defaultValue = "20") int sizePage
+        @RequestParam(defaultValue = "20") int sizePage,
+        @RequestParam(defaultValue = "false") boolean includeHidden
     ) {
+        filterRequest.setIncludeHidden(includeHidden);
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
             "Get products successfully", 
@@ -51,17 +53,39 @@ public class ProductController {
         );
     }
 
+    @GetMapping("/public/{id}")
+    public ApiResponse<ProductResponse> getPublicProductById(@PathVariable Long id) {
+        return ApiResponse.success(
+            ApiStatus.SUCCESS,
+            "Get public product detail",
+            productService.getPublicProductById(id)
+        );
+    }
+
     @GetMapping("/public")
     public ApiResponse<PageResponse<ProductResponse>> getPublicProducts(
         @ModelAttribute ProductFilterRequest filterRequest,
         @RequestParam(defaultValue = "1") int pageNum,
-        @RequestParam(defaultValue = "20") int sizePage
+        @RequestParam(defaultValue = "20") int sizePage,
+        @RequestParam(defaultValue = "newest") String sortBy,
+        @RequestParam(required = false) String gender,
+        @RequestParam(required = false) String group,
+        @RequestParam(required = false) String facet
     ) {
+        if (gender != null && !gender.isBlank()) {
+            filterRequest.setGender(gender);
+        }
+        if (group != null && !group.isBlank()) {
+            filterRequest.setGroup(group);
+        }
+        if (facet != null && !facet.isBlank()) {
+            filterRequest.setFacet(facet);
+        }
         filterRequest.setStatus(ProductStatus.ACTIVE);
         return ApiResponse.success(
             ApiStatus.SUCCESS, 
             "Get public products successfully", 
-            productService.getProducts(filterRequest, pageNum, sizePage, "createdAt", "desc")
+            productService.getProducts(filterRequest, pageNum, sizePage, sortBy, "desc")
         );
     }
     
@@ -124,14 +148,26 @@ public class ProductController {
         );
     }
 
-    @DeleteMapping("/{id}")
+    @PostMapping("/{id}/restore")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ApiResponse<Void> deleteProduct(@PathVariable Long id) {
-        productService.deleteProduct(id);
+    public ApiResponse<Void> restoreProduct(@PathVariable Long id) {
+        productService.restoreProduct(id);
         return ApiResponse.success(
-            ApiStatus.SUCCESS, 
-            "Product deleted successfully", 
+            ApiStatus.SUCCESS,
+            "Product restored to shop",
             null
         );
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ApiResponse<Void> deleteProduct(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean permanent) {
+        productService.deleteProduct(id, permanent);
+        String message = permanent
+                ? "Product permanently deleted"
+                : "Product hidden from shop (soft delete)";
+        return ApiResponse.success(ApiStatus.SUCCESS, message, null);
     }
 }

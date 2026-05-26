@@ -44,7 +44,8 @@ public class SecurityConfig {
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/categories/**",
-            "/products/**"
+            "/products/**",
+            "/uploads/**"
     };
 
     @Bean
@@ -89,7 +90,8 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
 
         config.setAllowCredentials(true);
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
+        // Allow storefront and standalone admin app on any local dev port (5173/5174/...)
+        config.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
         config.setAllowedMethods(List.of(
                 "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
