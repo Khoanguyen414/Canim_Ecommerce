@@ -8,7 +8,7 @@ import com.example.canim_ecommerce.service.AiProductContextService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-
+@RestController
 @RequestMapping("/ai/products")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
