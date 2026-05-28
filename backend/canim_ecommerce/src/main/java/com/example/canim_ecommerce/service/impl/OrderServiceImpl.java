@@ -4,7 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -30,6 +32,7 @@ import com.example.canim_ecommerce.entity.OrderStatusHistory;
 import com.example.canim_ecommerce.entity.Product;
 import com.example.canim_ecommerce.entity.ProductVariant;
 import com.example.canim_ecommerce.enums.ApiStatus;
+import com.example.canim_ecommerce.enums.EventType;
 import com.example.canim_ecommerce.enums.OrderStatus;
 import com.example.canim_ecommerce.enums.PaymentMethod;
 import com.example.canim_ecommerce.enums.PaymentStatus;
@@ -42,16 +45,22 @@ import com.example.canim_ecommerce.repository.OrderRepository;
 import com.example.canim_ecommerce.repository.specification.OrderSpecification;
 import com.example.canim_ecommerce.service.InventoryService;
 import com.example.canim_ecommerce.service.OrderService;
+import com.example.canim_ecommerce.service.UserEventService;
 import com.example.canim_ecommerce.utils.SecurityUtils;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@Slf4j
 public class OrderServiceImpl implements OrderService {
+
     static Long DEFAULT_WAREHOUSE_ID = 1L;
     static BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.ZERO;
     static BigDecimal DEFAULT_DISCOUNT_AMOUNT = BigDecimal.ZERO;
@@ -63,6 +72,8 @@ public class OrderServiceImpl implements OrderService {
     OrderMapper orderMapper;
     PageResponseMapper pageResponseMapper;
     RedisTemplate<String, Object> redisTemplate;
+    UserEventService userEventService;
+    ObjectMapper objectMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -147,6 +158,8 @@ public class OrderServiceImpl implements OrderService {
 
         redisTemplate.delete(REDIS_CART_KEY + userId);
 
+        logPurchaseEvents(userId, savedOrder, selectedItems);
+
         return orderMapper.toDetailResponse(savedOrder);
     }
 
@@ -170,9 +183,13 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<OrderResponse> getOrders(OrderFilterRequest filterRequest, Long userIdScope, int pageNum,
+    public PageResponse<OrderResponse> getOrders(
+            OrderFilterRequest filterRequest,
+            Long userIdScope,
+            int pageNum,
             int sizePage,
-            String sortBy, String sortDir) {
+            String sortBy,
+            String sortDir) {
         int pageIndex = Math.max(pageNum - 1, 0);
 
         Sort sort = "asc".equalsIgnoreCase(sortDir)
@@ -324,6 +341,58 @@ public class OrderServiceImpl implements OrderService {
         }
 
         return productName + " - " + variantInfo;
+    }
+
+    private void logPurchaseEvents(
+            Long userId,
+            Order savedOrder,
+            List<CartItem> selectedItems) {
+        for (CartItem cartItem : selectedItems) {
+            ProductVariant variant = cartItem.getVariant();
+
+            if (variant == null || variant.getProduct() == null) {
+                continue;
+            }
+
+            Product product = variant.getProduct();
+
+            userEventService.logEventAsync(
+                    userId,
+                    product.getId(),
+                    EventType.PURCHASE,
+                    buildPurchaseMeta(savedOrder, cartItem, variant, product));
+        }
+    }
+
+    private String buildPurchaseMeta(
+            Order order,
+            CartItem cartItem,
+            ProductVariant variant,
+            Product product) {
+        Map<String, Object> meta = new LinkedHashMap<>();
+
+        meta.put("orderId", order.getId());
+        meta.put("orderNo", order.getOrderNo());
+        meta.put("quantity", cartItem.getQuantity());
+        meta.put("variantId", variant.getId());
+        meta.put("sku", variant.getSku());
+        meta.put("productName", product.getName());
+        meta.put("color", variant.getColor());
+        meta.put("size", variant.getSize());
+        meta.put("price", variant.getPrice());
+        meta.put("paymentMethod", order.getPaymentMethod());
+        meta.put("paymentStatus", order.getPaymentStatus());
+        meta.put("orderStatus", order.getOrderStatus());
+        meta.put("totalAmount", order.getTotalAmount());
+        meta.put("source", "CHECKOUT_PURCHASE");
+
+        try {
+            return objectMapper.writeValueAsString(meta);
+        } catch (JsonProcessingException e) {
+            log.warn("⚠️ Không thể build PURCHASE eventMeta JSON: {}", e.getMessage());
+
+            return "{\"source\":\"CHECKOUT_PURCHASE\"}";
+        }
     }
 
     private PaymentStatus resolveInitialPaymentStatus(PaymentMethod paymentMethod) {
