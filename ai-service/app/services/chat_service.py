@@ -1,4 +1,6 @@
-from app.schemas.chat_schema import ChatResponse
+from typing import Any
+
+from app.schemas.chat_schema import ChatResponse, ProductSuggestionResponse
 from app.services.emotion_service import emotion_service
 from app.services.intent_service import intent_service
 from app.services.recommendation_service import recommendation_service
@@ -8,6 +10,7 @@ class ChatService:
     def reply(self, message: str) -> ChatResponse:
         intent = intent_service.classify(message)
         emotion = emotion_service.classify(message)
+
         if intent == "SECURITY_BLOCK":
             return ChatResponse(
                 reply=(
@@ -65,7 +68,12 @@ class ChatService:
             )
 
         if intent == "PRODUCT_RECOMMENDATION":
-            return self._reply_product_recommendation(message, intent, emotion)
+            return self._reply_product_recommendation(
+                message=message,
+                intent=intent,
+                emotion=emotion,
+            )
+
         if intent == "OUTFIT_SUGGESTION":
             return ChatResponse(
                 reply=(
@@ -159,10 +167,16 @@ class ChatService:
         intent: str,
         emotion: str,
     ) -> ChatResponse:
-        recommended_products = recommendation_service.recommend_products(
+        recommended_products_raw = recommendation_service.recommend_products(
             message=message,
             limit=3,
         )
+
+        recommended_products = [
+            self._to_product_suggestion(product)
+            for product in recommended_products_raw
+        ]
+
         if emotion == "COMPLAINT":
             if recommended_products:
                 product_names = self._format_product_names(recommended_products)
@@ -176,6 +190,7 @@ class ChatService:
                     ),
                     intent=intent,
                     emotion=emotion,
+                    recommended_products=recommended_products,
                 )
 
             return ChatResponse(
@@ -186,10 +201,12 @@ class ChatService:
                 ),
                 intent=intent,
                 emotion=emotion,
+                recommended_products=[],
             )
 
         if recommended_products:
             product_names = self._format_product_names(recommended_products)
+
             return ChatResponse(
                 reply=(
                     "Dạ em tìm được một vài sản phẩm phù hợp với nhu cầu của Anh/Chị: "
@@ -198,6 +215,7 @@ class ChatService:
                 ),
                 intent=intent,
                 emotion=emotion,
+                recommended_products=recommended_products,
             )
 
         return ChatResponse(
@@ -208,22 +226,56 @@ class ChatService:
             ),
             intent=intent,
             emotion=emotion,
+            recommended_products=[],
         )
 
-    def _format_product_names(self, products: list[dict]) -> str:
+    def _to_product_suggestion(
+        self,
+        product: dict[str, Any],
+    ) -> ProductSuggestionResponse:
+        return ProductSuggestionResponse(
+            product_id=product.get("productId"),
+            variant_id=product.get("variantId"),
+            sku=product.get("sku"),
+            name=product.get("name"),
+            slug=product.get("slug"),
+            brand=product.get("brand"),
+            category_name=product.get("categoryName"),
+            color=product.get("color"),
+            size=product.get("size"),
+            price=self._safe_float(product.get("price")),
+            available_quantity=product.get("availableQuantity"),
+            image_url=product.get("imageUrl"),
+            score=product.get("score"),
+        )
+
+    def _safe_float(self, value: Any) -> float | None:
+        if value is None:
+            return None
+
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _format_product_names(
+        self,
+        products: list[ProductSuggestionResponse],
+    ) -> str:
         product_labels: list[str] = []
 
         for product in products:
-            name = product.get("name", "Sản phẩm")
-            color = product.get("color")
-            size = product.get("size")
-            label = str(name)
-            if color:
-                label += f" màu {color}"
-            if size:
-                label += f" size {size}"
+            label = product.name or "Sản phẩm"
+
+            if product.color:
+                label += f" màu {product.color}"
+
+            if product.size:
+                label += f" size {product.size}"
+
             product_labels.append(label)
+
         return ", ".join(product_labels)
 
+
 chat_service = ChatService()
-    
