@@ -1,13 +1,13 @@
 from app.schemas.chat_schema import ChatResponse
 from app.services.emotion_service import emotion_service
 from app.services.intent_service import intent_service
+from app.services.recommendation_service import recommendation_service
 
 
 class ChatService:
-   def reply(self, message: str) -> ChatResponse:
+    def reply(self, message: str) -> ChatResponse:
         intent = intent_service.classify(message)
         emotion = emotion_service.classify(message)
-
         if intent == "SECURITY_BLOCK":
             return ChatResponse(
                 reply=(
@@ -65,8 +65,7 @@ class ChatService:
             )
 
         if intent == "PRODUCT_RECOMMENDATION":
-            return self._reply_product_recommendation(intent, emotion)
-
+            return self._reply_product_recommendation(message, intent, emotion)
         if intent == "OUTFIT_SUGGESTION":
             return ChatResponse(
                 reply=(
@@ -154,13 +153,48 @@ class ChatService:
             emotion=emotion,
         )
 
-def _reply_product_recommendation(self, intent: str, emotion: str) -> ChatResponse:
+    def _reply_product_recommendation(
+        self,
+        message: str,
+        intent: str,
+        emotion: str,
+    ) -> ChatResponse:
+        recommended_products = recommendation_service.recommend_products(
+            message=message,
+            limit=3,
+        )
         if emotion == "COMPLAINT":
+            if recommended_products:
+                product_names = self._format_product_names(recommended_products)
+
+                return ChatResponse(
+                    reply=(
+                        "Dạ em xin lỗi vì sản phẩm trước đó chưa vừa ý Anh/Chị ạ. "
+                        "Em tìm được một vài mẫu có thể phù hợp hơn cho mình: "
+                        f"{product_names}. "
+                        "Anh/Chị muốn em lọc thêm theo màu, size hoặc khoảng giá không ạ?"
+                    ),
+                    intent=intent,
+                    emotion=emotion,
+                )
+
             return ChatResponse(
                 reply=(
                     "Dạ em xin lỗi vì sản phẩm trước đó chưa vừa ý Anh/Chị ạ. "
-                    "Em có thể gợi ý các mẫu form rộng, chất liệu thoải mái hơn. "
-                    "Anh/Chị muốn tìm áo, quần hay áo khoác form rộng ạ?"
+                    "Em có thể gợi ý các mẫu form rộng hoặc chất liệu thoải mái hơn. "
+                    "Anh/Chị cho em biết muốn tìm áo, quần hay áo khoác và khoảng giá mong muốn nha."
+                ),
+                intent=intent,
+                emotion=emotion,
+            )
+
+        if recommended_products:
+            product_names = self._format_product_names(recommended_products)
+            return ChatResponse(
+                reply=(
+                    "Dạ em tìm được một vài sản phẩm phù hợp với nhu cầu của Anh/Chị: "
+                    f"{product_names}. "
+                    "Anh/Chị muốn em lọc thêm theo màu, size hoặc khoảng giá không ạ?"
                 ),
                 intent=intent,
                 emotion=emotion,
@@ -176,5 +210,20 @@ def _reply_product_recommendation(self, intent: str, emotion: str) -> ChatRespon
             emotion=emotion,
         )
 
+    def _format_product_names(self, products: list[dict]) -> str:
+        product_labels: list[str] = []
+
+        for product in products:
+            name = product.get("name", "Sản phẩm")
+            color = product.get("color")
+            size = product.get("size")
+            label = str(name)
+            if color:
+                label += f" màu {color}"
+            if size:
+                label += f" size {size}"
+            product_labels.append(label)
+        return ", ".join(product_labels)
 
 chat_service = ChatService()
+    
