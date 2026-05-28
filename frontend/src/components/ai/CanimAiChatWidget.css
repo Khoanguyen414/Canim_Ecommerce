@@ -1,0 +1,411 @@
+.canim-ai-widget {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 110;
+  font-family: var(--font-sans);
+}
+
+.canim-ai-floating-button {
+  width: 86px;
+  height: 86px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #fff7ed, #f1b66c);
+  box-shadow: 0 18px 38px rgba(108, 65, 26, 0.24);
+  cursor: pointer;
+  padding: 7px;
+  position: relative;
+}
+
+.canim-ai-floating-button::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  border: 1px solid rgba(222, 159, 82, 0.55);
+  animation: canim-ai-pulse 2.8s ease-in-out infinite;
+}
+
+.canim-ai-floating-button img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  display: block;
+}
+
+.canim-ai-panel {
+  position: absolute;
+  right: 0;
+  bottom: 104px;
+  width: min(430px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 132px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 34px;
+  border: 1px solid rgba(223, 158, 86, 0.42);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 236, 212, 0.85), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 250, 246, 0.96));
+  box-shadow: 0 28px 80px rgba(96, 55, 24, 0.23);
+  backdrop-filter: blur(18px);
+}
+
+.canim-ai-header {
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(225, 174, 113, 0.28);
+  background: rgba(255, 250, 246, 0.76);
+}
+
+.canim-ai-header-avatar {
+  width: 62px;
+  height: 62px;
+  border-radius: 999px;
+  padding: 3px;
+  background: linear-gradient(145deg, #fff, #f0b16a);
+  box-shadow: 0 12px 24px rgba(152, 94, 42, 0.16);
+  flex: 0 0 auto;
+}
+
+.canim-ai-header-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  display: block;
+}
+
+.canim-ai-header-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.canim-ai-header-copy h2 {
+  margin: 0;
+  color: #1f1b17;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.canim-ai-header-copy p {
+  margin: 6px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(68, 55, 45, 0.72);
+  font-size: 0.94rem;
+}
+
+.canim-ai-header-copy p span {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #2ed47a;
+  box-shadow: 0 0 0 5px rgba(46, 212, 122, 0.12);
+}
+
+.canim-ai-collapse {
+  border: 0;
+  background: transparent;
+  color: #bb7a34;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  width: 42px;
+  height: 42px;
+}
+
+.canim-ai-collapse:hover {
+  background: rgba(231, 169, 97, 0.12);
+}
+
+.canim-ai-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.canim-ai-message-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.canim-ai-message-row.user {
+  justify-content: flex-end;
+}
+
+.canim-ai-bot-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  box-shadow: 0 8px 18px rgba(101, 62, 25, 0.14);
+}
+
+.canim-ai-message-stack {
+  max-width: 82%;
+  min-width: 0;
+}
+
+.canim-ai-message-row.user .canim-ai-message-stack {
+  display: flex;
+  align-items: flex-end;
+}
+
+.canim-ai-bubble {
+  border-radius: 22px;
+  padding: 13px 16px;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.canim-ai-bubble.assistant {
+  color: #2a211a;
+  border: 1px solid rgba(227, 205, 186, 0.8);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 22px rgba(97, 64, 32, 0.08);
+}
+
+.canim-ai-bubble.user {
+  color: #3a2515;
+  background: linear-gradient(145deg, #ffe9cf, #ffd7aa);
+  box-shadow: 0 10px 22px rgba(163, 96, 39, 0.12);
+}
+
+.canim-ai-bubble.loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(66, 47, 34, 0.68);
+}
+
+.canim-ai-handoff {
+  margin-top: 8px;
+  border-radius: 16px;
+  border: 1px solid rgba(239, 131, 82, 0.3);
+  background: rgba(255, 237, 226, 0.78);
+  color: #8a3d1f;
+  padding: 9px 12px;
+  font-size: 0.82rem;
+}
+
+.canim-ai-products {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 12px 2px 4px;
+  max-width: 100%;
+}
+
+.canim-ai-product-card {
+  min-width: 132px;
+  max-width: 132px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(226, 204, 184, 0.82);
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(68, 45, 26, 0.1);
+}
+
+.canim-ai-product-image-wrap {
+  height: 118px;
+  background: linear-gradient(145deg, #f8ede2, #fff7ef);
+}
+
+.canim-ai-product-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.canim-ai-product-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #c38643;
+  font-weight: 800;
+}
+
+.canim-ai-product-body {
+  padding: 9px 10px 10px;
+}
+
+.canim-ai-product-name {
+  margin: 0;
+  color: #231d18;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.canim-ai-product-meta {
+  min-height: 18px;
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  color: rgba(74, 59, 47, 0.58);
+  font-size: 0.72rem;
+}
+
+.canim-ai-product-footer {
+  margin-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.canim-ai-product-footer strong {
+  color: #221914;
+  font-size: 0.82rem;
+}
+
+.canim-ai-product-footer button {
+  border: 0;
+  background: transparent;
+  color: #e0983f;
+  cursor: pointer;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.canim-ai-quick-actions {
+  padding: 10px 18px 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.canim-ai-quick-actions button {
+  min-height: 46px;
+  border-radius: 999px;
+  border: 1px solid rgba(225, 151, 68, 0.5);
+  background: rgba(255, 255, 255, 0.84);
+  color: #3d2b1f;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.canim-ai-quick-actions button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(129, 76, 31, 0.12);
+}
+
+.canim-ai-quick-actions button:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
+.canim-ai-input-row {
+  margin: 8px 18px 0;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(225, 151, 68, 0.52);
+  background: rgba(255, 255, 255, 0.86);
+  padding: 8px 8px 8px 18px;
+}
+
+.canim-ai-input-row input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #2c211b;
+  font-size: 0.95rem;
+}
+
+.canim-ai-input-row input::placeholder {
+  color: rgba(87, 67, 54, 0.44);
+}
+
+.canim-ai-input-row button {
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: linear-gradient(145deg, #e8ad69, #d88b39);
+  box-shadow: 0 10px 22px rgba(171, 99, 37, 0.22);
+}
+
+.canim-ai-input-row button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.canim-ai-disclaimer {
+  margin: 10px 18px 16px;
+  text-align: center;
+  color: rgba(95, 74, 59, 0.52);
+  font-size: 0.78rem;
+}
+
+@keyframes canim-ai-pulse {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.98);
+  }
+
+  50% {
+    opacity: 0.9;
+    transform: scale(1.04);
+  }
+}
+
+@media (max-width: 640px) {
+  .canim-ai-widget {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .canim-ai-panel {
+    right: -2px;
+    bottom: 94px;
+    width: calc(100vw - 28px);
+    max-height: calc(100vh - 116px);
+    border-radius: 28px;
+  }
+
+  .canim-ai-floating-button {
+    width: 74px;
+    height: 74px;
+  }
+
+  .canim-ai-quick-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .canim-ai-message-stack {
+    max-width: 86%;
+  }
+}
