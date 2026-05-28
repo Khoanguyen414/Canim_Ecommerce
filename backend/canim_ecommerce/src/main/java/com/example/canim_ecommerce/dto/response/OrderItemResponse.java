@@ -17,7 +17,12 @@ import lombok.experimental.FieldDefaults;
 public class OrderItemResponse {
     Long id;
     Long variantId;
+
+    String skuSnapshot;
+    String productNameSnapshot;
+    String imageUrlSnapshot;
     String variantName;
+
     Integer quantity;
     BigDecimal price;
     BigDecimal lineTotal;
