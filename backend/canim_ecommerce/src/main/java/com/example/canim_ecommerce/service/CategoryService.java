@@ -15,6 +15,6 @@ public interface CategoryService {
     CategoryResponse updateCategory(int id, CategoryUpdateRequest request);
     void deleteCategory(int id);
 
-    /** ID danh mục gốc và mọi danh mục con (dùng lọc sản phẩm theo cây). */
+    /** Returns the root category id and all descendant category ids for product tree filtering. */
     List<Integer> collectDescendantIds(int rootId);
 }
