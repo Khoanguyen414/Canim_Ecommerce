@@ -1,6 +1,7 @@
 package com.example.canim_ecommerce.dto.response;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -14,17 +15,8 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class OrderItemResponse {
-    Long id;
-    Long variantId;
-
-    String skuSnapshot;
-    String productNameSnapshot;
-    String imageUrlSnapshot;
-    String variantName;
-
-    Integer quantity;
-    BigDecimal price;
-    BigDecimal lineTotal;
-    String imageUrl;
+public class RevenueByDateResponse {
+    LocalDate date;
+    BigDecimal revenue;
+    long orderCount;
 }

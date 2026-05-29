@@ -4,6 +4,7 @@ import com.example.canim_ecommerce.enums.PaymentMethod;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -28,4 +29,7 @@ public class CheckoutRequest {
 
     @NotNull(message = "Payment method must be specified")
     PaymentMethod paymentMethod;
+
+    @Size(max = 100, message = "Idempotency key must not exceed 100 characters")
+    String idempotencyKey;
 }

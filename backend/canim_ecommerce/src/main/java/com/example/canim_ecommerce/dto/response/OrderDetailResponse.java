@@ -7,6 +7,7 @@ import java.util.List;
 import com.example.canim_ecommerce.enums.OrderStatus;
 import com.example.canim_ecommerce.enums.PaymentMethod;
 import com.example.canim_ecommerce.enums.PaymentStatus;
+import com.example.canim_ecommerce.enums.ShippingStatus;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -23,10 +24,15 @@ import lombok.experimental.FieldDefaults;
 public class OrderDetailResponse {
     Long id;
     String orderNo;
+    Long userId;
 
     OrderStatus orderStatus;
     PaymentStatus paymentStatus;
     PaymentMethod paymentMethod;
+    String orderStatusLabel;
+    String paymentStatusLabel;
+    Boolean canCancel;
+    String nextAction;
 
     BigDecimal subTotal;
     BigDecimal shippingFee;
@@ -38,7 +44,22 @@ public class OrderDetailResponse {
     String shippingAddress;
     String orderNote;
 
+    String cancelReason;
+    Long cancelledById;
+    String cancelledByName;
+
+    String shippingProvider;
+    String trackingCode;
+    ShippingStatus shippingStatus;
+
     LocalDateTime createdAt;
+    LocalDateTime updatedAt;
+    LocalDateTime confirmedAt;
+    LocalDateTime shippedAt;
+    LocalDateTime deliveredAt;
+    LocalDateTime cancelledAt;
 
     List<OrderItemResponse> items;
+    List<OrderStatusHistoryResponse> histories;
+    PaymentTransactionResponse latestPaymentTransaction;
 }

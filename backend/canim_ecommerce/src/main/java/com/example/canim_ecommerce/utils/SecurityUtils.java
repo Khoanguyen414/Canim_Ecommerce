@@ -46,7 +46,7 @@ public class SecurityUtils {
         final String userEmail = email;
 
         User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Không tìm thấy dữ liệu nhân viên với email: " + userEmail));
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "User not found with email: " + userEmail));
 
         return user.getId();
     }

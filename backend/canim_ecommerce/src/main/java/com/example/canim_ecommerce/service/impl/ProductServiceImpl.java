@@ -48,9 +48,7 @@ import com.example.canim_ecommerce.service.CategoryService;
 import com.example.canim_ecommerce.service.CloudinaryService;
 import com.example.canim_ecommerce.service.InventoryService;
 import com.example.canim_ecommerce.service.ProductService;
-import java.util.Optional;
 
-import com.example.canim_ecommerce.util.FacetCategoryResolver;
 import com.example.canim_ecommerce.utils.SlugUtils;
 
 import lombok.AccessLevel;
@@ -72,6 +70,10 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public PageResponse<ProductResponse> getProducts(ProductFilterRequest filterRequest, int pageNum, int sizePage, String sortBy, String sortDir) {
+        if (filterRequest == null) {
+            filterRequest = new ProductFilterRequest();
+        }
+
         enrichCategoryScope(filterRequest);
         Sort sort = resolveSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(pageNum - 1, sizePage, sort);
@@ -400,6 +402,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private void enrichCategoryScope(ProductFilterRequest filterRequest) {
+        if (filterRequest == null) {
+            return;
+        }
+
         if (filterRequest.getCategoryId() != null) {
             filterRequest.setCategoryIds(
                     categoryService.collectDescendantIds(filterRequest.getCategoryId().intValue()));
@@ -408,35 +414,15 @@ public class ProductServiceImpl implements ProductService {
         }
 
         if (filterRequest.getCategorySlug() != null && !filterRequest.getCategorySlug().isBlank()) {
-            applyCategorySlug(filterRequest, filterRequest.getCategorySlug().trim(), true);
-            return;
-        }
-
-        Optional<FacetCategoryResolver.ResolvedCategory> resolved = FacetCategoryResolver.resolve(
-                filterRequest.getGender(),
-                filterRequest.getGroup(),
-                filterRequest.getFacet());
-
-        if (resolved.isEmpty()) {
-            return;
-        }
-
-        FacetCategoryResolver.ResolvedCategory target = resolved.get();
-        if (applyCategorySlug(filterRequest, target.slug(), target.leaf())) {
-            return;
-        }
-
-        if (target.leaf()) {
-            FacetCategoryResolver.resolveGroupFallbackSlug(filterRequest.getGender(), filterRequest.getGroup())
-                    .ifPresent(fallbackSlug -> applyCategorySlug(filterRequest, fallbackSlug, false));
+            applyCategorySlug(filterRequest, filterRequest.getCategorySlug().trim());
         }
     }
 
-    private boolean applyCategorySlug(ProductFilterRequest filterRequest, String slug, boolean leafCategory) {
+    private boolean applyCategorySlug(ProductFilterRequest filterRequest, String slug) {
         return categoryRepository.findBySlug(slug)
                 .map(category -> {
                     filterRequest.setCategoryIds(categoryService.collectDescendantIds(category.getId()));
-                    filterRequest.setCategoryFacetResolved(leafCategory);
+                    filterRequest.setCategoryFacetResolved(true);
                     return true;
                 })
                 .orElse(false);

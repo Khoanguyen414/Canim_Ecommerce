@@ -11,7 +11,11 @@ import java.util.List;
 
 @Entity
 @Table(name = "stock_checks")
-@Data @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class StockCheck {
     @Id

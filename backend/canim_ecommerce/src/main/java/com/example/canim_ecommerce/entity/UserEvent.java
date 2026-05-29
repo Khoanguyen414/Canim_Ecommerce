@@ -9,10 +9,13 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "user_events")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UserEvent {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
@@ -28,7 +31,7 @@ public class UserEvent {
     EventType eventType;
 
     @Column(name = "event_meta", columnDefinition = "JSON")
-    String eventMeta; 
+    String eventMeta;
 
     @CreationTimestamp
     @Column(name = "occurred_at", updatable = false)

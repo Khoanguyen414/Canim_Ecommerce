@@ -13,7 +13,11 @@ import java.util.List;
 
 @Entity
 @Table(name = "inventory_receipts")
-@Data @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class InventoryReceipt {
 
@@ -30,7 +34,7 @@ public class InventoryReceipt {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     ReceiptType type;
-    
+
     @Column(name = "reason_code", nullable = false, length = 50)
     String reasonCode;
 

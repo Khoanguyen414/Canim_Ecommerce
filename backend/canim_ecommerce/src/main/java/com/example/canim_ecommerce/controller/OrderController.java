@@ -1,19 +1,25 @@
 package com.example.canim_ecommerce.controller;
 
+import java.time.LocalDate;
+
+import com.example.canim_ecommerce.dto.request.order.CancelOrderRequest;
 import com.example.canim_ecommerce.dto.request.order.CheckoutRequest;
 import com.example.canim_ecommerce.dto.request.order.OrderFilterRequest;
+import com.example.canim_ecommerce.dto.request.order.UpdateOrderShippingRequest;
 import com.example.canim_ecommerce.dto.request.order.UpdateOrderStatusRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.OrderDetailResponse;
 import com.example.canim_ecommerce.dto.response.OrderResponse;
+import com.example.canim_ecommerce.dto.response.OrderStatisticsResponse;
 import com.example.canim_ecommerce.dto.response.PageResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;
 import com.example.canim_ecommerce.service.OrderService;
 import com.example.canim_ecommerce.utils.SecurityUtils;
+import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -49,6 +55,17 @@ public class OrderController {
                         sizePage,
                         "createdAt",
                         "desc"));
+    }
+
+    @GetMapping("/admin/statistics")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ApiResponse<OrderStatisticsResponse> getAdminStatistics(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
+        return ApiResponse.success(
+                ApiStatus.SUCCESS,
+                "Get order statistics successfully",
+                orderService.getAdminStatistics(fromDate, toDate));
     }
 
     @GetMapping("/{orderId}")
@@ -115,22 +132,33 @@ public class OrderController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ApiResponse<OrderDetailResponse> cancelOrder(
             @PathVariable Long orderId,
-            @RequestParam(required = false) String reason) {
+            @RequestBody(required = false) @Valid CancelOrderRequest request) {
         return ApiResponse.success(
                 ApiStatus.SUCCESS,
                 "Cancel order successfully",
-                orderService.cancelOrder(orderId, reason, null, true));
+                orderService.cancelOrder(orderId, request, null, true));
     }
 
     @PatchMapping("/my/{orderId}/cancel")
     public ApiResponse<OrderDetailResponse> cancelMyOrder(
             @PathVariable Long orderId,
-            @RequestParam(required = false) String reason) {
+            @RequestBody(required = false) @Valid CancelOrderRequest request) {
         Long currentUserId = SecurityUtils.getCurrentUserId();
 
         return ApiResponse.success(
                 ApiStatus.SUCCESS,
                 "Cancel order successfully",
-                orderService.cancelOrder(orderId, reason, currentUserId, false));
+                orderService.cancelOrder(orderId, request, currentUserId, false));
+    }
+
+    @PatchMapping("/{orderId}/shipping")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ApiResponse<OrderResponse> updateOrderShipping(
+            @PathVariable Long orderId,
+            @RequestBody @Valid UpdateOrderShippingRequest request) {
+        return ApiResponse.success(
+                ApiStatus.SUCCESS,
+                "Update order shipping successfully",
+                orderService.updateOrderShipping(orderId, request));
     }
 }

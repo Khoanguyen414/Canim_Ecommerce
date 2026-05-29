@@ -7,7 +7,11 @@ import lombok.experimental.FieldDefaults;
 
 @Entity
 @Table(name = "inventory_reasons")
-@Data @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class InventoryReason {
     @Id
@@ -15,11 +19,11 @@ public class InventoryReason {
     String code;
 
     @Column(nullable = false)
-    String name; 
+    String name;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    TransactionType type; 
+    TransactionType type;
 
     @Column(name = "is_system")
     @Builder.Default

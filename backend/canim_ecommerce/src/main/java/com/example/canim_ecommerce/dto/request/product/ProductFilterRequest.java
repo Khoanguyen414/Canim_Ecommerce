@@ -20,27 +20,18 @@ import lombok.experimental.FieldDefaults;
 public class ProductFilterRequest {
     String keyWord;
     Long categoryId;
-    /** Danh mục gốc + toàn bộ danh mục con (được gán ở service). */
     List<Integer> categoryIds;
     String categorySlug;
-    /** Facet: nam | nu */
     String gender;
-    /** Facet: phu-kien | ao | quan | the-thao */
     String group;
-    /** Facet chi tiết: ao-khoac, quan-jeans, ... */
     String facet;
-    /** Facet: new | sale | bestseller | promo */
     String collection;
-    /** Lọc theo size variant (vd. M,L). */
     List<String> sizes;
-    /** Lọc theo màu variant. */
     List<String> colors;
     BigDecimal minPrice;
     BigDecimal maxPrice;
     ProductStatus status;
-    /** Admin: true = hiển thị cả sản phẩm HIDDEN (đã “xóa mềm”). */
     Boolean includeHidden;
-    /** Đã resolve facet → categoryIds; bỏ lọc text facet/gender trùng. */
     Boolean categoryFacetResolved;
 
     public void setSizes(String value) {

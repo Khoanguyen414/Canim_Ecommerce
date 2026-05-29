@@ -7,6 +7,7 @@ import java.util.List;
 import com.example.canim_ecommerce.enums.OrderStatus;
 import com.example.canim_ecommerce.enums.PaymentMethod;
 import com.example.canim_ecommerce.enums.PaymentStatus;
+import com.example.canim_ecommerce.enums.ShippingStatus;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -31,12 +32,28 @@ public class OrderResponse {
     String shippingAddress;
     String orderNote;
 
+    String cancelReason;
+    Long cancelledById;
+    String cancelledByName;
+
     PaymentMethod paymentMethod;
     PaymentStatus paymentStatus;
     OrderStatus orderStatus;
+    String orderStatusLabel;
+    String paymentStatusLabel;
+    Boolean canCancel;
+    String nextAction;
+
+    String shippingProvider;
+    String trackingCode;
+    ShippingStatus shippingStatus;
 
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
+    LocalDateTime confirmedAt;
+    LocalDateTime shippedAt;
+    LocalDateTime deliveredAt;
+    LocalDateTime cancelledAt;
 
     List<OrderItemResponse> items;
     List<OrderStatusHistoryResponse> histories;

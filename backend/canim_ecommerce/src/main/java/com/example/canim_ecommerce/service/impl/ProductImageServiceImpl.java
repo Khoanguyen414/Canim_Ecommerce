@@ -15,7 +15,6 @@ import com.example.canim_ecommerce.exception.ApiException;
 import com.example.canim_ecommerce.repository.ProductImageRepository;
 import com.example.canim_ecommerce.repository.ProductRepository;
 import com.example.canim_ecommerce.service.CloudinaryService;
-import com.example.canim_ecommerce.service.ImageStorageService;
 import com.example.canim_ecommerce.service.ProductImageService;
 
 import lombok.AccessLevel;
@@ -30,7 +29,6 @@ import lombok.extern.slf4j.Slf4j;
 public class ProductImageServiceImpl implements ProductImageService{
     ProductRepository productRepository;
     ProductImageRepository productImageRepository;
-    ImageStorageService imageStorageService;
     CloudinaryService cloudinaryService;
     
     @Override
@@ -48,7 +46,7 @@ public class ProductImageServiceImpl implements ProductImageService{
                 continue;
             }
             try {
-                String url = imageStorageService.store(file);
+                String url = cloudinaryService.uploadImage(file);
 
                 ProductImage image = ProductImage.builder()
                     .product(product)
@@ -88,7 +86,7 @@ public class ProductImageServiceImpl implements ProductImageService{
             try {
                 cloudinaryService.deleteImage(image.getUrl());
             } catch (Exception ignored) {
-                // ignore cloudinary delete errors
+                // Ignore Cloudinary delete errors.
             }
         }
 

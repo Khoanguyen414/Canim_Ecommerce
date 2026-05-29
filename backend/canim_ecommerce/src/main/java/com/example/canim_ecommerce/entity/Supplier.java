@@ -10,7 +10,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "suppliers")
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -57,8 +58,8 @@ public class Supplier {
     LocalDateTime updatedAt;
 
     @Column(name = "created_by")
-    Long createdBy; 
+    Long createdBy;
 
     @Column(name = "updated_by")
-    Long updatedBy; 
+    Long updatedBy;
 }

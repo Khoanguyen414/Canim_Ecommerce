@@ -8,9 +8,13 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "inventory", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"variant_id", "warehouse_id"})
+        @UniqueConstraint(columnNames = { "variant_id", "warehouse_id" })
 })
-@Data @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Inventory {
     @Id
@@ -19,7 +23,7 @@ public class Inventory {
 
     @Column(name = "warehouse_id", nullable = false)
     @Builder.Default
-    Long warehouseId = 1L; 
+    Long warehouseId = 1L;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "variant_id", nullable = false)
@@ -27,15 +31,15 @@ public class Inventory {
 
     @Column(nullable = false)
     @Builder.Default
-    Integer quantity = 0; 
+    Integer quantity = 0;
 
     @Column(name = "reserved", nullable = false)
     @Builder.Default
-    Integer reserved = 0; 
+    Integer reserved = 0;
 
     @Column(name = "min_stock")
     @Builder.Default
-    Integer minStock = 0; 
+    Integer minStock = 0;
 
     @UpdateTimestamp
     @Column(name = "updated_at")

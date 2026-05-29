@@ -14,17 +14,9 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class OrderItemResponse {
-    Long id;
-    Long variantId;
-
-    String skuSnapshot;
-    String productNameSnapshot;
-    String imageUrlSnapshot;
-    String variantName;
-
-    Integer quantity;
-    BigDecimal price;
-    BigDecimal lineTotal;
-    String imageUrl;
+public class TopSellingProductResponse {
+    String productName;
+    String sku;
+    long quantitySold;
+    BigDecimal revenue;
 }

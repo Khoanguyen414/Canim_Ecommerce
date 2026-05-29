@@ -9,10 +9,13 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "warehouses")
-@Data @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Warehouse {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
