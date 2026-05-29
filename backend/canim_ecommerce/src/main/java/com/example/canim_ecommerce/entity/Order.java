@@ -62,6 +62,30 @@ public class Order {
     @Column(name = "shipping_address", columnDefinition = "TEXT", nullable = false)
     String shippingAddress;
 
+    @Column(name = "address_id")
+    Long addressId;
+
+    @Column(name = "receiver_province_name", length = 100)
+    String receiverProvinceName;
+
+    @Column(name = "receiver_district_name", length = 100)
+    String receiverDistrictName;
+
+    @Column(name = "receiver_ward_name", length = 100)
+    String receiverWardName;
+
+    @Column(name = "receiver_street_address", length = 255)
+    String receiverStreetAddress;
+
+    @Column(name = "receiver_latitude", precision = 10, scale = 7)
+    BigDecimal receiverLatitude;
+
+    @Column(name = "receiver_longitude", precision = 10, scale = 7)
+    BigDecimal receiverLongitude;
+
+    @Column(name = "map_url", length = 1024)
+    String mapUrl;
+
     @Column(name = "order_note", columnDefinition = "TEXT")
     String orderNote;
 

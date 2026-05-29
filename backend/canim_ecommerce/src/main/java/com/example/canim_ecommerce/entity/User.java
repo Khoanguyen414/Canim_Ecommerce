@@ -3,6 +3,8 @@ package com.example.canim_ecommerce.entity;
 import java.time.LocalDateTime;
 import java.util.Set;
 
+import com.example.canim_ecommerce.enums.AuthProvider;
+
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -32,6 +34,21 @@ public class User {
 
     @Column(length = 50)
     String phone;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", nullable = false, length = 20)
+    AuthProvider authProvider = AuthProvider.LOCAL;
+
+    @Column(name = "google_subject_id", unique = true, length = 255)
+    String googleSubjectId;
+
+    @Column(name = "avatar_url", length = 1024)
+    String avatarUrl;
+
+    @Builder.Default
+    @Column(name = "email_verified", nullable = false)
+    Boolean emailVerified = false;
 
     @Column(name = "is_active")
     @Builder.Default

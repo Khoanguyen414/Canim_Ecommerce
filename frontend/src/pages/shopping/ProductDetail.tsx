@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { ChevronRight, ShoppingCart, Heart, GitCompare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -15,9 +15,13 @@ import { useCartStore } from "@/store/cart.store"
 import { productToWishlistItem, useWishlistStore } from "@/store/wishlist.store"
 import { cn } from "@/lib/cn"
 import { ShopSidebar } from "@/components/shop/ShopSidebar"
+import { ProductReviewsSection } from "@/components/reviews/ProductReviewsSection"
 
 export default function ProductDetail() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
+  const orderItemIdParam = searchParams.get("orderItemId")
+  const orderItemId = orderItemIdParam ? Number(orderItemIdParam) : null
   const navigate = useNavigate()
   const addLine = useCartStore((s) => s.addLine)
   const toggleWishlist = useWishlistStore((s) => s.toggle)
@@ -28,7 +32,14 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1)
   const [variantId, setVariantId] = useState<number | null>(null)
   const [activeImage, setActiveImage] = useState<string | undefined>(undefined)
-  const [tab, setTab] = useState<"desc" | "info" | "reviews">("desc")
+  const [tab, setTab] = useState<"desc" | "info" | "reviews">(
+    orderItemId ? "reviews" : "desc",
+  )
+
+  useEffect(() => {
+    if (orderItemId) setTab("reviews")
+  }, [orderItemId])
+
   useEffect(() => {
     const pid = Number(id)
     if (!Number.isFinite(pid)) {
@@ -275,7 +286,9 @@ export default function ProductDetail() {
                   </li>
                 </ul>
               ) : null}
-              {tab === "reviews" ? <p className="text-sm text-gray-500">Reviews will appear here when you add a review feature.</p> : null}
+              {tab === "reviews" && product ? (
+                <ProductReviewsSection productId={product.id} orderItemId={orderItemId} />
+              ) : null}
             </div>
           </Card>
         </div>

@@ -2,9 +2,7 @@ package com.example.canim_ecommerce.service.impl;
 
 import java.math.BigDecimal;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +25,7 @@ import com.example.canim_ecommerce.repository.ProductVariantRepository;
 import com.example.canim_ecommerce.service.CartService;
 import com.example.canim_ecommerce.service.InventoryService;
 import com.example.canim_ecommerce.service.UserEventService;
+import com.example.canim_ecommerce.service.cart.CartRedisCache;
 import com.example.canim_ecommerce.utils.SecurityUtils;
 
 import lombok.AccessLevel;
@@ -44,31 +43,30 @@ public class CartServiceImpl implements CartService {
     ProductVariantRepository productVariantRepository;
     CartMapper cartMapper;
     InventoryService inventoryService;
-    UserEventService userEventService; 
-    RedisTemplate<String, Object> redisTemplate; 
+    UserEventService userEventService;
+    CartRedisCache cartRedisCache;
     CartItemRepository cartItemRepository;
     ProductImageRepository productImageRepository;
-    
-    static final String REDIS_CART_KEY = "cart:user:";
 
     @Override
     public CartResponse getMyCart() {
         Long userId = SecurityUtils.getCurrentUserId();
-        String redisKey = REDIS_CART_KEY + userId;
-        Cart cart = (Cart) redisTemplate.opsForValue().get(redisKey);
-        
-        if (cart == null) {
-            log.warn("🐢 MISS CACHE MySQL: User {}", userId);
-            cart = cartRepository.findByUserId(userId).orElse(null);
-            if (cart == null) return CartResponse.builder().userId(userId).totalAmount(BigDecimal.ZERO).build();
-            redisTemplate.opsForValue().set(redisKey, cart, 7, TimeUnit.DAYS);
+        Optional<Cart> cached = cartRedisCache.get(userId);
+        Cart cart;
+        if (cached.isPresent()) {
+            log.debug("Cart cache hit for user {}", userId);
+            cart = cached.get();
         } else {
-            log.info("🚀 HIT CACHE Redis: User {}", userId);
+            log.debug("Cart cache miss for user {}, loading MySQL", userId);
+            cart = cartRepository.findByUserId(userId).orElse(null);
+            if (cart == null) {
+                return CartResponse.builder().userId(userId).totalAmount(BigDecimal.ZERO).build();
+            }
+            cartRedisCache.put(userId, cart);
         }
 
         CartResponse response = cartMapper.toCartResponse(cart);
-        enrichCartData(response); 
-        
+        enrichCartData(response);
         return response;
     }
 
@@ -114,7 +112,7 @@ public class CartServiceImpl implements CartService {
         }
 
         cart = cartRepository.save(cart);
-        redisTemplate.opsForValue().set(REDIS_CART_KEY + userId, cart, 7, TimeUnit.DAYS);
+        cartRedisCache.put(userId, cart);
 
         CartResponse response = cartMapper.toCartResponse(cart);
         enrichCartData(response);
@@ -148,21 +146,22 @@ public class CartServiceImpl implements CartService {
             item.setIsSelected(request.getIsSelected());
         } else {
             cart.getItems().remove(item);
-            item.setCart(null); 
+            item.setCart(null);
         }
 
         cart = cartRepository.save(cart);
-        redisTemplate.opsForValue().set(REDIS_CART_KEY + userId, cart, 7, TimeUnit.DAYS);
+        cartRedisCache.put(userId, cart);
 
         CartResponse response = cartMapper.toCartResponse(cart);
         enrichCartData(response);
         return response;
     }
+
     @Override
     @Transactional
     public CartResponse toggleItemSelection(ToggleSelectionRequest request) {
-        Long userId = SecurityUtils.getCurrentUserId(); 
-        
+        Long userId = SecurityUtils.getCurrentUserId();
+
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Không tìm thấy giỏ hàng"));
 
@@ -176,10 +175,10 @@ public class CartServiceImpl implements CartService {
 
         if (isUpdated) {
             cart = cartRepository.save(cart);
-            redisTemplate.opsForValue().set(REDIS_CART_KEY + userId, cart, 7, TimeUnit.DAYS); 
+            cartRedisCache.put(userId, cart);
         }
 
-        return getMyCart(); 
+        return getMyCart();
     }
 
     @Override
@@ -187,11 +186,10 @@ public class CartServiceImpl implements CartService {
     public void clearCart() {
         Long userId = SecurityUtils.getCurrentUserId();
         cartRepository.findByUserId(userId).ifPresent(cart -> {
-            cartItemRepository.deleteAllByCartId(cart.getId()); 
+            cartItemRepository.deleteAllByCartId(cart.getId());
             log.info("User {} cleared cart", userId);
             cart.getItems().clear();
-            
-            redisTemplate.delete(REDIS_CART_KEY + userId);
+            cartRedisCache.evict(userId);
         });
     }
 
@@ -218,13 +216,12 @@ public class CartServiceImpl implements CartService {
             if (variant == null || variant.getProduct().getStatus() != ProductStatus.ACTIVE) {
                 item.setIsAvailable(false);
                 item.setWarningMessage("Product is no longer active");
-            } 
+            }
             else if (item.getQuantity() > availableQty) {
                 item.setIsAvailable(false);
                 item.setWarningMessage("Quantity exceeds available stock (" + availableQty + ")");
             }
-            
-            // ĐIỂM ĂN TIỀN: Chỉ tính tổng tiền nếu món hàng được chọn (isSelected = true)
+
             if (Boolean.TRUE.equals(item.getIsSelected()) && Boolean.TRUE.equals(item.getIsAvailable())) {
                 calculatedTotal = calculatedTotal.add(item.getSubTotal());
             }

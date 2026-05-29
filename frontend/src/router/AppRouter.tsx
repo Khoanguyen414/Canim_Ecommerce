@@ -11,7 +11,14 @@ import Cart from "@/pages/checkout/Cart"
 import Checkout from "@/pages/checkout/Checkout"
 import OrderConfirm from "@/pages/checkout/OrderConfirm"
 import OrderHistory from "@/pages/orders/OrderHistory"
+import OrderDetailPage from "@/pages/orders/OrderDetailPage"
+import OrderPaymentPage from "@/pages/orders/OrderPaymentPage"
+import PaymentReturnPage from "@/pages/payment/PaymentReturnPage"
+import PersonalQrPaymentPage from "@/pages/payment/PersonalQrPaymentPage"
 import AccountProfile from "@/pages/account/AccountProfile"
+import AddressBookPage from "@/pages/account/AddressBookPage"
+import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage"
+import ResetPasswordPage from "@/pages/auth/ResetPasswordPage"
 import ContactPage from "@/pages/contact/ContactPage"
 import WarehouseDashboard from "@/pages/warehouse/WarehouseDashboard"
 
@@ -21,6 +28,8 @@ const AppRouter = () => (
     <Route path="/register" element={<Navigate to="/?auth=register" replace />} />
 
     <Route element={<MainLayout />}>
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/" element={<Home />} />
       <Route path="/products" element={<Products />} />
       <Route path="/products/:id" element={<ProductDetail />} />
@@ -47,6 +56,30 @@ const AppRouter = () => (
         }
       />
       <Route
+        path="/orders/:id/pay"
+        element={
+          <ProtectedRoute>
+            <OrderPaymentPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/orders/:id/qr-pay"
+        element={
+          <ProtectedRoute>
+            <PersonalQrPaymentPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/orders/:id"
+        element={
+          <ProtectedRoute>
+            <OrderDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/orders"
         element={
           <ProtectedRoute>
@@ -54,11 +87,22 @@ const AppRouter = () => (
           </ProtectedRoute>
         }
       />
+
+      <Route path="/payment/vnpay-return" element={<PaymentReturnPage gateway="vnpay" />} />
+      <Route path="/payment/momo-return" element={<PaymentReturnPage gateway="momo" />} />
       <Route
         path="/account"
         element={
           <ProtectedRoute>
             <AccountProfile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/account/addresses"
+        element={
+          <ProtectedRoute>
+            <AddressBookPage />
           </ProtectedRoute>
         }
       />

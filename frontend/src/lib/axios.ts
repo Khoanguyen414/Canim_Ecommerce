@@ -52,7 +52,20 @@ function isPublicCatalogGet(config: InternalAxiosRequestConfig): boolean {
     url.includes("/products/slug/") ||
     url.includes("/categories/roots") ||
     url === "/categories" ||
-    url.startsWith("/categories?")
+    url.startsWith("/categories?") ||
+    /\/products\/\d+\/reviews(\/summary)?/.test(url)
+  )
+}
+
+/** Gateway redirect — permitAll; omit Bearer so expired JWT does not break confirm. */
+function isPublicPaymentReturnGet(config: InternalAxiosRequestConfig): boolean {
+  const method = (config.method ?? "get").toLowerCase()
+  if (method !== "get") return false
+  const url = config.url ?? ""
+  return (
+    url.includes("/payments/vnpay/return") ||
+    url.includes("/payments/momo/return") ||
+    url.includes("/payments/personal-qr/config")
   )
 }
 
@@ -60,10 +73,15 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem("accessToken")
   const url = config.url ?? ""
   const skipAuth =
-    url.includes("/auth/login") || url.includes("/auth/register") || url.includes("/auth/refresh")
+    url.includes("/auth/login") ||
+    url.includes("/auth/register") ||
+    url.includes("/auth/refresh") ||
+    url.includes("/auth/google") ||
+    url.includes("/auth/forgot-password") ||
+    url.includes("/auth/reset-password")
 
   // Invalid/expired JWT on permitAll endpoints still triggers 401 in OAuth2 resource server
-  if (token && !skipAuth && !isPublicCatalogGet(config)) {
+  if (token && !skipAuth && !isPublicCatalogGet(config) && !isPublicPaymentReturnGet(config)) {
     config.headers.Authorization = `Bearer ${token}`
   } else {
     delete config.headers.Authorization

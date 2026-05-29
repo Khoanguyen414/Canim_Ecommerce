@@ -16,6 +16,7 @@ import { FaFacebookF, FaGoogle, FaApple } from "react-icons/fa"
 import { useAuthStore } from "@/store/auth.store"
 import { useAuthModalStore } from "@/store/auth-modal.store"
 import { authService } from "@/services/auth.service"
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton"
 import { getApiErrorMessage } from "@/lib/apiError"
 import { consumePostAuthRedirect } from "@/lib/authRedirect"
 import canimLogo from "@/assets/brand/canim-logo.png"
@@ -81,6 +82,7 @@ export default function AuthModal() {
   const openModal = useAuthModalStore((s) => s.openModal)
   const closeModal = useAuthModalStore((s) => s.closeModal)
   const login = useAuthStore((s) => s.login)
+  const loginWithAuthResult = useAuthStore((s) => s.loginWithAuthResult)
   const cleanedLogo = useCleanedLogo(canimLogo)
   const [loginEmail, setLoginEmail] = useState("")
   const [loginPassword, setLoginPassword] = useState("")
@@ -88,6 +90,8 @@ export default function AuthModal() {
   const [loginError, setLoginError] = useState("")
   const [loginBanner, setLoginBanner] = useState("")
   const [loginLoading, setLoginLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+  const [googleError, setGoogleError] = useState("")
 
   const [regForm, setRegForm] = useState({
     email: "",
@@ -310,7 +314,7 @@ export default function AuthModal() {
                   className="text-sm font-medium text-[#c89b5a] hover:underline"
                   onClick={() => {
                     closeModal()
-                    navigate("/contact")
+                    navigate("/forgot-password")
                   }}
                 >
                   Quên mật khẩu?
@@ -461,7 +465,32 @@ export default function AuthModal() {
             <span className="h-px flex-1 bg-stone-200" />
           </div>
 
-          <div className="mt-5">
+          <div className="mt-5 space-y-3">
+            {googleError ? (
+              <p className="text-center text-xs text-red-600">{googleError}</p>
+            ) : null}
+            <GoogleSignInButton
+              disabled={googleLoading || loginLoading}
+              onCredential={async (idToken) => {
+                setGoogleError("")
+                setGoogleLoading(true)
+                try {
+                  const { data } = await authService.googleLogin(idToken)
+                  if (!data.success || !data.result) {
+                    throw new Error(data.message || "Google login failed")
+                  }
+                  await loginWithAuthResult(data.result)
+                  closeModal()
+                  const to = consumePostAuthRedirect()
+                  if (to && to !== "/") navigate(to, { replace: true })
+                } catch (err) {
+                  setGoogleError(getApiErrorMessage(err, "Đăng nhập Google thất bại"))
+                } finally {
+                  setGoogleLoading(false)
+                }
+              }}
+              onError={setGoogleError}
+            />
             <SocialRow />
           </div>
 

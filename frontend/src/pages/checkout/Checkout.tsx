@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { MapPin, CreditCard, Truck } from "lucide-react"
 import { useCartStore } from "@/store/cart.store"
-import { useOrderStore } from "@/store/order.store"
 import { useAuthStore } from "@/store/auth.store"
 import { formatVnd } from "@/lib/format"
 import { EmptyState } from "@/components/common/EmptyState"
@@ -14,11 +13,21 @@ import { ShoppingCart } from "lucide-react"
 import { deliverySummaryFromCustomer, validateCustomerForm } from "@/lib/checkoutCustomer"
 import { cn } from "@/lib/cn"
 import { getVietnamAddressData, type VnDistrict, type VnProvince, type VnWard } from "@/services/vnAddress.service"
+import { orderService } from "@/services/order.service"
+import { addressService } from "@/services/address.service"
+import {
+  SavedAddressPicker,
+  type AddressCheckoutMode,
+} from "@/components/checkout/SavedAddressPicker"
+import type { UserAddressDto } from "@/types/api.types"
+import { syncLocalCartToServer } from "@/lib/cartSync"
+import { getApiErrorMessage } from "@/lib/apiError"
+import { shippingAddressFromParts } from "@/lib/orderLabels"
+import type { PaymentMethod } from "@/types/api.types"
 
 export default function Checkout() {
   const navigate = useNavigate()
   const { lines, subtotal, clear } = useCartStore()
-  const addOrder = useOrderStore((s) => s.addOrder)
   const user = useAuthStore((s) => s.user)
 
   const [formData, setFormData] = useState(() => ({
@@ -29,7 +38,7 @@ export default function Checkout() {
     city: "",
     district: "",
     ward: "",
-    paymentMethod: "cod",
+    paymentMethod: "VNPAY_QR" as PaymentMethod,
   }))
   const [shippingId, setShippingId] = useState("standard")
   const [submitting, setSubmitting] = useState(false)
@@ -37,6 +46,9 @@ export default function Checkout() {
   const [provinces, setProvinces] = useState<VnProvince[]>([])
   const [loadingLocations, setLoadingLocations] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
+  const [savedAddresses, setSavedAddresses] = useState<UserAddressDto[]>([])
+  const [addressMode, setAddressMode] = useState<AddressCheckoutMode>("manual")
+  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null)
 
   const shippingOptions = useMemo(
     () => [
@@ -49,8 +61,7 @@ export default function Checkout() {
 
   const shippingFee = shippingOptions.find((s) => s.id === shippingId)?.price ?? 30000
   const shippingChosen = shippingOptions.find((s) => s.id === shippingId)
-  const tax = Math.round(subtotal() * 0.08)
-  const total = subtotal() + shippingFee + tax
+  const estimatedTotal = subtotal() + shippingFee
   const selectedProvince = useMemo(
     () => provinces.find((province) => province.name === formData.city),
     [provinces, formData.city],
@@ -70,6 +81,24 @@ export default function Checkout() {
       email: prev.email || user.email || "",
       phone: prev.phone || user.phone || "",
     }))
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    void addressService.list().then((res) => {
+      if (!res.success || !res.result?.length) return
+      setSavedAddresses(res.result)
+      const def = res.result.find((a) => a.isDefault)
+      if (def) {
+        setAddressMode("default")
+        setSelectedAddressId(def.id)
+        setFormData((prev) => ({
+          ...prev,
+          fullName: def.receiverName,
+          phone: def.receiverPhone,
+        }))
+      }
+    })
   }, [user])
 
   useEffect(() => {
@@ -138,23 +167,8 @@ export default function Checkout() {
   const handlePlaceOrder = async () => {
     if (!lines.length) return
 
-    const errs = validateCustomerForm({
-      fullName: formData.fullName,
-      email: formData.email,
-      phone: formData.phone,
-      address: formData.address,
-      city: formData.city,
-      district: formData.district,
-      ward: formData.ward,
-    })
-    setFormErrors(errs)
-    if (Object.keys(errs).length > 0) return
-
-    setSubmitting(true)
-    try {
-      const id = crypto.randomUUID()
-      const orderCode = `DH-${Date.now()}`
-      const deliverySummary = deliverySummaryFromCustomer({
+    if (addressMode === "manual") {
+      const errs = validateCustomerForm({
         fullName: formData.fullName,
         email: formData.email,
         phone: formData.phone,
@@ -163,32 +177,81 @@ export default function Checkout() {
         district: formData.district,
         ward: formData.ward,
       })
+      setFormErrors(errs)
+      if (Object.keys(errs).length > 0) return
+    } else if (addressMode === "saved" && !selectedAddressId) {
+      setFormErrors({ submit: "Vui lòng chọn địa chỉ đã lưu." })
+      return
+    }
 
-      addOrder({
-        id,
-        orderCode,
-        items: lines.map((l) => ({ ...l })),
-        subtotal: subtotal(),
-        shipping: shippingFee,
-        tax,
-        total,
-        deliverySummary,
-        paymentMethod: formData.paymentMethod,
-        createdAt: new Date().toISOString(),
-        status: "confirmed",
-        customerName: formData.fullName.trim(),
-        customerEmail: formData.email.trim(),
-        customerPhone: formData.phone.trim(),
-        customerAddress: formData.address.trim(),
-        customerWard: formData.ward.trim(),
-        customerDistrict: formData.district.trim(),
-        customerCity: formData.city.trim(),
-        shippingMethodId: shippingId,
-        shippingMethodName: shippingChosen?.name ?? "",
-      })
-      setFormErrors({})
+    setSubmitting(true)
+    setFormErrors({})
+    try {
+      await syncLocalCartToServer(lines)
+
+      const note = shippingChosen
+        ? `Vận chuyển: ${shippingChosen.name}. ${formData.email ? `Email: ${formData.email.trim()}` : ""}`.trim()
+        : undefined
+
+      let checkoutPayload: Parameters<typeof orderService.checkout>[0]
+
+      if (addressMode === "default") {
+        checkoutPayload = {
+          useDefaultAddress: true,
+          orderNote: note,
+          paymentMethod: formData.paymentMethod,
+          shippingMethodId: shippingId,
+          shippingFee,
+          idempotencyKey: crypto.randomUUID(),
+        }
+      } else if (addressMode === "saved" && selectedAddressId) {
+        checkoutPayload = {
+          addressId: selectedAddressId,
+          orderNote: note,
+          paymentMethod: formData.paymentMethod,
+          shippingMethodId: shippingId,
+          shippingFee,
+          idempotencyKey: crypto.randomUUID(),
+        }
+      } else {
+        const shippingAddress = shippingAddressFromParts({
+          address: formData.address,
+          ward: formData.ward,
+          district: formData.district,
+          city: formData.city,
+        })
+        checkoutPayload = {
+          receiverName: formData.fullName.trim(),
+          receiverPhone: formData.phone.trim(),
+          shippingAddress,
+          orderNote: note,
+          paymentMethod: formData.paymentMethod,
+          shippingMethodId: shippingId,
+          shippingFee,
+          idempotencyKey: crypto.randomUUID(),
+        }
+      }
+
+      const checkoutRes = await orderService.checkout(checkoutPayload)
+
+      if (!checkoutRes.success || !checkoutRes.result) {
+        throw new Error(checkoutRes.message ?? "Đặt hàng thất bại")
+      }
+
+      const order = checkoutRes.result
       clear()
-      navigate(`/orders/${id}/confirm`)
+
+      if (formData.paymentMethod === "COD") {
+        navigate(`/orders/${order.id}/confirm`)
+        return
+      }
+
+      if (formData.paymentMethod === "VNPAY_QR") {
+        navigate(`/orders/${order.id}/qr-pay`)
+        return
+      }
+    } catch (err) {
+      setFormErrors({ submit: getApiErrorMessage(err) })
     } finally {
       setSubmitting(false)
     }
@@ -214,8 +277,9 @@ export default function Checkout() {
   return (
     <div className="container py-8">
       <h1 className="mb-4 text-3xl font-bold">Thanh toán</h1>
-      <p className="mb-8 rounded-lg border border-amber-200/80 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        Đơn của bạn được lưu trên thiết bị để xem lại sau khi đặt. Thanh toán và xác nhận từ cửa hàng sẽ được hoàn thiện thêm trong thời gian tới.
+      <p className="mb-8 rounded-lg border border-blue-200/80 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+        Chọn <strong>Chuyển khoản QR</strong> để quét mã VietQR — hệ thống tự gắn số tiền và mã đơn (xem{" "}
+        <code className="rounded bg-white/60 px-1">docs/HUONG_DAN_THANH_TOAN_QR_CA_NHAN.md</code>).
       </p>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -228,6 +292,40 @@ export default function Checkout() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {savedAddresses.length > 0 ? (
+                <SavedAddressPicker
+                  addresses={savedAddresses}
+                  mode={addressMode}
+                  selectedAddressId={selectedAddressId}
+                  onModeChange={(mode) => {
+                    setAddressMode(mode)
+                    if (mode === "default") {
+                      const def = savedAddresses.find((a) => a.isDefault)
+                      if (def) setSelectedAddressId(def.id)
+                    }
+                  }}
+                  onSelectAddress={(id) => {
+                    setSelectedAddressId(id)
+                    const addr = savedAddresses.find((a) => a.id === id)
+                    if (addr) {
+                      setFormData((prev) => ({
+                        ...prev,
+                        fullName: addr.receiverName,
+                        phone: addr.receiverPhone,
+                      }))
+                    }
+                  }}
+                />
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={() => navigate("/account/addresses")}
+                >
+                  Quản lý sổ địa chỉ
+                </button>
+              </p>
               {Object.keys(formErrors).length > 0 ? (
                 <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
                   <p className="font-semibold">Vui lòng điền đủ thông tin giao hàng:</p>
@@ -240,6 +338,8 @@ export default function Checkout() {
                   </ul>
                 </div>
               ) : null}
+              {addressMode === "manual" ? (
+              <>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-1">
                   <Input
@@ -356,6 +456,8 @@ export default function Checkout() {
                   </Select>
                 </div>
               )}
+              </>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -396,9 +498,8 @@ export default function Checkout() {
             </CardHeader>
             <CardContent className="space-y-3">
               {[
-                { id: "cod", name: "Thanh toán khi nhận hàng (COD)" },
-                { id: "bank", name: "Chuyển khoản ngân hàng" },
-                { id: "card", name: "Thẻ ngân hàng" },
+                { id: "VNPAY_QR" as PaymentMethod, name: "Chuyển khoản QR (VietQR)" },
+                { id: "COD" as PaymentMethod, name: "Thanh toán khi nhận hàng (COD)" },
               ].map((method) => (
                 <label
                   key={method.id}
@@ -440,15 +541,17 @@ export default function Checkout() {
                 <span>Vận chuyển</span>
                 <span>{formatVnd(shippingFee)}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Thuế (ước tính)</span>
-                <span>{formatVnd(tax)}</span>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Phí ship thực tế do server tính khi đặt hàng (mặc định 30.000đ).
+              </p>
             </div>
             <div className="flex justify-between border-t border-border pt-4 text-lg font-bold">
-              <span>Tổng</span>
-              <span className="text-primary">{formatVnd(total)}</span>
+              <span>Tổng (ước tính)</span>
+              <span className="text-primary">{formatVnd(estimatedTotal)}</span>
             </div>
+            {formErrors.submit ? (
+              <p className="text-sm text-destructive">{formErrors.submit}</p>
+            ) : null}
             <Button className="h-11 w-full" type="button" disabled={submitting} onClick={() => void handlePlaceOrder()}>
               {submitting ? "Đang xử lý..." : "Đặt hàng"}
             </Button>

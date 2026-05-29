@@ -956,6 +956,21 @@ textarea {
 }
 
 /* —— Form controls —— */
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-grid-max {
+  max-width: 42rem;
+}
+
+.wh-layout-single {
+  display: grid;
+  gap: 1.25rem;
+}
+
 .form-grid {
   display: grid;
   gap: 1rem;

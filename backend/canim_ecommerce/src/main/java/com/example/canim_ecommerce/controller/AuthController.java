@@ -4,8 +4,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.canim_ecommerce.dto.request.auth.AuthRequest;
+import com.example.canim_ecommerce.dto.request.auth.ForgotPasswordRequest;
+import com.example.canim_ecommerce.dto.request.auth.GoogleLoginRequest;
 import com.example.canim_ecommerce.dto.request.auth.RefreshTokenRequest;
 import com.example.canim_ecommerce.dto.request.auth.RegisterRequest;
+import com.example.canim_ecommerce.dto.request.auth.ResetPasswordRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.AuthResponse;
 import com.example.canim_ecommerce.entity.User;
@@ -35,6 +38,27 @@ public class AuthController {
     public ApiResponse<AuthResponse> login(@Validated @RequestBody AuthRequest request) {
         var auth = authService.login(request);
         return ApiResponse.success(ApiStatus.SUCCESS, "Login successfully", auth);
+    }
+
+    @PostMapping("/google")
+    public ApiResponse<AuthResponse> googleLogin(@Validated @RequestBody GoogleLoginRequest request) {
+        var auth = authService.googleLogin(request);
+        return ApiResponse.success(ApiStatus.SUCCESS, "Login successfully", auth);
+    }
+
+    @PostMapping("/forgot-password")
+    public ApiResponse<Void> forgotPassword(@Validated @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request);
+        return ApiResponse.success(
+                ApiStatus.SUCCESS,
+                "Password reset instructions have been sent if the email exists",
+                null);
+    }
+
+    @PostMapping("/reset-password")
+    public ApiResponse<Void> resetPassword(@Validated @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ApiResponse.success(ApiStatus.SUCCESS, "Password reset successfully", null);
     }
 
     @PostMapping("/register")

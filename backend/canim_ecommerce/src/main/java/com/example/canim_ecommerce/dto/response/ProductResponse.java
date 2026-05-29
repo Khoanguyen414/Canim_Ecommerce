@@ -38,6 +38,9 @@ public class ProductResponse {
 
     List<ProductImageResponse> images;
 
+    BigDecimal averageRating;
+    Long reviewCount;
+
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
 }

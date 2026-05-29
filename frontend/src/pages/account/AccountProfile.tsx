@@ -67,6 +67,15 @@ export default function AccountProfile() {
         Về trang chủ
       </Link>
 
+      <div className="mb-4">
+        <Link
+          to="/account/addresses"
+          className="text-sm font-semibold text-primary hover:underline"
+        >
+          Sổ địa chỉ giao hàng →
+        </Link>
+      </div>
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-[#253d4e]">Hồ sơ tài khoản</h1>
