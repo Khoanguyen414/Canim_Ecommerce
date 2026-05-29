@@ -21,6 +21,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import com.example.canim_ecommerce.dto.request.order.CancelOrderRequest;
@@ -98,6 +100,8 @@ public class OrderServiceImpl implements OrderService {
     PageResponseMapper pageResponseMapper;
     RedisTemplate<String, Object> redisTemplate;
     TransactionTemplate transactionTemplate;
+    UserEventService userEventService;
+    ObjectMapper objectMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -201,10 +205,16 @@ public class OrderServiceImpl implements OrderService {
 
         createPendingPaymentTransaction(savedOrder);
 
+        List<PurchaseTrackingEvent> purchaseTrackingEvents = buildPurchaseTrackingEvents(
+                savedOrder,
+                selectedItems);
+
         cart.getItems().removeAll(selectedItems);
         cartRepository.save(cart);
 
         redisTemplate.delete(REDIS_CART_KEY + userId);
+
+        registerPurchaseTrackingAfterCommit(userId, purchaseTrackingEvents);
 
         return toDetailResponse(savedOrder, false);
     }
@@ -468,6 +478,110 @@ public class OrderServiceImpl implements OrderService {
                 .quantity(cartItem.getQuantity())
                 .price(variant.getPrice())
                 .build();
+    }
+
+
+    private List<PurchaseTrackingEvent> buildPurchaseTrackingEvents(
+            Order savedOrder,
+            List<CartItem> selectedItems) {
+        List<PurchaseTrackingEvent> events = new ArrayList<>();
+
+        for (CartItem cartItem : selectedItems) {
+            ProductVariant variant = cartItem.getVariant();
+
+            if (variant == null || variant.getProduct() == null) {
+                continue;
+            }
+
+            Product product = variant.getProduct();
+
+            events.add(new PurchaseTrackingEvent(
+                    product.getId(),
+                    buildPurchaseMeta(savedOrder, cartItem, variant, product)));
+        }
+
+        return events;
+    }
+
+    private void registerPurchaseTrackingAfterCommit(
+            Long userId,
+            List<PurchaseTrackingEvent> purchaseTrackingEvents) {
+        if (purchaseTrackingEvents == null || purchaseTrackingEvents.isEmpty()) {
+            return;
+        }
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    logPurchaseEvents(userId, purchaseTrackingEvents);
+                }
+            });
+
+            return;
+        }
+
+        logPurchaseEvents(userId, purchaseTrackingEvents);
+    }
+
+    private void logPurchaseEvents(
+            Long userId,
+            List<PurchaseTrackingEvent> purchaseTrackingEvents) {
+        for (PurchaseTrackingEvent event : purchaseTrackingEvents) {
+            userEventService.logEventAsync(
+                    userId,
+                    event.productId(),
+                    EventType.PURCHASE,
+                    event.eventMeta());
+        }
+    }
+
+    private String buildPurchaseMeta(
+            Order order,
+            CartItem cartItem,
+            ProductVariant variant,
+            Product product) {
+        Map<String, Object> meta = new LinkedHashMap<>();
+
+        meta.put("orderId", order.getId());
+        meta.put("orderNo", order.getOrderNo());
+        meta.put("idempotencyKey", order.getIdempotencyKey());
+
+        meta.put("productId", product.getId());
+        meta.put("productName", product.getName());
+
+        meta.put("variantId", variant.getId());
+        meta.put("sku", variant.getSku());
+        meta.put("color", variant.getColor());
+        meta.put("size", variant.getSize());
+
+        meta.put("quantity", cartItem.getQuantity());
+        meta.put("price", variant.getPrice());
+        meta.put("lineTotal", variant.getPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity())));
+
+        meta.put("paymentMethod", order.getPaymentMethod());
+        meta.put("paymentStatus", order.getPaymentStatus());
+        meta.put("orderStatus", order.getOrderStatus());
+        meta.put("shippingStatus", order.getShippingStatus());
+        meta.put("totalAmount", order.getTotalAmount());
+
+        meta.put("source", "BACKEND_CHECKOUT_PURCHASE");
+        meta.put(
+                "sourceMeaning",
+                "Khách checkout thành công bằng backend nên hệ thống ghi nhận hành vi mua hàng cho AI Recommendation");
+
+        try {
+            return objectMapper.writeValueAsString(meta);
+        } catch (JsonProcessingException e) {
+            log.warn("Không thể build PURCHASE eventMeta JSON: {}", e.getMessage());
+
+            return "{\"source\":\"BACKEND_CHECKOUT_PURCHASE\"}";
+        }
+    }
+
+    private record PurchaseTrackingEvent(
+            Long productId,
+            String eventMeta) {
     }
 
     private String buildVariantName(ProductVariant variant) {

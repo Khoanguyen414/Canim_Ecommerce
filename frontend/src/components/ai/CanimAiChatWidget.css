@@ -1,84 +1,114 @@
+/* =========================================================
+   Canim AI Chat Widget
+   File: frontend/src/components/ai/CanimAiChatWidget.css
+========================================================= */
+
 .canim-ai-widget {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 110;
-  font-family: var(--font-sans);
+  right: 22px;
+  bottom: 22px;
+  z-index: 9999;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
 }
+
+/* =========================
+   Floating Button
+========================= */
 
 .canim-ai-floating-button {
-  width: 86px;
-  height: 86px;
-  border: 0;
+  width: 68px;
+  height: 68px;
+  border: none;
   border-radius: 999px;
-  background: linear-gradient(145deg, #fff7ed, #f1b66c);
-  box-shadow: 0 18px 38px rgba(108, 65, 26, 0.24);
+  background: linear-gradient(135deg, #fff6ee, #f5b98f);
+  box-shadow:
+    0 16px 36px rgba(110, 64, 31, 0.26),
+    0 0 0 1px rgba(255, 255, 255, 0.7) inset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  padding: 7px;
-  position: relative;
+  padding: 8px;
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
 }
 
-.canim-ai-floating-button::before {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border-radius: inherit;
-  border: 1px solid rgba(222, 159, 82, 0.55);
-  animation: canim-ai-pulse 2.8s ease-in-out infinite;
+.canim-ai-floating-button:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow:
+    0 20px 42px rgba(110, 64, 31, 0.32),
+    0 0 0 1px rgba(255, 255, 255, 0.78) inset;
 }
 
 .canim-ai-floating-button img {
   width: 100%;
   height: 100%;
-  border-radius: inherit;
-  object-fit: cover;
-  display: block;
+  object-fit: contain;
 }
+
+/* =========================
+   Panel
+========================= */
 
 .canim-ai-panel {
   position: absolute;
   right: 0;
-  bottom: 104px;
-  width: min(430px, calc(100vw - 32px));
-  max-height: min(760px, calc(100vh - 132px));
+  bottom: 82px;
+  width: min(390px, calc(100vw - 28px));
+  height: min(660px, calc(100vh - 120px));
+  border-radius: 28px;
+  overflow: hidden;
+  background: rgba(255, 252, 248, 0.96);
+  border: 1px solid rgba(224, 177, 126, 0.45);
+  box-shadow:
+    0 28px 80px rgba(45, 28, 16, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.82) inset;
+  backdrop-filter: blur(16px);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  border-radius: 34px;
-  border: 1px solid rgba(223, 158, 86, 0.42);
-  background:
-    radial-gradient(circle at 20% 0%, rgba(255, 236, 212, 0.85), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 250, 246, 0.96));
-  box-shadow: 0 28px 80px rgba(96, 55, 24, 0.23);
-  backdrop-filter: blur(18px);
 }
 
+/* =========================
+   Header
+========================= */
+
 .canim-ai-header {
-  min-height: 92px;
+  min-height: 86px;
+  padding: 16px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
-  border-bottom: 1px solid rgba(225, 174, 113, 0.28);
-  background: rgba(255, 250, 246, 0.76);
+  gap: 12px;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.82), transparent 35%),
+    linear-gradient(135deg, #9f5f34, #e39a62 52%, #f5c8a4);
+  color: white;
 }
 
 .canim-ai-header-avatar {
-  width: 62px;
-  height: 62px;
-  border-radius: 999px;
-  padding: 3px;
-  background: linear-gradient(145deg, #fff, #f0b16a);
-  box-shadow: 0 12px 24px rgba(152, 94, 42, 0.16);
-  flex: 0 0 auto;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 8px 18px rgba(85, 44, 18, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  flex-shrink: 0;
 }
 
 .canim-ai-header-avatar img {
   width: 100%;
   height: 100%;
-  border-radius: inherit;
-  object-fit: cover;
-  display: block;
+  object-fit: contain;
 }
 
 .canim-ai-header-copy {
@@ -88,141 +118,178 @@
 
 .canim-ai-header-copy h2 {
   margin: 0;
-  color: #1f1b17;
-  font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: -0.01em;
 }
 
 .canim-ai-header-copy p {
-  margin: 6px 0 0;
+  margin: 5px 0 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: rgba(68, 55, 45, 0.72);
-  font-size: 0.94rem;
+  gap: 7px;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .canim-ai-header-copy p span {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
-  background: #2ed47a;
-  box-shadow: 0 0 0 5px rgba(46, 212, 122, 0.12);
+  background: #56f08d;
+  box-shadow: 0 0 0 4px rgba(86, 240, 141, 0.18);
 }
 
 .canim-ai-collapse {
-  border: 0;
-  background: transparent;
-  color: #bb7a34;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
-  width: 42px;
-  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
 .canim-ai-collapse:hover {
-  background: rgba(231, 169, 97, 0.12);
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
 }
+
+/* =========================
+   Messages
+========================= */
 
 .canim-ai-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 18px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  padding: 16px 14px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 238, 220, 0.6), transparent 28%),
+    linear-gradient(180deg, #fffaf5, #fffefd);
+}
+
+.canim-ai-messages::-webkit-scrollbar {
+  width: 7px;
+}
+
+.canim-ai-messages::-webkit-scrollbar-thumb {
+  background: rgba(161, 103, 55, 0.25);
+  border-radius: 999px;
 }
 
 .canim-ai-message-row {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: flex-end;
 }
 
 .canim-ai-message-row.user {
   justify-content: flex-end;
 }
 
+.canim-ai-message-row.assistant {
+  justify-content: flex-start;
+}
+
 .canim-ai-bot-avatar {
-  width: 42px;
-  height: 42px;
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
-  object-fit: cover;
-  flex: 0 0 auto;
-  box-shadow: 0 8px 18px rgba(101, 62, 25, 0.14);
+  object-fit: contain;
+  background: #fff3e7;
+  border: 1px solid rgba(224, 177, 126, 0.5);
+  padding: 3px;
+  flex-shrink: 0;
 }
 
 .canim-ai-message-stack {
   max-width: 82%;
-  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .canim-ai-message-row.user .canim-ai-message-stack {
-  display: flex;
   align-items: flex-end;
 }
 
 .canim-ai-bubble {
-  border-radius: 22px;
-  padding: 13px 16px;
-  line-height: 1.55;
-  font-size: 0.95rem;
+  border-radius: 18px;
+  padding: 10px 12px;
+  font-size: 0.86rem;
+  line-height: 1.48;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .canim-ai-bubble.assistant {
-  color: #2a211a;
-  border: 1px solid rgba(227, 205, 186, 0.8);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 22px rgba(97, 64, 32, 0.08);
+  background: white;
+  color: #37281f;
+  border-bottom-left-radius: 6px;
+  border: 1px solid rgba(225, 151, 68, 0.18);
+  box-shadow: 0 8px 20px rgba(97, 64, 32, 0.08);
 }
 
 .canim-ai-bubble.user {
-  color: #3a2515;
-  background: linear-gradient(145deg, #ffe9cf, #ffd7aa);
-  box-shadow: 0 10px 22px rgba(163, 96, 39, 0.12);
+  background: linear-gradient(135deg, #b76a38, #e19a60);
+  color: white;
+  border-bottom-right-radius: 6px;
+  box-shadow: 0 8px 18px rgba(136, 74, 35, 0.22);
 }
 
 .canim-ai-bubble.loading {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: rgba(66, 47, 34, 0.68);
+  color: #7b5739;
 }
 
-.canim-ai-handoff {
-  margin-top: 8px;
-  border-radius: 16px;
-  border: 1px solid rgba(239, 131, 82, 0.3);
-  background: rgba(255, 237, 226, 0.78);
-  color: #8a3d1f;
-  padding: 9px 12px;
-  font-size: 0.82rem;
-}
+/* =========================
+   Product Carousel
+========================= */
 
 .canim-ai-products {
+  margin-top: 8px;
   display: flex;
-  gap: 12px;
+  gap: 10px;
   overflow-x: auto;
-  padding: 12px 2px 4px;
   max-width: 100%;
+  padding: 2px 2px 8px;
+  scroll-snap-type: x mandatory;
+}
+
+.canim-ai-products::-webkit-scrollbar {
+  height: 6px;
+}
+
+.canim-ai-products::-webkit-scrollbar-thumb {
+  background: rgba(161, 103, 55, 0.25);
+  border-radius: 999px;
 }
 
 .canim-ai-product-card {
-  min-width: 132px;
-  max-width: 132px;
+  width: 142px;
+  min-width: 142px;
   border-radius: 18px;
+  background: white;
+  border: 1px solid rgba(225, 151, 68, 0.2);
   overflow: hidden;
-  border: 1px solid rgba(226, 204, 184, 0.82);
-  background: #fff;
-  box-shadow: 0 10px 24px rgba(68, 45, 26, 0.1);
+  box-shadow: 0 8px 20px rgba(97, 64, 32, 0.08);
+  scroll-snap-align: start;
 }
 
 .canim-ai-product-image-wrap {
-  height: 118px;
-  background: linear-gradient(145deg, #f8ede2, #fff7ef);
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: #f7efe7;
+  overflow: hidden;
 }
 
 .canim-ai-product-image-wrap img {
@@ -232,24 +299,24 @@
 }
 
 .canim-ai-product-placeholder {
-  width: 100%;
   height: 100%;
-  display: grid;
-  place-items: center;
-  color: #c38643;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(74, 59, 47, 0.55);
   font-weight: 800;
 }
 
 .canim-ai-product-body {
-  padding: 9px 10px 10px;
+  padding: 9px;
 }
 
 .canim-ai-product-name {
   margin: 0;
-  color: #231d18;
-  font-size: 0.82rem;
-  line-height: 1.35;
-  font-weight: 700;
+  color: #2f241d;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  font-weight: 800;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -258,154 +325,324 @@
 
 .canim-ai-product-meta {
   min-height: 18px;
-  margin-top: 4px;
+  margin-top: 5px;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  color: rgba(74, 59, 47, 0.58);
+  color: rgba(74, 59, 47, 0.62);
   font-size: 0.72rem;
 }
 
+.canim-ai-product-meta span:not(:last-child)::after {
+  content: "·";
+  margin-left: 4px;
+  color: rgba(74, 59, 47, 0.4);
+}
+
 .canim-ai-product-footer {
-  margin-top: 6px;
+  margin-top: 8px;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-}
-
-.canim-ai-product-footer strong {
-  color: #221914;
-  font-size: 0.82rem;
-}
-
-.canim-ai-product-footer button {
-  border: 0;
-  background: transparent;
-  color: #e0983f;
-  cursor: pointer;
-  font-size: 1.15rem;
-  line-height: 1;
-}
-
-.canim-ai-quick-actions {
-  padding: 10px 18px 8px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.canim-ai-quick-actions button {
-  min-height: 46px;
-  border-radius: 999px;
-  border: 1px solid rgba(225, 151, 68, 0.5);
-  background: rgba(255, 255, 255, 0.84);
-  color: #3d2b1f;
-  font-weight: 700;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   gap: 8px;
 }
 
-.canim-ai-quick-actions button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(129, 76, 31, 0.12);
+.canim-ai-product-footer strong {
+  color: #2a211b;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.canim-ai-product-footer button {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(225, 151, 68, 0.28);
+  background: #fff8ef;
+  color: #a45e2d;
+  cursor: pointer;
+}
+
+/* =========================
+   Smart Widget Blocks
+========================= */
+
+.canim-ai-size-box,
+.canim-ai-info-box,
+.canim-ai-handoff {
+  margin-top: 8px;
+  border-radius: 18px;
+  padding: 12px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  box-shadow: 0 8px 20px rgba(97, 64, 32, 0.08);
+}
+
+.canim-ai-size-box,
+.canim-ai-info-box {
+  border: 1px solid rgba(225, 151, 68, 0.34);
+  background: rgba(255, 248, 239, 0.92);
+  color: #3a2a1f;
+}
+
+.canim-ai-handoff {
+  border: 1px solid rgba(239, 131, 82, 0.38);
+  background: rgba(255, 237, 226, 0.86);
+  color: #8a3d1f;
+}
+
+.canim-ai-size-box-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  color: #8a4f20;
+  font-weight: 800;
+}
+
+.canim-ai-size-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.canim-ai-size-grid span {
+  color: rgba(74, 59, 47, 0.68);
+}
+
+.canim-ai-size-grid strong {
+  color: #231d18;
+  font-weight: 900;
+}
+
+.canim-ai-size-empty {
+  margin: 0 0 10px;
+  color: rgba(74, 59, 47, 0.76);
+  line-height: 1.45;
+}
+
+.canim-ai-size-box p,
+.canim-ai-info-box p,
+.canim-ai-handoff p {
+  margin: 8px 0 0;
+  color: rgba(74, 59, 47, 0.74);
+  line-height: 1.45;
+}
+
+.canim-ai-info-box strong,
+.canim-ai-handoff strong {
+  display: block;
+  color: #3a2515;
+  font-weight: 900;
+}
+
+/* =========================
+   Size Table
+========================= */
+
+.canim-ai-size-table {
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(225, 151, 68, 0.24);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.canim-ai-size-table-head,
+.canim-ai-size-table-row {
+  display: grid;
+  grid-template-columns: 48px 1fr 1fr;
+  column-gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  font-size: 0.76rem;
+}
+
+.canim-ai-size-table-head {
+  background: rgba(225, 151, 68, 0.14);
+  color: #7a4a25;
+  font-weight: 900;
+}
+
+.canim-ai-size-table-row {
+  border-top: 1px solid rgba(225, 151, 68, 0.16);
+  color: rgba(58, 42, 31, 0.78);
+}
+
+.canim-ai-size-table-row strong {
+  color: #2f241d;
+  font-weight: 900;
+}
+
+.canim-ai-size-table-row.active {
+  background: rgba(225, 151, 68, 0.18);
+}
+
+.canim-ai-size-table-row.active strong {
+  color: #9a5524;
+}
+
+/* =========================
+   Quick Actions
+========================= */
+
+.canim-ai-quick-actions {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 12px;
+  background: rgba(255, 250, 246, 0.96);
+  border-top: 1px solid rgba(225, 151, 68, 0.16);
+}
+
+.canim-ai-quick-actions::-webkit-scrollbar {
+  height: 5px;
+}
+
+.canim-ai-quick-actions::-webkit-scrollbar-thumb {
+  background: rgba(161, 103, 55, 0.22);
+  border-radius: 999px;
+}
+
+.canim-ai-quick-actions button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(225, 151, 68, 0.22);
+  background: white;
+  color: #6e4326;
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .canim-ai-quick-actions button:disabled {
-  opacity: 0.62;
-  cursor: not-allowed;
-}
-
-.canim-ai-input-row {
-  margin: 8px 18px 0;
-  min-height: 58px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(225, 151, 68, 0.52);
-  background: rgba(255, 255, 255, 0.86);
-  padding: 8px 8px 8px 18px;
-}
-
-.canim-ai-input-row input {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #2c211b;
-  font-size: 0.95rem;
-}
-
-.canim-ai-input-row input::placeholder {
-  color: rgba(87, 67, 54, 0.44);
-}
-
-.canim-ai-input-row button {
-  width: 46px;
-  height: 46px;
-  border: 0;
-  border-radius: 999px;
-  color: white;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  background: linear-gradient(145deg, #e8ad69, #d88b39);
-  box-shadow: 0 10px 22px rgba(171, 99, 37, 0.22);
-}
-
-.canim-ai-input-row button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
+/* =========================
+   Input
+========================= */
+
+.canim-ai-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  background: white;
+  border-top: 1px solid rgba(225, 151, 68, 0.16);
+}
+
+.canim-ai-input-row input {
+  flex: 1;
+  height: 42px;
+  min-width: 0;
+  border: 1px solid rgba(225, 151, 68, 0.26);
+  border-radius: 999px;
+  background: #fffaf5;
+  padding: 0 14px;
+  outline: none;
+  color: #2f241d;
+  font-size: 0.88rem;
+}
+
+.canim-ai-input-row input:focus {
+  border-color: rgba(167, 98, 50, 0.6);
+  box-shadow: 0 0 0 4px rgba(225, 151, 68, 0.12);
+}
+
+.canim-ai-input-row input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.canim-ai-input-row button {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #b76a38, #e19a60);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(136, 74, 35, 0.22);
+}
+
+.canim-ai-input-row button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .canim-ai-disclaimer {
-  margin: 10px 18px 16px;
+  margin: 0;
+  padding: 0 12px 12px;
+  background: white;
+  color: rgba(74, 59, 47, 0.52);
   text-align: center;
-  color: rgba(95, 74, 59, 0.52);
-  font-size: 0.78rem;
+  font-size: 0.68rem;
+  line-height: 1.4;
 }
 
-@keyframes canim-ai-pulse {
-  0%,
-  100% {
-    opacity: 0.42;
-    transform: scale(0.98);
-  }
+/* =========================
+   Responsive
+========================= */
 
-  50% {
-    opacity: 0.9;
-    transform: scale(1.04);
-  }
-}
-
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   .canim-ai-widget {
     right: 14px;
     bottom: 14px;
   }
 
   .canim-ai-panel {
-    right: -2px;
-    bottom: 94px;
-    width: calc(100vw - 28px);
-    max-height: calc(100vh - 116px);
-    border-radius: 28px;
+    right: -4px;
+    bottom: 78px;
+    width: calc(100vw - 20px);
+    height: min(640px, calc(100vh - 105px));
+    border-radius: 24px;
   }
 
   .canim-ai-floating-button {
-    width: 74px;
-    height: 74px;
-  }
-
-  .canim-ai-quick-actions {
-    grid-template-columns: 1fr;
+    width: 62px;
+    height: 62px;
   }
 
   .canim-ai-message-stack {
     max-width: 86%;
+  }
+
+  .canim-ai-product-card {
+    width: 132px;
+    min-width: 132px;
+  }
+
+  .canim-ai-size-box,
+  .canim-ai-info-box,
+  .canim-ai-handoff {
+    border-radius: 16px;
+    padding: 10px;
+    font-size: 0.8rem;
+  }
+
+  .canim-ai-size-table-head,
+  .canim-ai-size-table-row {
+    grid-template-columns: 42px 1fr 1fr;
+    column-gap: 8px;
+    padding: 7px 8px;
+    font-size: 0.72rem;
+  }
+
+  .canim-ai-size-grid {
+    gap: 6px 10px;
   }
 }

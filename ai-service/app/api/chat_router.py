@@ -9,7 +9,10 @@ router = APIRouter(
     tags=["AI Chat"],
 )
 
+
 @router.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest) -> ChatResponse:
-    return chat_service.reply(request.message)
-    
+    return chat_service.reply(
+        message=request.message,
+        session_id=request.session_id,
+    )

@@ -1,17 +1,58 @@
-import { useMemo, useRef, useState } from "react"
-import { ChevronDown, Loader2, Ruler, Send, ShoppingBag, Sparkles, PackageSearch } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import {
+  ChevronDown,
+  Loader2,
+  PackageSearch,
+  Ruler,
+  Send,
+  ShoppingBag,
+  Sparkles,
+} from "lucide-react"
 
 import mascotIcon from "@/assets/brand/canim-ai-mascot.png"
-import { aiChatService } from "@/services/aiChat.service"
-import type { AiChatMessage, AiProductSuggestion } from "@/types/ai-chat"
 import { formatVnd, toNumber } from "@/lib/format"
+import { aiChatService } from "@/services/aiChat.service"
+import type {
+  AiChatMessage,
+  AiEmotion,
+  AiIntent,
+  AiProductSuggestion,
+} from "@/types/ai-chat"
+
 import "./CanimAiChatWidget.css"
 
-const AI_CHAT_MOCK =
-  import.meta.env.VITE_AI_CHAT_MOCK === "true" ||
-  import.meta.env.VITE_AI_CHAT_MOCK === undefined
+type CanimWidgetType =
+  | "TEXT_ONLY"
+  | "PRODUCT_CAROUSEL"
+  | "SIZE_ADVICE"
+  | "ORDER_LOOKUP"
+  | "HUMAN_HANDOFF"
 
-const quickActions = [
+type CanimChatMessage = AiChatMessage & {
+  widgetType?: CanimWidgetType
+  entities?: Record<string, unknown>
+  quickReplies?: string[]
+}
+
+type AiChatApiResponse = {
+  reply: string
+  intent?: string
+  emotion?: string
+  widgetType?: string
+  entities?: Record<string, unknown>
+  recommended_products?: AiProductSuggestion[]
+  quickReplies?: string[]
+  should_handoff?: boolean
+  handoff_reason?: string | null
+  debugReason?: string | null
+}
+
+type AiChatRequest = {
+  session_id: string
+  message: string
+}
+
+const defaultQuickActions = [
   {
     label: "Gợi ý outfit",
     icon: Sparkles,
@@ -34,41 +75,28 @@ const quickActions = [
   },
 ]
 
-const demoProducts: AiProductSuggestion[] = [
+const SIZE_GUIDE = [
   {
-    product_id: 1,
-    variant_id: 11,
-    name: "Blazer linen thanh lịch",
-    color: "Be",
-    size: "M",
-    price: 799000,
-    image_url:
-      "https://images.unsplash.com/photo-1591369822096-ffd140ec948f?auto=format&fit=crop&w=500&q=80",
-    score: 8,
-  },
-  {
-    product_id: 2,
-    variant_id: 12,
-    name: "Áo sơ mi lụa cổ V",
-    color: "Kem",
     size: "S",
-    price: 499000,
-    image_url:
-      "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?auto=format&fit=crop&w=500&q=80",
-    score: 7,
+    height: "150 - 160cm",
+    weight: "45 - 52kg",
   },
   {
-    product_id: 3,
-    variant_id: 13,
-    name: "Quần ống suông basic",
-    color: "Be",
     size: "M",
-    price: 599000,
-    image_url:
-      "https://images.unsplash.com/photo-1506629905607-d9f297d4f5f7?auto=format&fit=crop&w=500&q=80",
-    score: 6,
+    height: "161 - 170cm",
+    weight: "53 - 60kg",
   },
-]
+  {
+    size: "L",
+    height: "171 - 178cm",
+    weight: "61 - 68kg",
+  },
+  {
+    size: "XL",
+    height: "179 - 185cm",
+    weight: "69 - 78kg",
+  },
+] as const
 
 function createId(prefix = "msg") {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`
@@ -86,61 +114,105 @@ function createSessionId() {
   return sessionId
 }
 
-function createMockAssistantMessage(userMessage: string): AiChatMessage {
-  const normalized = userMessage.toLowerCase()
+function safeWidgetType(value?: string): CanimWidgetType {
+  if (
+    value === "TEXT_ONLY" ||
+    value === "PRODUCT_CAROUSEL" ||
+    value === "SIZE_ADVICE" ||
+    value === "ORDER_LOOKUP" ||
+    value === "HUMAN_HANDOFF"
+  ) {
+    return value
+  }
 
-  if (normalized.includes("size") || normalized.includes("cao") || normalized.includes("nặng")) {
-    return {
-      id: createId("assistant"),
-      role: "assistant",
-      content:
-        "Dạ để tư vấn size chuẩn hơn, Anh/Chị cho em thêm giới tính, chiều cao, cân nặng và form muốn mặc nha. Ví dụ: cao 170cm, nặng 60kg, thích mặc vừa hay oversize.",
-      intent: "SIZE_SUGGESTION",
-      emotion: "NEUTRAL",
-      products: [],
-      shouldHandoff: false,
+  return "TEXT_ONLY"
+}
+
+function safeIntent(value?: string): AiIntent {
+  if (
+    value === "GREETING" ||
+    value === "PRODUCT_RECOMMENDATION" ||
+    value === "OUTFIT_SUGGESTION" ||
+    value === "SIZE_SUGGESTION" ||
+    value === "ORDER_TRACKING" ||
+    value === "PROMOTION" ||
+    value === "SHIPPING_POLICY" ||
+    value === "RETURN_POLICY" ||
+    value === "COMPLAINT" ||
+    value === "THANKS" ||
+    value === "SMALL_TALK" ||
+    value === "SECURITY_BLOCK" ||
+    value === "UNKNOWN"
+  ) {
+    return value
+  }
+
+  return "UNKNOWN"
+}
+
+function safeEmotion(value?: string): AiEmotion {
+  if (
+    value === "FRIENDLY" ||
+    value === "NEUTRAL" ||
+    value === "HAPPY" ||
+    value === "THANKS" ||
+    value === "CONFUSED" ||
+    value === "COMPLAINT" ||
+    value === "ANGRY"
+  ) {
+    return value
+  }
+
+  return "NEUTRAL"
+}
+
+function getProductsForWidget(
+  widgetType: CanimWidgetType,
+  products?: AiProductSuggestion[],
+) {
+  if (widgetType !== "PRODUCT_CAROUSEL") {
+    return []
+  }
+
+  return Array.isArray(products) ? products : []
+}
+
+function getEntityNumber(
+  entities: Record<string, unknown> | undefined,
+  key: string,
+) {
+  const value = entities?.[key]
+
+  if (typeof value === "number") {
+    return value
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value)
+
+    if (!Number.isNaN(parsed)) {
+      return parsed
     }
   }
 
-  if (normalized.includes("đơn hàng") || normalized.includes("theo dõi")) {
-    return {
-      id: createId("assistant"),
-      role: "assistant",
-      content:
-        "Dạ Anh/Chị cho em xin mã đơn hàng, ví dụ ORD-1234, để em hỗ trợ kiểm tra trạng thái đơn nhanh hơn ạ.",
-      intent: "ORDER_TRACKING",
-      emotion: "NEUTRAL",
-      products: [],
-      shouldHandoff: false,
-    }
+  return undefined
+}
+
+function getEntityString(
+  entities: Record<string, unknown> | undefined,
+  key: string,
+) {
+  const value = entities?.[key]
+
+  if (typeof value === "string") {
+    return value
   }
 
-  if (normalized.includes("tức") || normalized.includes("bực") || normalized.includes("giao sai")) {
-    return {
-      id: createId("assistant"),
-      role: "assistant",
-      content:
-        "Dạ em xin lỗi Anh/Chị vì trải nghiệm chưa đúng mong muốn ạ. Em sẽ ghi nhận và chuyển nhân viên hỗ trợ kiểm tra kỹ hơn cho mình.",
-      intent: "COMPLAINT",
-      emotion: "ANGRY",
-      products: [],
-      shouldHandoff: true,
-      handoffReason: "Khách có cảm xúc tức giận, cần nhân viên hỗ trợ kiểm tra.",
-    }
+  if (typeof value === "number") {
+    return String(value)
   }
 
-  return {
-    id: createId("assistant"),
-    role: "assistant",
-    content:
-      "Dạ đây là một vài gợi ý phù hợp với nhu cầu của Anh/Chị nè ✨ Anh/Chị muốn em lọc thêm theo màu, size hoặc khoảng giá không ạ?",
-    intent: normalized.includes("outfit") || normalized.includes("phối")
-      ? "OUTFIT_SUGGESTION"
-      : "PRODUCT_RECOMMENDATION",
-    emotion: "NEUTRAL",
-    products: demoProducts,
-    shouldHandoff: false,
-  }
+  return undefined
 }
 
 function ProductCard({ product }: { product: AiProductSuggestion }) {
@@ -157,7 +229,9 @@ function ProductCard({ product }: { product: AiProductSuggestion }) {
       </div>
 
       <div className="canim-ai-product-body">
-        <p className="canim-ai-product-name">{product.name ?? "Sản phẩm gợi ý"}</p>
+        <p className="canim-ai-product-name">
+          {product.name ?? "Sản phẩm gợi ý"}
+        </p>
 
         <div className="canim-ai-product-meta">
           {product.color ? <span>{product.color}</span> : null}
@@ -166,6 +240,7 @@ function ProductCard({ product }: { product: AiProductSuggestion }) {
 
         <div className="canim-ai-product-footer">
           <strong>{price > 0 ? formatVnd(price) : "Liên hệ"}</strong>
+
           <button type="button" aria-label="Yêu thích sản phẩm">
             ♡
           </button>
@@ -175,25 +250,195 @@ function ProductCard({ product }: { product: AiProductSuggestion }) {
   )
 }
 
+function SizeAdviceBox({ entities }: { entities?: Record<string, unknown> }) {
+  const heightCm = getEntityNumber(entities, "heightCm")
+  const weightKg = getEntityNumber(entities, "weightKg")
+  const recommendedSize = getEntityString(entities, "recommendedSize")
+  const fitNote = getEntityString(entities, "fitNote")
+
+  const hasHeight = typeof heightCm === "number" && heightCm > 0
+  const hasWeight = typeof weightKg === "number" && weightKg > 0
+  const hasRecommendedSize =
+    typeof recommendedSize === "string" &&
+    recommendedSize !== "" &&
+    recommendedSize !== "UNKNOWN"
+
+  const shouldShowResult = hasHeight || hasWeight || hasRecommendedSize
+
+  return (
+    <div className="canim-ai-size-box">
+      <div className="canim-ai-size-box-title">
+        <Ruler size={16} />
+        Tư vấn size Canim
+      </div>
+
+      {shouldShowResult ? (
+        <div className="canim-ai-size-grid">
+          {hasHeight ? (
+            <>
+              <span>Chiều cao</span>
+              <strong>{heightCm}cm</strong>
+            </>
+          ) : null}
+
+          {hasWeight ? (
+            <>
+              <span>Cân nặng</span>
+              <strong>{weightKg}kg</strong>
+            </>
+          ) : null}
+
+          {hasRecommendedSize ? (
+            <>
+              <span>Size gợi ý</span>
+              <strong>Size {recommendedSize}</strong>
+            </>
+          ) : null}
+        </div>
+      ) : (
+        <p className="canim-ai-size-empty">
+          Anh/Chị gửi chiều cao và cân nặng, ví dụ: “cao 165cm nặng 65kg”,
+          Canim sẽ tính size phù hợp cho mình nha.
+        </p>
+      )}
+
+      {fitNote ? <p>{fitNote}</p> : null}
+
+      <div className="canim-ai-size-table">
+        <div className="canim-ai-size-table-head">
+          <span>Size</span>
+          <span>Chiều cao</span>
+          <span>Cân nặng</span>
+        </div>
+
+        {SIZE_GUIDE.map((row) => {
+          const active = recommendedSize === row.size
+
+          return (
+            <div
+              key={row.size}
+              className={`canim-ai-size-table-row ${active ? "active" : ""}`}
+            >
+              <strong>{row.size}</strong>
+              <span>{row.height}</span>
+              <span>{row.weight}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function OrderLookupBox() {
+  return (
+    <div className="canim-ai-info-box">
+      <strong>Kiểm tra đơn hàng</strong>
+      <p>
+        Nhập mã đơn dạng ORD-1234 hoặc DH-1234 để Canim hỗ trợ kiểm tra nhanh
+        hơn.
+      </p>
+    </div>
+  )
+}
+
+function HandoffBox({ reason }: { reason?: string | null }) {
+  return (
+    <div className="canim-ai-handoff">
+      <strong>Canim sẽ ưu tiên nhân viên hỗ trợ.</strong>
+      <p>{reason ?? "Khách cần hỗ trợ trực tiếp để xử lý chính xác hơn."}</p>
+    </div>
+  )
+}
+
+function AssistantWidget({ message }: { message: CanimChatMessage }) {
+  const widgetType = safeWidgetType(message.widgetType)
+
+  if (widgetType === "PRODUCT_CAROUSEL") {
+    const products = getProductsForWidget(widgetType, message.products)
+
+    if (products.length === 0) {
+      return (
+        <div className="canim-ai-info-box">
+          <strong>Chưa có sản phẩm phù hợp</strong>
+          <p>
+            Canim chưa tìm thấy sản phẩm đúng nhu cầu. Anh/Chị thử mô tả rõ hơn
+            về màu, size hoặc khoảng giá nha.
+          </p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="canim-ai-products">
+        {products.map((product, index) => (
+          <ProductCard
+            key={`${product.product_id ?? "product"}_${
+              product.variant_id ?? index
+            }`}
+            product={product}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  if (widgetType === "SIZE_ADVICE") {
+    return <SizeAdviceBox entities={message.entities} />
+  }
+
+  if (widgetType === "ORDER_LOOKUP") {
+    return <OrderLookupBox />
+  }
+
+  if (widgetType === "HUMAN_HANDOFF") {
+    return <HandoffBox reason={message.handoffReason} />
+  }
+
+  return null
+}
+
 export default function CanimAiChatWidget() {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
-  const sessionId = useMemo(() => createSessionId(), [])
-  const inputRef = useRef<HTMLInputElement | null>(null)
 
-  const [messages, setMessages] = useState<AiChatMessage[]>([
+  const sessionId = useMemo(() => createSessionId(), [])
+
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
+
+  const [messages, setMessages] = useState<CanimChatMessage[]>([
     {
       id: "welcome",
       role: "assistant",
       content:
         "Xin chào, mình là trợ lý Canim ✨ Mình có thể giúp bạn tìm sản phẩm, gợi ý outfit, tư vấn size và theo dõi đơn hàng.",
       intent: "GREETING",
-      emotion: "FRIENDLY",
+      emotion: "NEUTRAL",
+      widgetType: "TEXT_ONLY",
       products: [],
+      entities: {},
       shouldHandoff: false,
+      quickReplies: ["Gợi ý outfit", "Tư vấn chọn size", "Kiểm tra đơn hàng"],
     },
   ])
+
+  const lastAssistantQuickReplies = useMemo(() => {
+    const lastAssistant = [...messages]
+      .reverse()
+      .find((message) => message.role === "assistant")
+
+    if (!lastAssistant?.quickReplies?.length) {
+      return null
+    }
+
+    return lastAssistant.quickReplies
+  }, [messages])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+  }, [messages, sending, open])
 
   const toggleOpen = () => {
     setOpen((current) => {
@@ -207,15 +452,38 @@ export default function CanimAiChatWidget() {
     })
   }
 
+  const buildAssistantMessageFromApi = (
+    data: AiChatApiResponse,
+  ): CanimChatMessage => {
+    const widgetType = safeWidgetType(data.widgetType)
+
+    return {
+      id: createId("assistant"),
+      role: "assistant",
+      content: data.reply,
+      intent: safeIntent(data.intent),
+      emotion: safeEmotion(data.emotion),
+      widgetType,
+      entities: data.entities ?? {},
+      products: getProductsForWidget(widgetType, data.recommended_products),
+      shouldHandoff: Boolean(data.should_handoff),
+      handoffReason: data.handoff_reason ?? undefined,
+      quickReplies: data.quickReplies ?? [],
+    }
+  }
+
   const sendMessage = async (messageText?: string) => {
     const content = (messageText ?? input).trim()
 
     if (!content || sending) return
 
-    const userMessage: AiChatMessage = {
+    const userMessage: CanimChatMessage = {
       id: createId("user"),
       role: "user",
       content,
+      widgetType: "TEXT_ONLY",
+      products: [],
+      entities: {},
     }
 
     setMessages((current) => [...current, userMessage])
@@ -223,31 +491,17 @@ export default function CanimAiChatWidget() {
     setSending(true)
 
     try {
-      if (AI_CHAT_MOCK) {
-        await new Promise((resolve) => window.setTimeout(resolve, 650))
-        setMessages((current) => [...current, createMockAssistantMessage(content)])
-        return
-      }
-
-      const response = await aiChatService.sendMessage({
+      const requestPayload: AiChatRequest = {
         session_id: sessionId,
         message: content,
-      })
-
-      const data = response.data
-
-      const assistantMessage: AiChatMessage = {
-        id: createId("assistant"),
-        role: "assistant",
-        content: data.reply,
-        intent: data.intent,
-        emotion: data.emotion,
-        products: data.recommended_products,
-        shouldHandoff: data.should_handoff,
-        handoffReason: data.handoff_reason,
       }
 
-      setMessages((current) => [...current, assistantMessage])
+      const response = await aiChatService.sendMessage(requestPayload)
+
+      setMessages((current) => [
+        ...current,
+        buildAssistantMessageFromApi(response.data as AiChatApiResponse),
+      ])
     } catch {
       setMessages((current) => [
         ...current,
@@ -255,12 +509,15 @@ export default function CanimAiChatWidget() {
           id: createId("assistant"),
           role: "assistant",
           content:
-            "Dạ hiện tại Canim AI đang kết nối chưa ổn định. Anh/Chị thử lại sau ít phút hoặc nhắn nhu cầu cụ thể để shop hỗ trợ nha.",
+            "Dạ hiện tại Canim AI chưa kết nối được với máy chủ tư vấn. Anh/Chị thử lại sau ít phút giúp em nha.",
           intent: "UNKNOWN",
-          emotion: "CONFUSED",
+          emotion: "NEUTRAL",
+          widgetType: "HUMAN_HANDOFF",
+          entities: {},
           products: [],
           shouldHandoff: true,
           handoffReason: "AI service connection error.",
+          quickReplies: ["Thử lại", "Kết nối nhân viên", "Gọi hotline Canim"],
         },
       ])
     } finally {
@@ -301,29 +558,21 @@ export default function CanimAiChatWidget() {
 
           <div className="canim-ai-messages">
             {messages.map((message) => (
-              <div key={message.id} className={`canim-ai-message-row ${message.role}`}>
+              <div
+                key={message.id}
+                className={`canim-ai-message-row ${message.role}`}
+              >
                 {message.role === "assistant" ? (
                   <img className="canim-ai-bot-avatar" src={mascotIcon} alt="" />
                 ) : null}
 
                 <div className="canim-ai-message-stack">
-                  <div className={`canim-ai-bubble ${message.role}`}>{message.content}</div>
+                  <div className={`canim-ai-bubble ${message.role}`}>
+                    {message.content}
+                  </div>
 
-                  {message.shouldHandoff ? (
-                    <div className="canim-ai-handoff">
-                      Nhân viên Canim nên hỗ trợ thêm: {message.handoffReason ?? "khách cần hỗ trợ trực tiếp."}
-                    </div>
-                  ) : null}
-
-                  {message.products && message.products.length > 0 ? (
-                    <div className="canim-ai-products">
-                      {message.products.map((product, index) => (
-                        <ProductCard
-                          key={`${product.product_id ?? "product"}_${product.variant_id ?? index}`}
-                          product={product}
-                        />
-                      ))}
-                    </div>
+                  {message.role === "assistant" ? (
+                    <AssistantWidget message={message} />
                   ) : null}
                 </div>
               </div>
@@ -332,30 +581,45 @@ export default function CanimAiChatWidget() {
             {sending ? (
               <div className="canim-ai-message-row assistant">
                 <img className="canim-ai-bot-avatar" src={mascotIcon} alt="" />
+
                 <div className="canim-ai-bubble assistant loading">
                   <Loader2 size={16} className="animate-spin" />
                   Canim AI đang suy nghĩ...
                 </div>
               </div>
             ) : null}
+
+            <div ref={messagesEndRef} />
           </div>
 
           <div className="canim-ai-quick-actions">
-            {quickActions.map((action) => {
-              const Icon = action.icon
+            {lastAssistantQuickReplies?.length
+              ? lastAssistantQuickReplies.map((reply) => (
+                  <button
+                    key={reply}
+                    type="button"
+                    onClick={() => void sendMessage(reply)}
+                    disabled={sending}
+                  >
+                    <Sparkles size={18} />
+                    {reply}
+                  </button>
+                ))
+              : defaultQuickActions.map((action) => {
+                  const Icon = action.icon
 
-              return (
-                <button
-                  key={action.label}
-                  type="button"
-                  onClick={() => void sendMessage(action.prompt)}
-                  disabled={sending}
-                >
-                  <Icon size={18} />
-                  {action.label}
-                </button>
-              )
-            })}
+                  return (
+                    <button
+                      key={action.label}
+                      type="button"
+                      onClick={() => void sendMessage(action.prompt)}
+                      disabled={sending}
+                    >
+                      <Icon size={18} />
+                      {action.label}
+                    </button>
+                  )
+                })}
           </div>
 
           <form className="canim-ai-input-row" onSubmit={handleSubmit}>
@@ -366,13 +630,19 @@ export default function CanimAiChatWidget() {
               placeholder="Nhập tin nhắn của bạn..."
               disabled={sending}
             />
-            <button type="submit" disabled={sending || !input.trim()} aria-label="Gửi tin nhắn">
+
+            <button
+              type="submit"
+              disabled={sending || !input.trim()}
+              aria-label="Gửi tin nhắn"
+            >
               <Send size={22} />
             </button>
           </form>
 
           <p className="canim-ai-disclaimer">
-            ✨ Canim AI có thể mắc sai sót. Hãy kiểm tra thông tin quan trọng nhé. ✨
+            ✨ Canim AI có thể mắc sai sót. Hãy kiểm tra thông tin quan trọng nhé.
+            ✨
           </p>
         </section>
       ) : null}
