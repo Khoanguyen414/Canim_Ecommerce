@@ -5,15 +5,21 @@ import java.time.LocalDate;
 import com.example.canim_ecommerce.dto.request.order.CancelOrderRequest;
 import com.example.canim_ecommerce.dto.request.order.CheckoutRequest;
 import com.example.canim_ecommerce.dto.request.order.OrderFilterRequest;
+import com.example.canim_ecommerce.dto.request.order.CreateOrderTrackingEventRequest;
+import com.example.canim_ecommerce.dto.request.order.UpdateOrderLocationRequest;
 import com.example.canim_ecommerce.dto.request.order.UpdateOrderShippingRequest;
 import com.example.canim_ecommerce.dto.request.order.UpdateOrderStatusRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.OrderDetailResponse;
+import com.example.canim_ecommerce.dto.response.OrderDynamicQrResponse;
 import com.example.canim_ecommerce.dto.response.OrderResponse;
 import com.example.canim_ecommerce.dto.response.OrderStatisticsResponse;
+import com.example.canim_ecommerce.dto.response.OrderTrackingEventResponse;
+import com.example.canim_ecommerce.dto.response.OrderTrackingResponse;
 import com.example.canim_ecommerce.dto.response.PageResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;
 import com.example.canim_ecommerce.service.OrderService;
+import com.example.canim_ecommerce.service.OrderTrackingService;
 import com.example.canim_ecommerce.utils.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -38,6 +44,7 @@ import org.springframework.web.bind.annotation.RestController;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class OrderController {
     OrderService orderService;
+    OrderTrackingService orderTrackingService;
 
     @GetMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
@@ -139,6 +146,42 @@ public class OrderController {
                 orderService.cancelOrder(orderId, request, null, true));
     }
 
+    @GetMapping("/my/{orderId}/dynamic-qr")
+    public ApiResponse<OrderDynamicQrResponse> getMyOrderDynamicQr(@PathVariable Long orderId) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.success(
+                ApiStatus.SUCCESS,
+                "Get dynamic payment QR successfully",
+                orderService.getOrderDynamicQr(orderId, currentUserId));
+    }
+
+    @PostMapping("/my/{orderId}/declare-qr-transfer")
+    public ApiResponse<OrderDetailResponse> declarePersonalQrTransfer(@PathVariable Long orderId) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.success(
+                ApiStatus.SUCCESS,
+                "Transfer declaration received — awaiting shop confirmation",
+                orderService.declarePersonalQrTransfer(orderId, currentUserId));
+    }
+
+    @PatchMapping("/{orderId}/confirm-qr-payment")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ApiResponse<OrderDetailResponse> confirmPersonalQrPayment(@PathVariable Long orderId) {
+        return ApiResponse.success(
+                ApiStatus.SUCCESS,
+                "QR payment confirmed successfully",
+                orderService.confirmPersonalQrPayment(orderId));
+    }
+
+    @PatchMapping("/{orderId}/reject-qr-payment")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ApiResponse<OrderDetailResponse> rejectPersonalQrPayment(@PathVariable Long orderId) {
+        return ApiResponse.success(
+                ApiStatus.SUCCESS,
+                "QR payment declaration rejected",
+                orderService.rejectPersonalQrPayment(orderId));
+    }
+
     @PatchMapping("/my/{orderId}/cancel")
     public ApiResponse<OrderDetailResponse> cancelMyOrder(
             @PathVariable Long orderId,
@@ -160,5 +203,51 @@ public class OrderController {
                 ApiStatus.SUCCESS,
                 "Update order shipping successfully",
                 orderService.updateOrderShipping(orderId, request));
+    }
+
+    @GetMapping("/my/{orderId}/tracking")
+    public ApiResponse<OrderTrackingResponse> getMyOrderTracking(@PathVariable Long orderId) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.success(
+                ApiStatus.SUCCESS,
+                "Get order tracking successfully",
+                orderTrackingService.getTracking(orderId, currentUserId));
+    }
+
+    @GetMapping("/{orderId}/tracking")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ApiResponse<OrderTrackingResponse> getOrderTracking(@PathVariable Long orderId) {
+        return ApiResponse.success(
+                ApiStatus.SUCCESS,
+                "Get order tracking successfully",
+                orderTrackingService.getTracking(orderId, null));
+    }
+
+    @PatchMapping("/{orderId}/location")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ApiResponse<OrderTrackingEventResponse> updateOrderLocation(
+            @PathVariable Long orderId,
+            @RequestBody @Valid UpdateOrderLocationRequest request) {
+        return ApiResponse.success(
+                ApiStatus.SUCCESS,
+                "Update order location successfully",
+                orderTrackingService.updateOrderLocation(
+                        orderId,
+                        request,
+                        SecurityUtils.getCurrentUserId()));
+    }
+
+    @PostMapping("/{orderId}/tracking-events")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ApiResponse<OrderTrackingEventResponse> createOrderTrackingEvent(
+            @PathVariable Long orderId,
+            @RequestBody @Valid CreateOrderTrackingEventRequest request) {
+        return ApiResponse.success(
+                ApiStatus.CREATED,
+                "Create order tracking event successfully",
+                orderTrackingService.createTrackingEvent(
+                        orderId,
+                        request,
+                        SecurityUtils.getCurrentUserId()));
     }
 }

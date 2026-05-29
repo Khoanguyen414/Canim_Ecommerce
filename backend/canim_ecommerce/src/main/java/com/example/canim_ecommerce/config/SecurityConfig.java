@@ -45,7 +45,12 @@ public class SecurityConfig {
             "/swagger-ui.html",
             "/categories/**",
             "/products/**",
-            "/uploads/**"
+            "/uploads/**",
+            "/payments/vnpay/return",
+            "/payments/vnpay/ipn",
+            "/payments/momo/return",
+            "/payments/momo/notify",
+            "/payments/personal-qr/config"
     };
 
     @Bean

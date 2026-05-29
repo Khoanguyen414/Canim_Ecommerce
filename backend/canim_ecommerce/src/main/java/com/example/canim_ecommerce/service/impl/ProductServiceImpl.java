@@ -47,6 +47,8 @@ import com.example.canim_ecommerce.repository.specification.ProductSpecification
 import com.example.canim_ecommerce.service.CategoryService;
 import com.example.canim_ecommerce.service.CloudinaryService;
 import com.example.canim_ecommerce.service.InventoryService;
+import com.example.canim_ecommerce.dto.response.ReviewSummaryResponse;
+import com.example.canim_ecommerce.service.ProductReviewService;
 import com.example.canim_ecommerce.service.ProductService;
 
 import com.example.canim_ecommerce.utils.SlugUtils;
@@ -67,6 +69,7 @@ public class ProductServiceImpl implements ProductService {
     ProductMapper productMapper;
     InventoryService inventoryService;
     CloudinaryService cloudinaryService;
+    ProductReviewService productReviewService;
 
     @Override
     public PageResponse<ProductResponse> getProducts(ProductFilterRequest filterRequest, int pageNum, int sizePage, String sortBy, String sortDir) {
@@ -107,6 +110,7 @@ public class ProductServiceImpl implements ProductService {
         ProductResponse response = productMapper.toProductResponse(product);
 
         enrichProductData(response);
+        enrichReviewSummary(response);
         return response;
     }
 
@@ -117,6 +121,7 @@ public class ProductServiceImpl implements ProductService {
         assertVisibleOnShop(product);
         ProductResponse response = productMapper.toProductResponse(product);
         enrichProductData(response);
+        enrichReviewSummary(response);
         return response;
     }
 
@@ -133,7 +138,8 @@ public class ProductServiceImpl implements ProductService {
 
         ProductResponse response = productMapper.toProductResponse(product);
 
-        enrichProductData(response);  
+        enrichProductData(response);
+        enrichReviewSummary(response);
         return response;
     }
 
@@ -145,6 +151,7 @@ public class ProductServiceImpl implements ProductService {
         ProductResponse response = productMapper.toProductResponse(product);
 
         enrichProductData(response);
+        enrichReviewSummary(response);
         return response;
     }
 
@@ -380,6 +387,15 @@ public class ProductServiceImpl implements ProductService {
 
         response.setMinPrice(min);
         response.setMaxPrice(max);
+    }
+
+    private void enrichReviewSummary(ProductResponse response) {
+        if (response.getId() == null) {
+            return;
+        }
+        ReviewSummaryResponse summary = productReviewService.getProductReviewSummary(response.getId());
+        response.setAverageRating(summary.getAverageRating());
+        response.setReviewCount(summary.getReviewCount());
     }
 
     private Sort resolveSort(String sortBy, String sortDir) {

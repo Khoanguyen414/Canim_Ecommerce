@@ -17,12 +17,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import com.example.canim_ecommerce.dto.request.order.CancelOrderRequest;
@@ -30,19 +29,25 @@ import com.example.canim_ecommerce.dto.request.order.CheckoutRequest;
 import com.example.canim_ecommerce.dto.request.order.OrderFilterRequest;
 import com.example.canim_ecommerce.dto.request.order.UpdateOrderShippingRequest;
 import com.example.canim_ecommerce.dto.request.order.UpdateOrderStatusRequest;
+import com.example.canim_ecommerce.config.PersonalQrProperties;
+import com.example.canim_ecommerce.dto.response.OrderDynamicQrResponse;
 import com.example.canim_ecommerce.dto.response.OrderStatisticsResponse;
 import com.example.canim_ecommerce.dto.response.OrderDetailResponse;
 import com.example.canim_ecommerce.dto.response.OrderResponse;
+import com.example.canim_ecommerce.service.payment.VietQrUrlBuilder;
+import com.example.canim_ecommerce.dto.response.OrderTrackingEventResponse;
 import com.example.canim_ecommerce.dto.response.PageResponse;
 import com.example.canim_ecommerce.entity.Cart;
 import com.example.canim_ecommerce.entity.CartItem;
 import com.example.canim_ecommerce.entity.Order;
 import com.example.canim_ecommerce.entity.OrderItem;
 import com.example.canim_ecommerce.entity.OrderStatusHistory;
+import com.example.canim_ecommerce.entity.OrderTrackingEvent;
 import com.example.canim_ecommerce.entity.PaymentTransaction;
 import com.example.canim_ecommerce.entity.Product;
 import com.example.canim_ecommerce.entity.ProductVariant;
 import com.example.canim_ecommerce.entity.User;
+import com.example.canim_ecommerce.entity.UserAddress;
 import com.example.canim_ecommerce.enums.ApiStatus;
 import com.example.canim_ecommerce.enums.EventType;
 import com.example.canim_ecommerce.enums.OrderStatus;
@@ -53,16 +58,22 @@ import com.example.canim_ecommerce.enums.ProductStatus;
 import com.example.canim_ecommerce.enums.ShippingStatus;
 import com.example.canim_ecommerce.exception.ApiException;
 import com.example.canim_ecommerce.mapper.OrderMapper;
+import com.example.canim_ecommerce.mapper.OrderTrackingMapper;
 import com.example.canim_ecommerce.mapper.PageResponseMapper;
 import com.example.canim_ecommerce.mapper.PaymentTransactionMapper;
 import com.example.canim_ecommerce.repository.CartRepository;
 import com.example.canim_ecommerce.repository.OrderRepository;
+import com.example.canim_ecommerce.repository.OrderTrackingEventRepository;
 import com.example.canim_ecommerce.repository.PaymentTransactionRepository;
 import com.example.canim_ecommerce.repository.UserRepository;
 import com.example.canim_ecommerce.repository.specification.OrderSpecification;
 import com.example.canim_ecommerce.service.InventoryService;
 import com.example.canim_ecommerce.service.OrderService;
+import com.example.canim_ecommerce.service.UserAddressService;
 import com.example.canim_ecommerce.service.UserEventService;
+import com.example.canim_ecommerce.service.model.OrderShippingSnapshot;
+import com.example.canim_ecommerce.service.cart.CartRedisCache;
+import com.example.canim_ecommerce.util.MapUrlUtils;
 import com.example.canim_ecommerce.utils.SecurityUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -73,33 +84,40 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class OrderServiceImpl implements OrderService {
-
     static Long DEFAULT_WAREHOUSE_ID = 1L;
-    static BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.ZERO;
     static BigDecimal DEFAULT_DISCOUNT_AMOUNT = BigDecimal.ZERO;
-    static String REDIS_CART_KEY = "cart:user:";
     static String AUTO_CANCEL_REASON = "Order automatically cancelled because the pending time expired";
+
+    /** Khớp `shippingOptions` trên frontend Checkout.tsx */
+    static Map<String, BigDecimal> SHIPPING_FEE_BY_METHOD = Map.of(
+            "economy", new BigDecimal("15000"),
+            "standard", new BigDecimal("30000"),
+            "fast", new BigDecimal("50000"));
 
     @Value("${order.pending-expiration-hours:24}")
     @NonFinal
     long pendingExpirationHours;
 
     OrderRepository orderRepository;
+    OrderTrackingEventRepository trackingEventRepository;
     PaymentTransactionRepository paymentTransactionRepository;
     UserRepository userRepository;
     CartRepository cartRepository;
     InventoryService inventoryService;
     OrderMapper orderMapper;
+    OrderTrackingMapper orderTrackingMapper;
     PaymentTransactionMapper paymentTransactionMapper;
     PageResponseMapper pageResponseMapper;
-    RedisTemplate<String, Object> redisTemplate;
+    CartRedisCache cartRedisCache;
     TransactionTemplate transactionTemplate;
+    PersonalQrProperties personalQrProperties;
+    VietQrUrlBuilder vietQrUrlBuilder;
+    UserAddressService userAddressService;
     UserEventService userEventService;
     ObjectMapper objectMapper;
 
@@ -130,6 +148,7 @@ public class OrderServiceImpl implements OrderService {
             throw new ApiException(ApiStatus.BAD_REQUEST, "Please select at least one item to checkout");
         }
 
+        validateCheckoutPaymentMethod(request.getPaymentMethod());
         validateSelectedItemsBeforeCheckout(selectedItems);
 
         for (CartItem item : selectedItems) {
@@ -147,9 +166,11 @@ public class OrderServiceImpl implements OrderService {
         }
 
         BigDecimal subTotal = calculateSubTotal(selectedItems);
-        BigDecimal shippingFee = DEFAULT_SHIPPING_FEE;
+        BigDecimal shippingFee = resolveShippingFee(request);
         BigDecimal discountAmount = DEFAULT_DISCOUNT_AMOUNT;
         BigDecimal totalAmount = subTotal.add(shippingFee).subtract(discountAmount);
+
+        OrderShippingSnapshot shippingSnapshot = resolveShippingSnapshot(request, userId);
 
         Order order = Order.builder()
                 .orderNo(generateOrderNo())
@@ -159,9 +180,19 @@ public class OrderServiceImpl implements OrderService {
                 .shippingFee(shippingFee)
                 .discountAmount(discountAmount)
                 .totalAmount(totalAmount)
-                .receiverName(request.getReceiverName())
-                .receiverPhone(request.getReceiverPhone())
-                .shippingAddress(request.getShippingAddress())
+                .receiverName(shippingSnapshot.getReceiverName())
+                .receiverPhone(shippingSnapshot.getReceiverPhone())
+                .shippingAddress(shippingSnapshot.getShippingAddress())
+                .addressId(shippingSnapshot.getAddressId())
+                .receiverProvinceName(shippingSnapshot.getReceiverProvinceName())
+                .receiverDistrictName(shippingSnapshot.getReceiverDistrictName())
+                .receiverWardName(shippingSnapshot.getReceiverWardName())
+                .receiverStreetAddress(shippingSnapshot.getReceiverStreetAddress())
+                .receiverLatitude(shippingSnapshot.getReceiverLatitude())
+                .receiverLongitude(shippingSnapshot.getReceiverLongitude())
+                .mapUrl(MapUrlUtils.buildGoogleMapsUrl(
+                        shippingSnapshot.getReceiverLatitude(),
+                        shippingSnapshot.getReceiverLongitude()))
                 .orderNote(request.getOrderNote())
                 .paymentMethod(request.getPaymentMethod())
                 .paymentStatus(resolveInitialPaymentStatus(request.getPaymentMethod()))
@@ -212,7 +243,7 @@ public class OrderServiceImpl implements OrderService {
         cart.getItems().removeAll(selectedItems);
         cartRepository.save(cart);
 
-        redisTemplate.delete(REDIS_CART_KEY + userId);
+        cartRedisCache.evict(userId);
 
         registerPurchaseTrackingAfterCommit(userId, purchaseTrackingEvents);
 
@@ -239,13 +270,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<OrderResponse> getOrders(
-            OrderFilterRequest filterRequest,
-            Long userIdScope,
-            int pageNum,
+    public PageResponse<OrderResponse> getOrders(OrderFilterRequest filterRequest, Long userIdScope, int pageNum,
             int sizePage,
-            String sortBy,
-            String sortDir) {
+            String sortBy, String sortDir) {
         int pageIndex = Math.max(pageNum - 1, 0);
 
         Sort sort = "asc".equalsIgnoreCase(sortDir)
@@ -362,7 +389,17 @@ public class OrderServiceImpl implements OrderService {
         }
 
         if (request.getShippingStatus() != null) {
-            order.setShippingStatus(request.getShippingStatus());
+            ShippingStatus newShippingStatus = request.getShippingStatus();
+            order.setShippingStatus(newShippingStatus);
+
+            OrderTrackingEvent trackingEvent = OrderTrackingEvent.builder()
+                    .order(order)
+                    .shippingStatus(newShippingStatus)
+                    .latitude(order.getReceiverLatitude())
+                    .longitude(order.getReceiverLongitude())
+                    .createdBy(resolveActor(SecurityUtils.getCurrentUserId()))
+                    .build();
+            trackingEventRepository.save(trackingEvent);
         }
 
         Order savedOrder = orderRepository.save(order);
@@ -453,6 +490,37 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    private BigDecimal resolveShippingFee(CheckoutRequest request) {
+        String methodId = normalizeNullableText(request.getShippingMethodId());
+        BigDecimal fee = request.getShippingFee();
+        if (fee == null) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Shipping fee is required");
+        }
+        if (fee.compareTo(BigDecimal.ZERO) < 0) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Shipping fee must be greater than or equal to 0");
+        }
+
+        if (methodId != null) {
+            BigDecimal expected = SHIPPING_FEE_BY_METHOD.get(methodId);
+            if (expected == null) {
+                throw new ApiException(ApiStatus.BAD_REQUEST, "Invalid shipping method: " + methodId);
+            }
+            if (fee.compareTo(expected) != 0) {
+                throw new ApiException(
+                        ApiStatus.BAD_REQUEST,
+                        "Shipping fee does not match selected method");
+            }
+            return expected;
+        }
+
+        boolean matchesKnownFee = SHIPPING_FEE_BY_METHOD.values().stream()
+                .anyMatch(known -> known.compareTo(fee) == 0);
+        if (!matchesKnownFee) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Invalid shipping fee amount");
+        }
+        return fee.setScale(0, RoundingMode.HALF_UP);
+    }
+
     private BigDecimal calculateSubTotal(List<CartItem> selectedItems) {
         BigDecimal subTotal = BigDecimal.ZERO;
 
@@ -479,7 +547,6 @@ public class OrderServiceImpl implements OrderService {
                 .price(variant.getPrice())
                 .build();
     }
-
 
     private List<PurchaseTrackingEvent> buildPurchaseTrackingEvents(
             Order savedOrder,
@@ -572,8 +639,8 @@ public class OrderServiceImpl implements OrderService {
 
         try {
             return objectMapper.writeValueAsString(meta);
-        } catch (JsonProcessingException e) {
-            log.warn("Không thể build PURCHASE eventMeta JSON: {}", e.getMessage());
+        } catch (JsonProcessingException exception) {
+            log.warn("Không thể build PURCHASE eventMeta JSON: {}", exception.getMessage());
 
             return "{\"source\":\"BACKEND_CHECKOUT_PURCHASE\"}";
         }
@@ -893,11 +960,27 @@ public class OrderServiceImpl implements OrderService {
     private OrderDetailResponse toDetailResponse(Order order, boolean adminContext) {
         OrderDetailResponse response = orderMapper.toDetailResponse(order);
         enrichOrderDetailResponse(response, adminContext);
+        response.setMapUrl(resolveOrderMapUrl(order));
+        response.setTrackingEvents(loadTrackingEvents(order.getId()));
         paymentTransactionRepository.findTopByOrder_IdOrderByCreatedAtDesc(order.getId())
                 .map(paymentTransactionMapper::toResponse)
                 .ifPresent(response::setLatestPaymentTransaction);
 
         return response;
+    }
+
+    private String resolveOrderMapUrl(Order order) {
+        if (StringUtils.hasText(order.getMapUrl())) {
+            return order.getMapUrl();
+        }
+        return MapUrlUtils.buildGoogleMapsUrl(order.getReceiverLatitude(), order.getReceiverLongitude());
+    }
+
+    private List<OrderTrackingEventResponse> loadTrackingEvents(Long orderId) {
+        return trackingEventRepository.findByOrder_IdOrderByCreatedAtAsc(orderId)
+                .stream()
+                .map(orderTrackingMapper::toResponse)
+                .toList();
     }
 
     private void enrichOrderResponse(OrderResponse response, boolean adminContext) {
@@ -935,6 +1018,7 @@ public class OrderServiceImpl implements OrderService {
 
         return switch (status) {
             case UNPAID -> "Unpaid";
+            case PENDING_CONFIRMATION -> "Pending confirmation";
             case PAID -> "Paid";
             case REFUNDED -> "Refunded";
         };
@@ -979,5 +1063,202 @@ public class OrderServiceImpl implements OrderService {
 
     private int randomFourDigits() {
         return (int) (Math.random() * 9000) + 1000;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderDetailResponse declarePersonalQrTransfer(Long orderId, Long userId) {
+        Order order = orderRepository.findByIdAndUserId(orderId, userId)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Order not found"));
+
+        if (!isPersonalQrPayment(order.getPaymentMethod())) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Order is not a personal QR payment");
+        }
+        if (order.getOrderStatus() == OrderStatus.CANCELLED) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Order is cancelled");
+        }
+        if (order.getPaymentStatus() == PaymentStatus.PAID) {
+            return toDetailResponse(order, false);
+        }
+        if (order.getPaymentStatus() == PaymentStatus.PENDING_CONFIRMATION) {
+            return toDetailResponse(order, false);
+        }
+
+        String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+        String line = "[QR] Khach khai bao da chuyen khoan luc " + stamp;
+        appendOrderNote(order, line);
+        order.setPaymentStatus(PaymentStatus.PENDING_CONFIRMATION);
+        orderRepository.save(order);
+
+        return toDetailResponse(order, false);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderDetailResponse confirmPersonalQrPayment(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Order not found"));
+
+        if (!isPersonalQrPayment(order.getPaymentMethod())) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Order is not a personal QR payment");
+        }
+        if (order.getOrderStatus() == OrderStatus.CANCELLED) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Order is cancelled");
+        }
+        if (order.getPaymentStatus() == PaymentStatus.PAID) {
+            return toDetailResponse(order, false);
+        }
+        if (order.getPaymentStatus() != PaymentStatus.PENDING_CONFIRMATION) {
+            throw new ApiException(
+                    ApiStatus.BAD_REQUEST,
+                    "Don chua co khai bao chuyen khoan — khong the xac nhan");
+        }
+
+        appendOrderNote(order, "[QR] Admin xac nhan da nhan tien");
+        markPersonalQrOrderAsPaid(order);
+        orderRepository.save(order);
+
+        return toDetailResponse(order, false);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderDetailResponse rejectPersonalQrPayment(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Order not found"));
+
+        if (!isPersonalQrPayment(order.getPaymentMethod())) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Order is not a personal QR payment");
+        }
+        if (order.getOrderStatus() == OrderStatus.CANCELLED) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Order is cancelled");
+        }
+        if (order.getPaymentStatus() == PaymentStatus.PAID) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Order is already paid");
+        }
+        if (order.getPaymentStatus() != PaymentStatus.PENDING_CONFIRMATION) {
+            throw new ApiException(
+                    ApiStatus.BAD_REQUEST,
+                    "Don khong o trang thai cho xac nhan thanh toan");
+        }
+
+        appendOrderNote(order, "[QR] Admin tu choi — chua nhan duoc tien, yeu cau khach chuyen lai");
+        order.setPaymentStatus(PaymentStatus.UNPAID);
+        orderRepository.save(order);
+
+        return toDetailResponse(order, false);
+    }
+
+    private void appendOrderNote(Order order, String line) {
+        String existing = order.getOrderNote();
+        order.setOrderNote(existing == null || existing.isBlank() ? line : existing + " | " + line);
+    }
+
+    private void markPersonalQrOrderAsPaid(Order order) {
+        order.setPaymentStatus(PaymentStatus.PAID);
+        markLatestPaymentTransactionPaid(order, LocalDateTime.now());
+    }
+
+    private OrderShippingSnapshot resolveShippingSnapshot(CheckoutRequest request, Long userId) {
+        if (request.getAddressId() != null) {
+            UserAddress address = userAddressService.getAddressEntityForCheckout(request.getAddressId(), userId);
+            return snapshotFromUserAddress(address, request.getReceiverLatitude(), request.getReceiverLongitude());
+        }
+
+        if (Boolean.TRUE.equals(request.getUseDefaultAddress())) {
+            UserAddress address = userAddressService.getDefaultAddressEntity(userId)
+                    .orElseThrow(() -> new ApiException(ApiStatus.BAD_REQUEST, "No default delivery address found"));
+            return snapshotFromUserAddress(address, request.getReceiverLatitude(), request.getReceiverLongitude());
+        }
+
+        if (!StringUtils.hasText(request.getReceiverName())
+                || !StringUtils.hasText(request.getReceiverPhone())
+                || !StringUtils.hasText(request.getShippingAddress())) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Shipping address is required");
+        }
+
+        return OrderShippingSnapshot.builder()
+                .receiverName(request.getReceiverName().trim())
+                .receiverPhone(request.getReceiverPhone().trim())
+                .shippingAddress(request.getShippingAddress().trim())
+                .receiverLatitude(request.getReceiverLatitude())
+                .receiverLongitude(request.getReceiverLongitude())
+                .build();
+    }
+
+    private OrderShippingSnapshot snapshotFromUserAddress(
+            UserAddress address,
+            BigDecimal latitude,
+            BigDecimal longitude) {
+        return OrderShippingSnapshot.builder()
+                .receiverName(address.getReceiverName())
+                .receiverPhone(address.getReceiverPhone())
+                .shippingAddress(address.getFullAddress())
+                .addressId(address.getId())
+                .receiverProvinceName(address.getProvinceName())
+                .receiverDistrictName(address.getDistrictName())
+                .receiverWardName(address.getWardName())
+                .receiverStreetAddress(address.getStreetAddress())
+                .receiverLatitude(latitude)
+                .receiverLongitude(longitude)
+                .build();
+    }
+
+    private void validateCheckoutPaymentMethod(PaymentMethod paymentMethod) {
+        if (paymentMethod != PaymentMethod.COD && paymentMethod != PaymentMethod.VNPAY_QR) {
+            throw new ApiException(
+                    ApiStatus.BAD_REQUEST,
+                    "Only COD and bank transfer QR (VNPAY_QR) are supported at checkout");
+        }
+    }
+
+    private boolean isPersonalQrPayment(PaymentMethod paymentMethod) {
+        return paymentMethod == PaymentMethod.VNPAY_QR;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderDynamicQrResponse getOrderDynamicQr(Long orderId, Long userId) {
+        Order order = orderRepository.findByIdAndUserId(orderId, userId)
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Order not found"));
+
+        if (!isPersonalQrPayment(order.getPaymentMethod())) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Order does not use personal QR payment");
+        }
+        if (order.getOrderStatus() == OrderStatus.CANCELLED) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Order is cancelled");
+        }
+
+        String transferContent = order.getOrderNo();
+        String template = personalQrProperties.getVietqrTemplate();
+        OrderDynamicQrResponse response = new OrderDynamicQrResponse();
+        response.setOrderId(order.getId());
+        response.setOrderNo(order.getOrderNo());
+        response.setPaymentMethod(order.getPaymentMethod());
+        response.setAmount(order.getTotalAmount());
+        response.setTransferContent(transferContent);
+
+        PersonalQrProperties.Vnpay vnpay = personalQrProperties.getVnpay();
+        if (!vnpay.isEnabled()) {
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Bank QR payment is disabled");
+        }
+        response.setAccountName(vnpay.getAccountName());
+        response.setAccountNumber(vnpay.getAccountNumber());
+        response.setBankName(vnpay.getBankName());
+        response.setDynamicQrImageUrl(vietQrUrlBuilder.buildImageUrl(
+                vnpay.getVietqrAcquirerId(),
+                vnpay.getAccountNumber(),
+                template,
+                order.getTotalAmount(),
+                transferContent,
+                vnpay.getAccountName()));
+
+        if (!StringUtils.hasText(response.getDynamicQrImageUrl())) {
+            throw new ApiException(
+                    ApiStatus.INTERNAL_SERVER_ERROR,
+                    "Cannot build VietQR URL — check bank account number and acquirer id");
+        }
+
+        return response;
     }
 }

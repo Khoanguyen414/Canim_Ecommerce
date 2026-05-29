@@ -1,79 +1,84 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import {
-  ArrowLeftRight,
-  ArrowUpRight,
+  AlertTriangle,
   ChevronRight,
   ClipboardList,
   Download,
-  Filter,
   PackageMinus,
   PackagePlus,
   Search,
   Settings2,
   Warehouse,
 } from "lucide-react"
-import { CapacityDonutChart } from "@/components/warehouse/CapacityDonutChart"
-import { RegionMapPanel } from "@/components/warehouse/RegionMapPanel"
-import { UsageBarChart } from "@/components/warehouse/UsageBarChart"
 import { Alert } from "@/components/ui/Alert"
+import { Badge } from "@/components/ui/Badge"
 import { warehouseService } from "@/services/warehouse.service"
+import { productService } from "@/services/product.service"
+import { downloadInventoryExcel } from "@/services/inventory.service"
 import { getApiErrorMessage } from "@/lib/apiError"
-import {
-  DEFAULT_WAREHOUSE_ROWS,
-  KPI_STATS,
-  RECENT_ACTIVITIES,
-  USAGE_BARS,
-  enrichWarehouseFromApi,
-  type WarehouseRow,
-} from "@/pages/inventory/warehouse-hub-data"
+import type { ProductSummary, Warehouse as WarehouseType } from "@/types/api"
 
-const REGIONS_FILTER = ["Tất cả khu vực", "Hà Nội", "Hải Phòng", "Đà Nẵng", "TP. Hồ Chí Minh", "Cần Thơ", "Khánh Hòa"]
-
-function KpiIcon({ kind }: { kind: (typeof KPI_STATS)[number]["icon"] }) {
-  const props = { size: 22, strokeWidth: 1.75, "aria-hidden": true as const }
-  switch (kind) {
-    case "inbound":
-      return <PackagePlus {...props} />
-    case "outbound":
-      return <PackageMinus {...props} />
-    case "transfer":
-      return <ArrowLeftRight {...props} />
-    default:
-      return <Warehouse {...props} />
-  }
+type StockRow = {
+  productId: number
+  name: string
+  sku: string
+  stock: number
+  status: "in" | "low" | "out"
 }
 
-function ActivityIcon({ type }: { type: (typeof RECENT_ACTIVITIES)[number]["type"] }) {
-  const props = { size: 16, strokeWidth: 2, "aria-hidden": true as const }
-  if (type === "in") return <PackagePlus {...props} />
-  if (type === "out") return <PackageMinus {...props} />
-  if (type === "transfer") return <ArrowLeftRight {...props} />
-  return <ClipboardList {...props} />
+function stockStatus(qty: number): StockRow["status"] {
+  if (qty <= 0) return "out"
+  if (qty <= 10) return "low"
+  return "in"
+}
+
+function statusLabel(s: StockRow["status"]) {
+  if (s === "in") return "Còn hàng"
+  if (s === "low") return "Sắp hết"
+  return "Hết hàng"
 }
 
 export function WarehouseHubPage() {
-  const [rows, setRows] = useState<WarehouseRow[]>(DEFAULT_WAREHOUSE_ROWS)
+  const [warehouses, setWarehouses] = useState<WarehouseType[]>([])
+  const [stockRows, setStockRows] = useState<StockRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [regionFilter, setRegionFilter] = useState(REGIONS_FILTER[0])
+  const [exporting, setExporting] = useState(false)
   const [search, setSearch] = useState("")
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const { data } = await warehouseService.getAll()
-      if (!data.success) throw new Error(data.message ?? "Không tải được kho")
-      const apiRows = data.result ?? []
-      if (apiRows.length > 0) {
-        setRows(apiRows.map((w) => enrichWarehouseFromApi(w.id, w.name, w.address, w.isActive)))
-      } else {
-        setRows(DEFAULT_WAREHOUSE_ROWS)
+      const [whRes, prodRes] = await Promise.all([
+        warehouseService.getAll(),
+        productService.getProducts({ pageNum: 1, sizePage: 100, includeHidden: true }),
+      ])
+      if (!whRes.data.success) throw new Error(whRes.data.message ?? "Không tải được kho")
+      const whList = (whRes.data.result ?? []).filter((w) => w.isDeleted !== true)
+      setWarehouses(whList)
+
+      const products = (prodRes.data.result?.data ?? prodRes.data.result?.content ?? []) as ProductSummary[]
+      const rows: StockRow[] = []
+      for (const p of products) {
+        for (const v of p.variants ?? []) {
+          if (!v.sku) continue
+          const stock = Number(v.quantity ?? 0)
+          rows.push({
+            productId: p.id,
+            name: p.name,
+            sku: v.sku,
+            stock,
+            status: stockStatus(stock),
+          })
+        }
       }
+      setStockRows(rows)
     } catch (err) {
       setError(getApiErrorMessage(err))
-      setRows(DEFAULT_WAREHOUSE_ROWS)
+      setWarehouses([])
+      setStockRows([])
     } finally {
       setLoading(false)
     }
@@ -83,59 +88,53 @@ export function WarehouseHubPage() {
     void load()
   }, [load])
 
-  const filteredRows = useMemo(() => {
-    let list = rows
-    if (regionFilter !== REGIONS_FILTER[0]) {
-      list = list.filter((r) => r.region === regionFilter)
-    }
+  const filteredWarehouses = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (q) {
-      list = list.filter(
-        (r) =>
-          r.name.toLowerCase().includes(q) ||
-          r.code.toLowerCase().includes(q) ||
-          r.region.toLowerCase().includes(q),
-      )
+    if (!q) return warehouses
+    return warehouses.filter(
+      (w) =>
+        w.name.toLowerCase().includes(q) ||
+        String(w.id).includes(q) ||
+        (w.address ?? "").toLowerCase().includes(q),
+    )
+  }, [warehouses, search])
+
+  const filteredStock = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return stockRows.slice(0, 20)
+    return stockRows
+      .filter((r) => r.name.toLowerCase().includes(q) || r.sku.toLowerCase().includes(q))
+      .slice(0, 30)
+  }, [stockRows, search])
+
+  const kpi = useMemo(() => {
+    const low = stockRows.filter((r) => r.status === "low").length
+    const out = stockRows.filter((r) => r.status === "out").length
+    const totalUnits = stockRows.reduce((s, r) => s + r.stock, 0)
+    return { low, out, totalUnits }
+  }, [stockRows])
+
+  const handleExport = async () => {
+    setExporting(true)
+    setError(null)
+    try {
+      await downloadInventoryExcel()
+    } catch (err) {
+      setError(getApiErrorMessage(err))
+    } finally {
+      setExporting(false)
     }
-    return list
-  }, [rows, regionFilter, search])
-
-  const capacityTotals = useMemo(() => {
-    const total = rows.reduce((s, r) => s + r.capacity, 0)
-    const used = rows.reduce((s, r) => s + r.used, 0)
-    return { total, used }
-  }, [rows])
-
-  const usageBars = useMemo(
-    () =>
-      [...rows]
-        .sort((a, b) => b.fillRate - a.fillRate)
-        .slice(0, 6)
-        .map((r) => ({ name: r.name, rate: r.fillRate })),
-    [rows],
-  )
-
-  const kpiValues = useMemo(
-    () => ({
-      totalWarehouses: rows.length,
-      inbound: KPI_STATS[1].value,
-      outbound: KPI_STATS[2].value,
-      transfer: KPI_STATS[3].value,
-    }),
-    [rows.length],
-  )
+  }
 
   return (
-    <div className="wh-page">
+    <div className="wh-page page-stack">
       <header className="wh-page-header">
         <div className="wh-page-header-main">
           <h1 className="wh-title">Kho hàng</h1>
           <nav className="wh-breadcrumbs" aria-label="Breadcrumb">
             <Link to="/">Trang chủ</Link>
             <ChevronRight size={14} aria-hidden />
-            <span>Tồn kho</span>
-            <ChevronRight size={14} aria-hidden />
-            <span aria-current="page">Kho hàng</span>
+            <span aria-current="page">Tồn kho</span>
           </nav>
         </div>
         <div className="wh-page-header-tools">
@@ -143,13 +142,21 @@ export function WarehouseHubPage() {
             <Search size={18} aria-hidden />
             <input
               type="search"
-              placeholder="Tìm kiếm kho, khu vực..."
+              placeholder="Tìm kho, SKU, sản phẩm..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              aria-label="Tìm kiếm kho"
+              aria-label="Tìm kiếm"
             />
-            <kbd className="wh-search-kbd">⌘ K</kbd>
           </div>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={exporting}
+            onClick={() => void handleExport()}
+          >
+            <Download size={15} />
+            {exporting ? "Đang xuất..." : "Báo cáo Excel"}
+          </button>
           <Link to="/warehouses/manage" className="btn btn-secondary btn-sm">
             <Settings2 size={15} />
             Quản lý kho
@@ -159,201 +166,171 @@ export function WarehouseHubPage() {
 
       {error ? (
         <Alert variant="error" onDismiss={() => setError(null)}>
-          {error} — đang hiển thị dữ liệu mẫu.
+          {error}
         </Alert>
       ) : null}
 
-      <section className="wh-kpi-grid" aria-label="Chỉ số kho">
-        {KPI_STATS.map((kpi, i) => {
-          const value =
-            i === 0
-              ? kpiValues.totalWarehouses
-              : i === 1
-                ? kpiValues.inbound
-                : i === 2
-                  ? kpiValues.outbound
-                  : kpiValues.transfer
-          return (
-            <article key={kpi.label} className="wh-kpi-card">
-              <div className="wh-kpi-icon">
-                <KpiIcon kind={kpi.icon} />
-              </div>
-              <div className="wh-kpi-body">
-                <p className="wh-kpi-label">{kpi.label}</p>
-                <p className="wh-kpi-value">{value}</p>
-                <p className="wh-kpi-trend">
-                  <ArrowUpRight size={14} aria-hidden />
-                  {kpi.trend}% {kpi.trendLabel}
-                </p>
-              </div>
-            </article>
-          )
-        })}
+      <section className="wh-kpi-grid" aria-label="Chỉ số tồn kho">
+        <article className="wh-kpi-card">
+          <div className="wh-kpi-icon">
+            <Warehouse size={22} strokeWidth={1.75} aria-hidden />
+          </div>
+          <div className="wh-kpi-body">
+            <p className="wh-kpi-label">Kho đang hoạt động</p>
+            <p className="wh-kpi-value">{loading ? "—" : warehouses.filter((w) => w.isActive !== false).length}</p>
+            <p className="wh-kpi-trend">Từ API /warehouses</p>
+          </div>
+        </article>
+        <article className="wh-kpi-card">
+          <div className="wh-kpi-icon">
+            <PackagePlus size={22} strokeWidth={1.75} aria-hidden />
+          </div>
+          <div className="wh-kpi-body">
+            <p className="wh-kpi-label">Tổng tồn (SKU)</p>
+            <p className="wh-kpi-value">{loading ? "—" : kpi.totalUnits.toLocaleString("vi-VN")}</p>
+            <p className="wh-kpi-trend">Theo GET /products → variant.quantity</p>
+          </div>
+        </article>
+        <article className="wh-kpi-card">
+          <div className="wh-kpi-icon">
+            <AlertTriangle size={22} strokeWidth={1.75} aria-hidden />
+          </div>
+          <div className="wh-kpi-body">
+            <p className="wh-kpi-label">SKU sắp hết (≤10)</p>
+            <p className="wh-kpi-value">{loading ? "—" : kpi.low}</p>
+            <p className="wh-kpi-trend">Cần nhập thêm</p>
+          </div>
+        </article>
+        <article className="wh-kpi-card">
+          <div className="wh-kpi-icon">
+            <PackageMinus size={22} strokeWidth={1.75} aria-hidden />
+          </div>
+          <div className="wh-kpi-body">
+            <p className="wh-kpi-label">SKU hết hàng</p>
+            <p className="wh-kpi-value">{loading ? "—" : kpi.out}</p>
+            <p className="wh-kpi-trend">Tồn khả dụng = 0</p>
+          </div>
+        </article>
       </section>
 
-      <div className="wh-layout">
-        <div className="wh-main-col">
-          <section className="wh-card wh-table-card">
-            <div className="wh-card-head">
-              <h2>Tổng quan kho hàng</h2>
-              <div className="wh-card-actions">
-                <select
-                  className="wh-select"
-                  value={regionFilter}
-                  onChange={(e) => setRegionFilter(e.target.value)}
-                  aria-label="Lọc khu vực"
-                >
-                  {REGIONS_FILTER.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-                <button type="button" className="btn btn-secondary btn-sm">
-                  <Filter size={15} />
-                  Lọc
-                </button>
-                <button type="button" className="btn btn-secondary btn-sm">
-                  <Download size={15} />
-                  Xuất Excel
-                </button>
-              </div>
-            </div>
-
-            <div className="wh-table-wrap">
-              <table className="wh-table">
-                <thead>
-                  <tr>
-                    <th>Mã kho</th>
-                    <th>Tên kho</th>
-                    <th>Khu vực</th>
-                    <th>Sức chứa</th>
-                    <th>Hiện có</th>
-                    <th>Tỷ lệ lấp đầy</th>
-                    <th>Quản lý</th>
-                    <th>Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={8} className="wh-table-empty">
-                        Đang tải...
-                      </td>
-                    </tr>
-                  ) : filteredRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="wh-table-empty">
-                        Không có kho phù hợp.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredRows.map((row) => (
-                      <tr key={row.id}>
-                        <td>
-                          <code className="wh-code">{row.code}</code>
-                        </td>
-                        <td className="wh-cell-name">{row.name}</td>
-                        <td>{row.region}</td>
-                        <td>{row.capacity.toLocaleString("vi-VN")} m²</td>
-                        <td>{row.used.toLocaleString("vi-VN")} m²</td>
-                        <td>
-                          <div className="wh-fill-cell">
-                            <div className="wh-fill-track">
-                              <div className="wh-fill-bar" style={{ width: `${row.fillRate}%` }} />
-                            </div>
-                            <span>{row.fillRate}%</span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="wh-manager">
-                            <img src={row.manager.avatar} alt="" width={28} height={28} />
-                            <span>{row.manager.name}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`wh-status wh-status-${row.status}`}>
-                            <span className="wh-status-dot" />
-                            {row.status === "active" ? "Hoạt động" : "Bảo trì"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <footer className="wh-table-footer">
-              <span>
-                Hiển thị 1 đến {filteredRows.length} trong tổng số {rows.length} kho
-              </span>
-              <select className="wh-select wh-select-sm" defaultValue="10" aria-label="Số dòng mỗi trang">
-                <option value="10">10 / trang</option>
-                <option value="20">20 / trang</option>
-              </select>
-            </footer>
-          </section>
-
-          <section className="wh-charts-grid" aria-label="Biểu đồ kho">
-            <article className="wh-card wh-chart-card">
-              <h3>Tỷ lệ sử dụng sức chứa</h3>
-              <CapacityDonutChart used={capacityTotals.used} total={capacityTotals.total} />
-            </article>
-            <article className="wh-card wh-chart-card">
-              <h3>Kho sử dụng cao nhất</h3>
-              <UsageBarChart items={usageBars.length ? usageBars : USAGE_BARS} />
-            </article>
-            <article className="wh-card wh-chart-card">
-              <h3>Phân bổ theo khu vực</h3>
-              <RegionMapPanel />
-            </article>
-          </section>
+      <section className="wh-card wh-quick-card card-padded">
+        <h3>Thao tác nhanh</h3>
+        <div className="wh-quick-actions">
+          <Link to="/warehouses/import" className="btn btn-primary wh-quick-primary">
+            <PackagePlus size={18} />
+            Nhập kho
+          </Link>
+          <Link to="/warehouses/export" className="btn btn-outline-gold">
+            <PackageMinus size={18} />
+            Xuất kho
+          </Link>
+          <Link to="/warehouses/stock-check" className="btn btn-outline-gold">
+            <ClipboardList size={18} />
+            Kiểm kê
+          </Link>
+          <Link to="/suppliers" className="btn btn-outline-gold">
+            Nhà cung cấp
+          </Link>
         </div>
+      </section>
 
-        <aside className="wh-side-col">
-          <section className="wh-card">
-            <h3>Hoạt động kho gần đây</h3>
-            <ul className="wh-activity-list">
-              {RECENT_ACTIVITIES.map((act) => (
-                <li key={act.ref} className={`wh-activity wh-activity-${act.type}`}>
-                  <span className="wh-activity-icon">
-                    <ActivityIcon type={act.type} />
-                  </span>
-                  <div>
-                    <p className="wh-activity-title">
-                      {act.title} <span>{act.ref}</span>
-                    </p>
-                    <p className="wh-activity-detail">{act.detail}</p>
-                    <time>{act.time}</time>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
+      <div className="wh-layout wh-layout-single">
+        <section className="wh-card wh-table-card">
+          <div className="wh-card-head">
+            <h2>Danh sách kho</h2>
+          </div>
+          <div className="wh-table-wrap">
+            <table className="wh-table data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Tên kho</th>
+                  <th>Địa chỉ</th>
+                  <th>Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="wh-table-empty">
+                      Đang tải...
+                    </td>
+                  </tr>
+                ) : filteredWarehouses.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="wh-table-empty">
+                      Chưa có kho — <Link to="/warehouses/manage">tạo kho</Link>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredWarehouses.map((w) => (
+                    <tr key={w.id}>
+                      <td>
+                        <code className="wh-code">WH-{String(w.id).padStart(3, "0")}</code>
+                      </td>
+                      <td className="wh-cell-name">{w.name}</td>
+                      <td>{w.address || "—"}</td>
+                      <td>
+                        <Badge variant={w.isActive !== false ? "success" : "neutral"}>
+                          {w.isActive !== false ? "Hoạt động" : "Ngưng"}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-          <section className="wh-card wh-quick-card">
-            <h3>Thao tác nhanh</h3>
-            <div className="wh-quick-actions">
-              <button type="button" className="btn btn-primary wh-quick-primary">
-                <PackagePlus size={18} />
-                Tạo phiếu nhập
-              </button>
-              <button type="button" className="btn btn-outline-gold">
-                <PackageMinus size={18} />
-                Tạo phiếu xuất
-              </button>
-              <button type="button" className="btn btn-outline-gold">
-                <ArrowLeftRight size={18} />
-                Điều chuyển kho
-              </button>
-              <button type="button" className="btn btn-outline-gold">
-                <ClipboardList size={18} />
-                Kiểm kê
-              </button>
-            </div>
-          </section>
-        </aside>
+        <section className="wh-card wh-table-card">
+          <div className="wh-card-head">
+            <h2>Tồn theo biến thể (SKU)</h2>
+            <p className="text-muted" style={{ fontSize: "0.875rem", margin: 0 }}>
+              Kho mặc định ID 1 — backend chưa có API list tồn riêng; dùng báo cáo Excel để chi tiết lô.
+            </p>
+          </div>
+          <div className="wh-table-wrap">
+            <table className="wh-table data-table">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Sản phẩm</th>
+                  <th>Tồn khả dụng</th>
+                  <th>Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="wh-table-empty">
+                      Đang tải...
+                    </td>
+                  </tr>
+                ) : filteredStock.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="wh-table-empty">
+                      Không có dữ liệu SKU
+                    </td>
+                  </tr>
+                ) : (
+                  filteredStock.map((row) => (
+                    <tr key={`${row.productId}-${row.sku}`}>
+                      <td className="td-muted">{row.sku}</td>
+                      <td>{row.name}</td>
+                      <td>
+                        <strong>{row.stock}</strong>
+                      </td>
+                      <td>
+                        <span className={`stock-badge stock-${row.status}`}>{statusLabel(row.status)}</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </div>
   )

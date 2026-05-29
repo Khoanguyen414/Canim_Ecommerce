@@ -46,7 +46,7 @@ export function isNavGroup(entry: NavEntry): entry is NavGroup {
 
 export const navEntries: NavEntry[] = [
   { to: "/", label: "Tổng quan", icon: LayoutDashboard, end: true },
-  { label: "Đơn hàng", icon: ShoppingBag, badge: "filled", badgeText: "32", soon: true },
+  { to: "/orders", label: "Đơn hàng", icon: ShoppingBag },
   { to: "/products", label: "Sản phẩm", icon: Tag },
   { to: "/categories", label: "Danh mục", icon: FolderTree },
   {
@@ -55,11 +55,12 @@ export const navEntries: NavEntry[] = [
     icon: Warehouse,
     defaultOpen: true,
     children: [
-      { to: "/warehouses", label: "Kho hàng" },
-      { to: "/warehouses/import", label: "Nhập kho", soon: true },
-      { to: "/warehouses/export", label: "Xuất kho", soon: true },
-      { to: "/warehouses/transfer", label: "Chuyển kho", soon: true },
-      { to: "/warehouses/stock-check", label: "Kiểm kê", soon: true },
+      { to: "/warehouses", label: "Tổng quan kho" },
+      { to: "/warehouses/manage", label: "Quản lý kho" },
+      { to: "/warehouses/import", label: "Nhập kho" },
+      { to: "/warehouses/export", label: "Xuất kho" },
+      { to: "/warehouses/stock-check", label: "Kiểm kê" },
+      { to: "/suppliers", label: "Nhà cung cấp" },
     ],
   },
   { to: "/users", label: "Khách hàng", icon: Users },

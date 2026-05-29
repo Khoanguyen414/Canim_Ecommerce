@@ -1,13 +1,32 @@
 type Slice = { label: string; value: number; color: string }
 
-const SLICES: Slice[] = [
-  { label: "Còn hàng", value: 62, color: "#22c55e" },
-  { label: "Sắp hết", value: 22, color: "#f59e0b" },
-  { label: "Hết hàng", value: 10, color: "#ef4444" },
-  { label: "Đang nhập", value: 6, color: "#3b82f6" },
-]
+type Props = {
+  inStock?: number
+  lowStock?: number
+  outOfStock?: number
+}
 
-export function StockDonutChart() {
+function buildSlices(counts: Props): Slice[] {
+  const inStock = counts.inStock ?? 0
+  const lowStock = counts.lowStock ?? 0
+  const outOfStock = counts.outOfStock ?? 0
+  const total = inStock + lowStock + outOfStock
+  if (total === 0) {
+    return [
+      { label: "Còn hàng", value: 0, color: "#22c55e" },
+      { label: "Sắp hết", value: 0, color: "#f59e0b" },
+      { label: "Hết hàng", value: 0, color: "#ef4444" },
+    ]
+  }
+  return [
+    { label: "Còn hàng", value: inStock, color: "#22c55e" },
+    { label: "Sắp hết", value: lowStock, color: "#f59e0b" },
+    { label: "Hết hàng", value: outOfStock, color: "#ef4444" },
+  ]
+}
+
+export function StockDonutChart({ inStock = 0, lowStock = 0, outOfStock = 0 }: Props) {
+  const SLICES = buildSlices({ inStock, lowStock, outOfStock })
   const total = SLICES.reduce((s, x) => s + x.value, 0)
   let offset = 0
   const r = 42
@@ -38,10 +57,10 @@ export function StockDonutChart() {
           return el
         })}
         <text x="60" y="56" textAnchor="middle" className="donut-center-num">
-          {total}%
+          {total}
         </text>
         <text x="60" y="72" textAnchor="middle" className="donut-center-label">
-          Tồn kho
+          SKU
         </text>
       </svg>
       <ul className="donut-legend">
@@ -49,7 +68,7 @@ export function StockDonutChart() {
           <li key={s.label}>
             <span className="donut-swatch" style={{ background: s.color }} />
             {s.label}
-            <strong>{s.value}%</strong>
+            <strong>{s.value}</strong>
           </li>
         ))}
       </ul>

@@ -42,6 +42,14 @@ public class OrderDetailResponse {
     String receiverName;
     String receiverPhone;
     String shippingAddress;
+    Long addressId;
+    String receiverProvinceName;
+    String receiverDistrictName;
+    String receiverWardName;
+    String receiverStreetAddress;
+    BigDecimal receiverLatitude;
+    BigDecimal receiverLongitude;
+    String mapUrl;
     String orderNote;
 
     String cancelReason;
@@ -61,5 +69,6 @@ public class OrderDetailResponse {
 
     List<OrderItemResponse> items;
     List<OrderStatusHistoryResponse> histories;
+    List<OrderTrackingEventResponse> trackingEvents;
     PaymentTransactionResponse latestPaymentTransaction;
 }

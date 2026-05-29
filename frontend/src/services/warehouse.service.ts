@@ -1,11 +1,17 @@
 import api from "@/lib/axios"
-import type { ApiResponse, InboundPayload, OutboundPayload, Warehouse } from "@/types/api.types"
+import type { ApiResponse, InboundPayload, OutboundPayload, PageResponse, ProductDetail, Warehouse } from "@/types/api.types"
 
 /**
  * Kho vật lý — khớp `WarehouseController` (`/warehouses`).
  */
 export const warehouseService = {
   list: () => api.get<ApiResponse<Warehouse[]>>("/warehouses"),
+
+  /** Danh sách sản phẩm admin — dùng chọn variant (ROLE_ADMIN). */
+  listProductsForPicker: () =>
+    api.get<ApiResponse<PageResponse<ProductDetail>>>("/products", {
+      params: { pageNum: 1, sizePage: 200, includeHidden: true },
+    }),
 }
 
 /**

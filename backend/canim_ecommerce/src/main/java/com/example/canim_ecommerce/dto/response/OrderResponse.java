@@ -30,6 +30,11 @@ public class OrderResponse {
     String receiverName;
     String receiverPhone;
     String shippingAddress;
+    Long addressId;
+    String receiverProvinceName;
+    String receiverDistrictName;
+    String receiverWardName;
+    String receiverStreetAddress;
     String orderNote;
 
     String cancelReason;

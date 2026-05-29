@@ -4,9 +4,7 @@ import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +27,7 @@ import com.example.canim_ecommerce.repository.ProductVariantRepository;
 import com.example.canim_ecommerce.service.CartService;
 import com.example.canim_ecommerce.service.InventoryService;
 import com.example.canim_ecommerce.service.UserEventService;
+import com.example.canim_ecommerce.service.cart.CartRedisCache;
 import com.example.canim_ecommerce.utils.SecurityUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,40 +48,30 @@ public class CartServiceImpl implements CartService {
     CartMapper cartMapper;
     InventoryService inventoryService;
     UserEventService userEventService;
-    RedisTemplate<String, Object> redisTemplate;
+    CartRedisCache cartRedisCache;
     CartItemRepository cartItemRepository;
     ProductImageRepository productImageRepository;
     ObjectMapper objectMapper;
 
-    static final String REDIS_CART_KEY = "cart:user:";
-
     @Override
     public CartResponse getMyCart() {
         Long userId = SecurityUtils.getCurrentUserId();
-        String redisKey = REDIS_CART_KEY + userId;
-
-        Cart cart = (Cart) redisTemplate.opsForValue().get(redisKey);
-
-        if (cart == null) {
-            log.warn("🐢 MISS CACHE MySQL: User {}", userId);
-
-            cart = cartRepository.findByUserId(userId).orElse(null);
-
-            if (cart == null) {
-                return CartResponse.builder()
-                        .userId(userId)
-                        .totalAmount(BigDecimal.ZERO)
-                        .build();
-            }
-
-            redisTemplate.opsForValue().set(redisKey, cart, 7, TimeUnit.DAYS);
+        Optional<Cart> cached = cartRedisCache.get(userId);
+        Cart cart;
+        if (cached.isPresent()) {
+            log.debug("Cart cache hit for user {}", userId);
+            cart = cached.get();
         } else {
-            log.info("🚀 HIT CACHE Redis: User {}", userId);
+            log.debug("Cart cache miss for user {}, loading MySQL", userId);
+            cart = cartRepository.findByUserId(userId).orElse(null);
+            if (cart == null) {
+                return CartResponse.builder().userId(userId).totalAmount(BigDecimal.ZERO).build();
+            }
+            cartRedisCache.put(userId, cart);
         }
 
         CartResponse response = cartMapper.toCartResponse(cart);
         enrichCartData(response);
-
         return response;
     }
 
@@ -94,12 +83,8 @@ public class CartServiceImpl implements CartService {
         }
 
         Long userId = SecurityUtils.getCurrentUserId();
-
         Cart cart = cartRepository.findByUserId(userId)
-                .orElseGet(() -> cartRepository.save(
-                        Cart.builder()
-                                .userId(userId)
-                                .build()));
+                .orElseGet(() -> cartRepository.save(Cart.builder().userId(userId).build()));
 
         ProductVariant variant = productVariantRepository.findById(request.getVariantId())
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product variant not found"));
@@ -108,20 +93,17 @@ public class CartServiceImpl implements CartService {
             throw new ApiException(ApiStatus.BAD_REQUEST, "Product is no longer active");
         }
 
-        int currentQtyInCart = cart.getItems()
-                .stream()
+        int currentQtyInCart = cart.getItems().stream()
                 .filter(i -> i.getVariant().getId().equals(variant.getId()))
                 .mapToInt(CartItem::getQuantity)
                 .sum();
 
         int availableQty = inventoryService.getAvailableQuantityForVariant(variant.getId());
-
         if (currentQtyInCart + request.getQuantity() > availableQty) {
             throw new ApiException(ApiStatus.BAD_REQUEST, "Not enough stock.");
         }
 
-        Optional<CartItem> existingItem = cart.getItems()
-                .stream()
+        Optional<CartItem> existingItem = cart.getItems().stream()
                 .filter(i -> i.getVariant().getId().equals(variant.getId()))
                 .findFirst();
 
@@ -129,33 +111,18 @@ public class CartServiceImpl implements CartService {
             CartItem item = existingItem.get();
             item.setQuantity(item.getQuantity() + request.getQuantity());
         } else {
-            CartItem newItem = CartItem.builder()
-                    .variant(variant)
-                    .quantity(request.getQuantity())
-                    .isSelected(false)
-                    .cart(cart)
-                    .build();
-
-            cart.getItems().add(newItem);
+            cart.getItems().add(CartItem.builder()
+                    .variant(variant).quantity(request.getQuantity())
+                    .isSelected(false).cart(cart).build());
         }
 
         cart = cartRepository.save(cart);
-
-        redisTemplate.opsForValue().set(
-                REDIS_CART_KEY + userId,
-                cart,
-                7,
-                TimeUnit.DAYS);
+        cartRedisCache.put(userId, cart);
 
         CartResponse response = cartMapper.toCartResponse(cart);
         enrichCartData(response);
 
-        userEventService.logEventAsync(
-                userId,
-                variant.getProduct().getId(),
-                EventType.ADD_TO_CART,
-                buildAddToCartMeta(variant, request.getQuantity()));
-
+        logAddToCartEvent(userId, variant, request.getQuantity());
         return response;
     }
 
@@ -167,23 +134,19 @@ public class CartServiceImpl implements CartService {
         }
 
         Long userId = SecurityUtils.getCurrentUserId();
-
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Cart is empty"));
 
-        CartItem item = cart.getItems()
-                .stream()
+        CartItem item = cart.getItems().stream()
                 .filter(i -> i.getVariant().getId().equals(request.getVariantId()))
                 .findFirst()
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found in cart"));
 
         if (request.getQuantity() > 0) {
             int availableQty = inventoryService.getAvailableQuantityForVariant(request.getVariantId());
-
             if (request.getQuantity() > availableQty && Boolean.TRUE.equals(request.getIsSelected())) {
                 throw new ApiException(ApiStatus.BAD_REQUEST, "Not enough stock.");
             }
-
             item.setQuantity(request.getQuantity());
             item.setIsSelected(request.getIsSelected());
         } else {
@@ -192,16 +155,10 @@ public class CartServiceImpl implements CartService {
         }
 
         cart = cartRepository.save(cart);
-
-        redisTemplate.opsForValue().set(
-                REDIS_CART_KEY + userId,
-                cart,
-                7,
-                TimeUnit.DAYS);
+        cartRedisCache.put(userId, cart);
 
         CartResponse response = cartMapper.toCartResponse(cart);
         enrichCartData(response);
-
         return response;
     }
 
@@ -214,7 +171,6 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Không tìm thấy giỏ hàng"));
 
         boolean isUpdated = false;
-
         for (CartItem item : cart.getItems()) {
             if (request.getVariantIds().contains(item.getVariant().getId())) {
                 item.setIsSelected(request.getIsSelected());
@@ -224,12 +180,7 @@ public class CartServiceImpl implements CartService {
 
         if (isUpdated) {
             cart = cartRepository.save(cart);
-
-            redisTemplate.opsForValue().set(
-                    REDIS_CART_KEY + userId,
-                    cart,
-                    7,
-                    TimeUnit.DAYS);
+            cartRedisCache.put(userId, cart);
         }
 
         return getMyCart();
@@ -239,16 +190,47 @@ public class CartServiceImpl implements CartService {
     @Transactional(rollbackFor = Exception.class)
     public void clearCart() {
         Long userId = SecurityUtils.getCurrentUserId();
-
         cartRepository.findByUserId(userId).ifPresent(cart -> {
             cartItemRepository.deleteAllByCartId(cart.getId());
-
             log.info("User {} cleared cart", userId);
-
             cart.getItems().clear();
-
-            redisTemplate.delete(REDIS_CART_KEY + userId);
+            cartRedisCache.evict(userId);
         });
+    }
+
+    private void logAddToCartEvent(Long userId, ProductVariant variant, Integer quantity) {
+        if (variant == null || variant.getProduct() == null) {
+            return;
+        }
+
+        userEventService.logEventAsync(
+                userId,
+                variant.getProduct().getId(),
+                EventType.ADD_TO_CART,
+                buildAddToCartMeta(variant, quantity));
+    }
+
+    private String buildAddToCartMeta(ProductVariant variant, Integer quantity) {
+        Map<String, Object> meta = new LinkedHashMap<>();
+
+        meta.put("quantity", quantity);
+        meta.put("variantId", variant.getId());
+        meta.put("sku", variant.getSku());
+        meta.put("color", variant.getColor());
+        meta.put("size", variant.getSize());
+        meta.put("price", variant.getPrice());
+        meta.put("productId", variant.getProduct() == null ? null : variant.getProduct().getId());
+        meta.put("productName", variant.getProduct() == null ? null : variant.getProduct().getName());
+        meta.put("source", "CART_ADD");
+        meta.put("sourceMeaning", "Khách thêm sản phẩm vào giỏ hàng");
+
+        try {
+            return objectMapper.writeValueAsString(meta);
+        } catch (JsonProcessingException exception) {
+            log.warn("Không thể build ADD_TO_CART eventMeta JSON: {}", exception.getMessage());
+
+            return "{\"source\":\"CART_ADD\"}";
+        }
     }
 
     private void enrichCartData(CartResponse response) {
@@ -262,10 +244,9 @@ public class CartServiceImpl implements CartService {
         for (var item : response.getItems()) {
             ProductVariant variant = productVariantRepository.findById(item.getVariantId()).orElse(null);
             int availableQty = inventoryService.getAvailableQuantityForVariant(item.getVariantId());
-
             if (variant != null) {
                 productImageRepository.findByProductIdAndIsMainTrue(variant.getProduct().getId())
-                        .ifPresent(img -> item.setImageUrl(img.getUrl()));
+                    .ifPresent(img -> item.setImageUrl(img.getUrl()));
             }
 
             item.setAvailableStock(availableQty);
@@ -275,7 +256,8 @@ public class CartServiceImpl implements CartService {
             if (variant == null || variant.getProduct().getStatus() != ProductStatus.ACTIVE) {
                 item.setIsAvailable(false);
                 item.setWarningMessage("Product is no longer active");
-            } else if (item.getQuantity() > availableQty) {
+            }
+            else if (item.getQuantity() > availableQty) {
                 item.setIsAvailable(false);
                 item.setWarningMessage("Quantity exceeds available stock (" + availableQty + ")");
             }
@@ -284,27 +266,6 @@ public class CartServiceImpl implements CartService {
                 calculatedTotal = calculatedTotal.add(item.getSubTotal());
             }
         }
-
         response.setTotalAmount(calculatedTotal);
-    }
-
-    private String buildAddToCartMeta(ProductVariant variant, Integer quantity) {
-        Map<String, Object> meta = new LinkedHashMap<>();
-
-        meta.put("quantity", quantity);
-        meta.put("variantId", variant.getId());
-        meta.put("sku", variant.getSku());
-        meta.put("color", variant.getColor());
-        meta.put("size", variant.getSize());
-        meta.put("price", variant.getPrice());
-        meta.put("source", "CART_ADD");
-
-        try {
-            return objectMapper.writeValueAsString(meta);
-        } catch (JsonProcessingException e) {
-            log.warn("⚠️ Không thể build ADD_TO_CART eventMeta JSON: {}", e.getMessage());
-
-            return "{\"source\":\"CART_ADD\"}";
-        }
     }
 }

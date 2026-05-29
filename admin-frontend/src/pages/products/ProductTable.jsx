@@ -5,6 +5,10 @@ function formatDate(value) {
   return date.toLocaleString("vi-VN")
 }
 
+function totalStock(product) {
+  return (product.variants ?? []).reduce((sum, v) => sum + Number(v.quantity ?? 0), 0)
+}
+
 const statusBadgeClass = {
   ACTIVE: "bg-success",
   INACTIVE: "bg-secondary",
@@ -33,6 +37,7 @@ export function ProductTable({
               <th>Name</th>
               <th>Brand</th>
               <th>Category</th>
+              <th>Tồn kho</th>
               <th>Status</th>
               <th>CreatedAt</th>
               <th className="text-end">Actions</th>
@@ -41,7 +46,7 @@ export function ProductTable({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="text-center py-4 text-muted">
+                <td colSpan={8} className="text-center py-4 text-muted">
                   Loading products...
                 </td>
               </tr>
@@ -49,7 +54,7 @@ export function ProductTable({
 
             {!loading && products.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-4 text-muted">
+                <td colSpan={8} className="text-center py-4 text-muted">
                   {hiddenView ? "Không có sản phẩm đã ẩn" : "Không có sản phẩm"}
                 </td>
               </tr>
@@ -78,6 +83,10 @@ export function ProductTable({
                       </td>
                       <td>{product.brand || "--"}</td>
                       <td>{product.category?.name || "--"}</td>
+                      <td>
+                        <strong>{totalStock(product)}</strong>
+                        <small className="text-muted d-block">tổng variant</small>
+                      </td>
                       <td>
                         <span className={`badge rounded-pill ${statusBadgeClass[product.status] || "bg-secondary"}`}>
                           {product.status}

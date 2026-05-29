@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { authService } from "@/services/auth.service"
 import { userService } from "@/services/user.service"
-import type { UserProfile } from "@/types/api.types"
+import type { AuthResult, UserProfile } from "@/types/api.types"
 
 export type AuthUser = {
   id: number
@@ -16,6 +16,7 @@ interface AuthState {
   accessToken: string | null
   initialized: boolean
   login: (email: string, password: string) => Promise<void>
+  loginWithAuthResult: (result: AuthResult) => Promise<void>
   bootstrap: () => Promise<void>
   logout: () => Promise<void>
   clearSession: () => void
@@ -73,21 +74,26 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  login: async (email: string, password: string) => {
-    const { data } = await authService.login(email, password)
-    if (!data.success || !data.result) {
-      throw new Error(data.message || "Đăng nhập thất bại")
+  loginWithAuthResult: async (result: AuthResult) => {
+    localStorage.setItem("accessToken", result.accessToken)
+    if (result.refreshToken) {
+      localStorage.setItem("refreshToken", result.refreshToken)
     }
-    const { accessToken, refreshToken } = data.result
-    localStorage.setItem("accessToken", accessToken)
-    localStorage.setItem("refreshToken", refreshToken)
-    set({ accessToken })
+    set({ accessToken: result.accessToken })
 
     const me = await userService.getMe()
     if (!me.data.success || !me.data.result) {
       throw new Error(me.data.message || "Không lấy được hồ sơ người dùng")
     }
     set({ user: mapProfile(me.data.result), initialized: true })
+  },
+
+  login: async (email: string, password: string) => {
+    const { data } = await authService.login(email, password)
+    if (!data.success || !data.result) {
+      throw new Error(data.message || "Đăng nhập thất bại")
+    }
+    await useAuthStore.getState().loginWithAuthResult(data.result)
   },
 
   logout: async () => {

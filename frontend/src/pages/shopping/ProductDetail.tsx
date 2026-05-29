@@ -1,26 +1,27 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
-import { ChevronRight, GitCompare, Heart, ShoppingCart } from "lucide-react"
-
-import { ErrorState } from "@/components/common/ErrorState"
-import { LoadingSpinner } from "@/components/common/LoadingSpinner"
-import RecommendedProductsSection from "@/components/recommendation/RecommendedProductsSection"
-import { ShopSidebar } from "@/components/shop/ShopSidebar"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { ChevronRight, ShoppingCart, Heart, GitCompare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Select } from "@/components/ui/select"
-import { useTrackProductView } from "@/hooks/useProductTracking"
+import { productService } from "@/services/product.service"
+import type { ProductDetail as ProductModel, ProductVariant } from "@/types/api.types"
+import { LoadingSpinner } from "@/components/common/LoadingSpinner"
+import { ErrorState } from "@/components/common/ErrorState"
 import { getApiErrorMessage } from "@/lib/apiError"
-import { cn } from "@/lib/cn"
 import { formatVnd, toNumber } from "@/lib/format"
 import { getProductMainImage } from "@/lib/product"
-import { productService } from "@/services/product.service"
 import { useCartStore } from "@/store/cart.store"
 import { productToWishlistItem, useWishlistStore } from "@/store/wishlist.store"
-import type { ProductDetail as ProductModel, ProductVariant } from "@/types/api.types"
+import { cn } from "@/lib/cn"
+import { ShopSidebar } from "@/components/shop/ShopSidebar"
+import { ProductReviewsSection } from "@/components/reviews/ProductReviewsSection"
 
 export default function ProductDetail() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
+  const orderItemIdParam = searchParams.get("orderItemId")
+  const orderItemId = orderItemIdParam ? Number(orderItemIdParam) : null
   const navigate = useNavigate()
   const addLine = useCartStore((s) => s.addLine)
   const toggleWishlist = useWishlistStore((s) => s.toggle)
@@ -31,32 +32,30 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1)
   const [variantId, setVariantId] = useState<number | null>(null)
   const [activeImage, setActiveImage] = useState<string | undefined>(undefined)
-  const [tab, setTab] = useState<"desc" | "info" | "reviews">("desc")
+  const [tab, setTab] = useState<"desc" | "info" | "reviews">(
+    orderItemId ? "reviews" : "desc",
+  )
+
+  useEffect(() => {
+    if (orderItemId) setTab("reviews")
+  }, [orderItemId])
 
   useEffect(() => {
     const pid = Number(id)
-
     if (!Number.isFinite(pid)) {
       setError("ID sản phẩm không hợp lệ")
       setLoading(false)
       return
     }
-
     void (async () => {
       setLoading(true)
       setError(null)
-
       try {
         const { data } = await productService.getPublicById(pid)
-
-        if (!data.success || !data.result) {
-          throw new Error(data.message || "Không tìm thấy sản phẩm")
-        }
-
+        if (!data.success || !data.result) throw new Error(data.message || "Không tìm thấy sản phẩm")
         const p = data.result
-        const first = p.variants?.[0]
-
         setProduct(p)
+        const first = p.variants?.[0]
         setVariantId(first?.id ?? null)
         setActiveImage(getProductMainImage(p))
       } catch (e) {
@@ -70,39 +69,27 @@ export default function ProductDetail() {
 
   const variant = useMemo(() => {
     if (!product?.variants?.length) return null
-
     return product.variants.find((v) => v.id === variantId) ?? product.variants[0]
   }, [product, variantId])
 
-  useTrackProductView({
-    productId: product?.id,
-    variantId: variant?.id ?? null,
-    source: "PRODUCT_DETAIL",
-  })
-
   const images = useMemo(() => {
     if (!product?.images?.length) return []
-
     return [...product.images].sort((a, b) => a.position - b.position)
   }, [product])
 
   const productIdNum = Number(id)
-
   const isWishlisted = useWishlistStore((s) =>
     Number.isFinite(productIdNum) ? s.isWishlisted(productIdNum) : false,
   )
 
   const handleToggleWishlist = () => {
     if (!product) return
-
     toggleWishlist(productToWishlistItem(product))
   }
 
   const handleAddToCart = () => {
     if (!product || !variant) return
-
     const img = activeImage ?? getProductMainImage(product)
-
     addLine({
       productId: product.id,
       variantId: variant.id,
@@ -114,17 +101,11 @@ export default function ProductDetail() {
       quantity,
       imageUrl: img,
     })
-
     navigate("/cart")
   }
 
-  if (loading) {
-    return <LoadingSpinner label="Đang tải chi tiết..." />
-  }
-
-  if (error || !product) {
-    return <ErrorState message={error ?? "Không có dữ liệu"} />
-  }
+  if (loading) return <LoadingSpinner label="Đang tải chi tiết..." />
+  if (error || !product) return <ErrorState message={error ?? "Không có dữ liệu"} />
 
   const inStock = (product.variants?.length ?? 0) > 0
   const price = variant ? toNumber(variant.price) : 0
@@ -135,19 +116,13 @@ export default function ProductDetail() {
         <Link to="/" className="hover:text-primary">
           Home
         </Link>
-
         <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
-
         <Link to="/products" className="hover:text-primary">
           Shop
         </Link>
-
         <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
-
         <span className="line-clamp-1 text-gray-800">{product.categoryName}</span>
-
         <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
-
         <span className="line-clamp-1 font-medium text-[#253d4e]">{product.name}</span>
       </nav>
 
@@ -157,18 +132,11 @@ export default function ProductDetail() {
             <div className="space-y-4">
               <div className="aspect-square overflow-hidden rounded-xl border border-gray-100 bg-[#f8f8f8]">
                 {activeImage ? (
-                  <img
-                    src={activeImage}
-                    alt={product.name}
-                    className="h-full w-full object-contain"
-                  />
+                  <img src={activeImage} alt={product.name} className="h-full w-full object-contain" />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-muted-foreground">
-                    Chưa có ảnh
-                  </div>
+                  <div className="flex h-full items-center justify-center text-muted-foreground">Chưa có ảnh</div>
                 )}
               </div>
-
               {images.length > 1 ? (
                 <div className="grid grid-cols-5 gap-2">
                   {images.map((img) => (
@@ -177,9 +145,7 @@ export default function ProductDetail() {
                       type="button"
                       onClick={() => setActiveImage(img.url)}
                       className={`aspect-square overflow-hidden rounded-lg border-2 transition-all ${
-                        activeImage === img.url
-                          ? "border-primary ring-2 ring-primary/30"
-                          : "border-transparent"
+                        activeImage === img.url ? "border-primary ring-2 ring-primary/30" : "border-transparent"
                       }`}
                     >
                       <img src={img.url} alt="" className="h-full w-full object-cover" />
@@ -194,11 +160,7 @@ export default function ProductDetail() {
                 <span className="mb-2 inline-block rounded bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-600">
                   Sale
                 </span>
-
-                <h1 className="text-2xl font-bold leading-tight text-[#253d4e] md:text-3xl">
-                  {product.name}
-                </h1>
-
+                <h1 className="text-2xl font-bold leading-tight text-[#253d4e] md:text-3xl">{product.name}</h1>
                 <p className="mt-2 text-sm text-gray-500">SKU: {variant?.sku ?? "—"}</p>
               </div>
 
@@ -206,16 +168,11 @@ export default function ProductDetail() {
                 <span className="text-3xl font-extrabold text-primary">{formatVnd(price)}</span>
               </div>
 
-              {product.shortDesc ? (
-                <p className="text-sm leading-relaxed text-gray-600">{product.shortDesc}</p>
-              ) : null}
+              {product.shortDesc ? <p className="text-sm leading-relaxed text-gray-600">{product.shortDesc}</p> : null}
 
               <div className="space-y-4 border-y border-gray-100 py-4">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-[#253d4e]">
-                    Variant
-                  </label>
-
+                  <label className="mb-2 block text-sm font-semibold text-[#253d4e]">Variant</label>
                   <Select
                     value={variantId?.toString() ?? ""}
                     onChange={(e) => setVariantId(Number(e.target.value))}
@@ -230,20 +187,11 @@ export default function ProductDetail() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-[#253d4e]">
-                    Quantity
-                  </label>
-
+                  <label className="mb-2 block text-sm font-semibold text-[#253d4e]">Quantity</label>
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    >
+                    <Button variant="outline" size="sm" type="button" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>
                       -
                     </Button>
-
                     <input
                       type="number"
                       min={1}
@@ -251,13 +199,7 @@ export default function ProductDetail() {
                       onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
                       className="w-16 rounded-md border border-gray-200 py-1.5 text-center text-sm"
                     />
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      onClick={() => setQuantity((q) => q + 1)}
-                    >
+                    <Button variant="outline" size="sm" type="button" onClick={() => setQuantity((q) => q + 1)}>
                       +
                     </Button>
                   </div>
@@ -274,7 +216,6 @@ export default function ProductDetail() {
                   <ShoppingCart className="mr-2 h-4 w-4" />
                   Add to cart
                 </Button>
-
                 <Button
                   variant="outline"
                   size="icon"
@@ -286,14 +227,7 @@ export default function ProductDetail() {
                 >
                   <Heart className={cn("h-5 w-5", isWishlisted && "fill-current")} />
                 </Button>
-
-                <Button
-                  variant="outline"
-                  size="icon"
-                  type="button"
-                  className="h-11 w-11 shrink-0"
-                  aria-label="Compare"
-                >
+                <Button variant="outline" size="icon" type="button" className="h-11 w-11 shrink-0" aria-label="Compare">
                   <GitCompare className="h-5 w-5" />
                 </Button>
               </div>
@@ -303,12 +237,9 @@ export default function ProductDetail() {
                   <dt className="text-gray-500">Category</dt>
                   <dd className="font-semibold text-[#253d4e]">{product.categoryName}</dd>
                 </div>
-
                 <div className="rounded-lg bg-[#f4f6f8] p-3">
                   <dt className="text-gray-500">Stock</dt>
-                  <dd className="font-semibold text-primary">
-                    {inStock ? "In stock" : "Unavailable"}
-                  </dd>
+                  <dd className="font-semibold text-primary">{inStock ? "In stock" : "Unavailable"}</dd>
                 </div>
               </dl>
             </div>
@@ -328,62 +259,38 @@ export default function ProductDetail() {
                   type="button"
                   onClick={() => setTab(t.id)}
                   className={`border-b-2 px-5 py-3 text-sm font-bold transition-colors ${
-                    tab === t.id
-                      ? "border-primary text-primary"
-                      : "border-transparent text-gray-500 hover:text-[#253d4e]"
+                    tab === t.id ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-[#253d4e]"
                   }`}
                 >
                   {t.label}
                 </button>
               ))}
             </div>
-
             <div className="p-6">
               {tab === "desc" ? (
                 product.longDesc ? (
-                  <div className="prose prose-sm max-w-none whitespace-pre-wrap text-gray-600">
-                    {product.longDesc}
-                  </div>
+                  <div className="prose prose-sm max-w-none whitespace-pre-wrap text-gray-600">{product.longDesc}</div>
                 ) : (
                   <p className="text-sm text-gray-500">No long description for this product.</p>
                 )
               ) : null}
-
               {tab === "info" ? (
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li>
                     <span className="font-semibold text-[#253d4e]">Category: </span>
                     {product.categoryName}
                   </li>
-
                   <li>
                     <span className="font-semibold text-[#253d4e]">Variants: </span>
                     {product.variants?.length ?? 0}
                   </li>
                 </ul>
               ) : null}
-
-              {tab === "reviews" ? (
-                <p className="text-sm text-gray-500">
-                  Reviews will appear here when you add a review feature.
-                </p>
+              {tab === "reviews" && product ? (
+                <ProductReviewsSection productId={product.id} orderItemId={orderItemId} />
               ) : null}
             </div>
           </Card>
-
-          <RecommendedProductsSection
-            type="SIMILAR"
-            productId={product.id}
-            title="Sản phẩm tương tự"
-            subtitle="Canim AI gợi ý các sản phẩm có danh mục, màu sắc, phong cách hoặc khoảng giá tương tự."
-          />
-
-          <RecommendedProductsSection
-            type="ALSO_VIEWED"
-            productId={product.id}
-            title="Khách cũng quan tâm"
-            subtitle="Một số lựa chọn khác mà khách hàng thường xem cùng sản phẩm này."
-          />
         </div>
 
         <ShopSidebar newProducts={[]} className="hidden lg:block lg:max-w-[280px]" />
