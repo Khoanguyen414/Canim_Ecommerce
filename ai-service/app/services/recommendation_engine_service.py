@@ -1,45 +1,42 @@
-import json
-from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from app.clients.backend_client import backend_client
-from app.utils.text_utils import normalize_text
 
-
-EVENT_WEIGHTS: dict[str, int] = {
-    "VIEW": 1,
-    "CLICK": 2,
-    "SEARCH": 3,
-    "ADD_TO_CART": 4,
-    "PURCHASE": 10,
-}
 
 DEFAULT_LIMIT = 8
 
-class RecommendationEngineService:
-    def recommend_for_user(
-        self,
-        user_id: int,
-        limit: int = DEFAULT_LIMIT,
-    ) -> list[dict[str, Any]]:
-        product_contexts = self._get_product_contexts()
-        user_events = self._get_user_recent_events(user_id)
 
-        if not product_contexts:
+class RecommendationEngineService:
+    """
+    RecommendationEngineService là nơi tính gợi ý sản phẩm.
+
+    Logic chính:
+    - Lấy sản phẩm từ backend.
+    - Normalize field vì backend có thể trả productId hoặc id, imageUrl hoặc image_url.
+    - Match query khách theo name, slug, category, color, size, searchableText.
+    - Nếu không match, fallback về sản phẩm ACTIVE/còn hàng.
+    """
+
+    def __init__(self) -> None:
+        self.backend_client = backend_client
+
+    def recommend_contextual(
+        self,
+        message: str,
+        user_id: int | None = None,
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        products = self._get_recommendable_products()
+
+        if not products:
+            print("[RecommendationEngine] No products from backend")
             return []
 
-        user_profile = self._build_user_profile(user_events)
-
+        query = self._normalize_text(message)
         scored_products: list[dict[str, Any]] = []
 
-        for product in product_contexts:
-            if not self._is_recommendable_product(product):
-                continue
-
-            score, reasons = self._score_product_for_user(
-                product=product,
-                user_profile=user_profile,
-            )
+        for product in products:
+            score, reasons = self._score_by_query(product, query)
 
             if score <= 0:
                 continue
@@ -56,29 +53,51 @@ class RecommendationEngineService:
             reverse=True,
         )
 
-        return scored_products[:limit]
+        if scored_products:
+            return scored_products[:limit]
+
+        fallback_products = self._fallback_products(products, limit=limit)
+
+        print(
+            "[RecommendationEngine] Query no match, fallback products:",
+            len(fallback_products),
+        )
+
+        return fallback_products
+
+    def recommend_for_user(
+        self,
+        user_id: int,
+        limit: int = DEFAULT_LIMIT,
+    ) -> list[dict[str, Any]]:
+        products = self._get_recommendable_products()
+
+        if not products:
+            return []
+
+        return self._fallback_products(products, limit=limit)
 
     def recommend_trending(
         self,
         limit: int = DEFAULT_LIMIT,
         days: int = 30,
     ) -> list[dict[str, Any]]:
-        product_contexts = self._get_product_contexts()
-        trending_events = self._get_trending_events(days=days)
+        products = self._get_recommendable_products()
 
-        if not product_contexts:
+        if not products:
             return []
 
-        product_scores = self._build_product_score_map(trending_events)
+        events = self.backend_client.get_trending_events(days=days)
+        event_scores = self._build_event_score_map(events)
+
+        if not event_scores:
+            return self._fallback_products(products, limit=limit)
 
         scored_products: list[dict[str, Any]] = []
 
-        for product in product_contexts:
-            if not self._is_recommendable_product(product):
-                continue
-
-            product_id = self._safe_int(product.get("productId"))
-            score = float(product_scores.get(product_id, 0))
+        for product in products:
+            product_id = self._safe_int(product.get("product_id"))
+            score = float(event_scores.get(product_id, 0))
 
             if score <= 0:
                 continue
@@ -97,38 +116,38 @@ class RecommendationEngineService:
             reverse=True,
         )
 
-        return scored_products[:limit]
+        return scored_products[:limit] if scored_products else self._fallback_products(products, limit)
 
     def recommend_similar(
         self,
         product_id: int,
         limit: int = DEFAULT_LIMIT,
     ) -> list[dict[str, Any]]:
-        product_contexts = self._get_product_contexts()
+        products = self._get_recommendable_products()
 
-        if not product_contexts:
+        if not products:
             return []
 
-        target_product = self._find_product_context(product_contexts, product_id)
+        target_product = None
 
-        if target_product is None:
-            return []
+        for product in products:
+            if self._safe_int(product.get("product_id")) == product_id:
+                target_product = product
+                break
 
+        if not target_product:
+            return self._fallback_products(products, limit=limit)
+
+        target_text = self._build_search_text(target_product)
         scored_products: list[dict[str, Any]] = []
 
-        for product in product_contexts:
-            if not self._is_recommendable_product(product):
-                continue
-
-            current_product_id = self._safe_int(product.get("productId"))
+        for product in products:
+            current_product_id = self._safe_int(product.get("product_id"))
 
             if current_product_id == product_id:
                 continue
 
-            score, reasons = self._score_similar_product(
-                target_product=target_product,
-                candidate_product=product,
-            )
+            score, reasons = self._score_similarity(product, target_text, target_product)
 
             if score <= 0:
                 continue
@@ -145,474 +164,469 @@ class RecommendationEngineService:
             reverse=True,
         )
 
-        return scored_products[:limit]
+        return scored_products[:limit] if scored_products else self._fallback_products(products, limit)
 
-    def recommend_contextual(
+    def recommend_also_viewed(
         self,
-        message: str,
-        user_id: Optional[int] = None,
+        product_id: int,
         limit: int = DEFAULT_LIMIT,
     ) -> list[dict[str, Any]]:
+        return self.recommend_similar(product_id=product_id, limit=limit)
 
-        product_contexts = self._get_product_contexts()
+    def _get_recommendable_products(self) -> list[dict[str, Any]]:
+        raw_products = self.backend_client.get_product_contexts()
+        normalized_products: list[dict[str, Any]] = []
 
-        if not product_contexts:
-            return []
+        for raw_product in raw_products:
+            product = self._normalize_product(raw_product)
 
-        normalized_message = normalize_text(message)
-        user_profile = {}
-
-        if user_id is not None:
-            user_events = self._get_user_recent_events(user_id)
-            user_profile = self._build_user_profile(user_events)
-
-        scored_products: list[dict[str, Any]] = []
-
-        for product in product_contexts:
             if not self._is_recommendable_product(product):
                 continue
 
-            text_score, text_reasons = self._score_product_by_text(
-                product=product,
-                normalized_message=normalized_message,
-            )
+            normalized_products.append(product)
 
-            behavior_score = 0.0
-            behavior_reasons: list[str] = []
+        print("[RecommendationEngine] recommendable products:", len(normalized_products))
 
-            if user_profile:
-                behavior_score, behavior_reasons = self._score_product_for_user(
-                    product=product,
-                    user_profile=user_profile,
-                )
+        return normalized_products
 
-            final_score = text_score + behavior_score
-            reasons = text_reasons + behavior_reasons
-
-            if final_score <= 0:
-                continue
-
-            product_with_score = dict(product)
-            product_with_score["recommendationScore"] = round(final_score, 2)
-            product_with_score["recommendationReasons"] = reasons
-            product_with_score["score"] = round(final_score)
-
-            scored_products.append(product_with_score)
-
-        scored_products.sort(
-            key=lambda item: item.get("recommendationScore", 0),
-            reverse=True,
+    def _normalize_product(self, raw: dict[str, Any]) -> dict[str, Any]:
+        product_id = self._first_value(
+            raw,
+            ["product_id", "productId", "id"],
         )
 
-        return scored_products[:limit]
-
-    def _get_product_contexts(self) -> list[dict[str, Any]]:
-
-        try:
-            products = backend_client.get_product_contexts()
-            return products if isinstance(products, list) else []
-        except Exception:
-            return []
-
-    def _get_user_recent_events(self, user_id: int) -> list[dict[str, Any]]:
-        return self._safe_backend_call("get_user_recent_events", user_id)
-
-    def _get_trending_events(self, days: int) -> list[dict[str, Any]]:
-        return self._safe_backend_call("get_trending_user_events", days)
-
-    def _safe_backend_call(
-        self,
-        method_name: str,
-        *args: Any,
-    ) -> list[dict[str, Any]]:
-        method = getattr(backend_client, method_name, None)
-
-        if method is None:
-            return []
-
-        try:
-            result = method(*args)
-            return result if isinstance(result, list) else []
-        except Exception:
-            return []
-
-    def _build_user_profile(
-        self,
-        events: list[dict[str, Any]],
-    ) -> dict[str, Any]:
-        product_scores: dict[int, float] = {}
-        color_scores: dict[str, float] = {}
-        size_scores: dict[str, float] = {}
-        keyword_scores: dict[str, float] = {}
-        price_values: list[float] = []
-
-        for event in events:
-            event_type = str(event.get("eventType") or "")
-            event_weight = self._safe_float(
-                event.get("eventWeight"),
-                default=float(EVENT_WEIGHTS.get(event_type, 0)),
-            )
-
-            recency_multiplier = self._recency_multiplier(event.get("occurredAt"))
-            weighted_score = event_weight * recency_multiplier
-
-            product_id = self._safe_int(event.get("productId"))
-
-            if product_id is not None:
-                product_scores[product_id] = (
-                    product_scores.get(product_id, 0.0) + weighted_score
-                )
-
-            meta = self._parse_event_meta(event.get("eventMeta"))
-
-            color = self._safe_str(meta.get("color"))
-            size = self._safe_str(meta.get("size"))
-            keyword = self._safe_str(meta.get("keyword"))
-            price = self._safe_float(meta.get("price"), default=0.0)
-
-            if color:
-                color_scores[color] = color_scores.get(color, 0.0) + weighted_score
-
-            if size:
-                size_scores[size] = size_scores.get(size, 0.0) + weighted_score
-
-            if keyword:
-                keyword_scores[keyword] = keyword_scores.get(keyword, 0.0) + weighted_score
-
-            if price > 0:
-                price_values.append(price)
-
-        average_price = (
-            sum(price_values) / len(price_values)
-            if price_values
-            else None
+        variant_id = self._first_value(
+            raw,
+            ["variant_id", "variantId", "defaultVariantId"],
         )
 
-        return {
-            "product_scores": product_scores,
-            "color_scores": color_scores,
-            "size_scores": size_scores,
-            "keyword_scores": keyword_scores,
-            "average_price": average_price,
+        name = self._first_value(
+            raw,
+            ["name", "productName", "title"],
+        )
+
+        slug = self._first_value(
+            raw,
+            ["slug", "productSlug"],
+        )
+
+        brand = self._first_value(
+            raw,
+            ["brand", "brandName"],
+        )
+
+        category_name = self._first_value(
+            raw,
+            ["category_name", "categoryName", "category"],
+        )
+
+        color = self._first_value(
+            raw,
+            ["color", "variantColor"],
+        )
+
+        size = self._first_value(
+            raw,
+            ["size", "variantSize"],
+        )
+
+        price = self._first_value(
+            raw,
+            ["price", "salePrice", "finalPrice", "minPrice"],
+        )
+
+        available_quantity = self._first_value(
+            raw,
+            [
+                "available_quantity",
+                "availableQuantity",
+                "stock",
+                "totalStock",
+                "inventoryQuantity",
+                "quantity",
+            ],
+        )
+
+        image_url = self._first_value(
+            raw,
+            [
+                "image_url",
+                "imageUrl",
+                "mainImageUrl",
+                "thumbnail",
+                "thumbnailUrl",
+                "image",
+            ],
+        )
+
+        status = self._first_value(
+            raw,
+            ["status", "productStatus"],
+        )
+
+        searchable_text = self._first_value(
+            raw,
+            ["searchableText", "searchable_text", "description"],
+        )
+
+        normalized = {
+            "product_id": self._safe_int(product_id),
+            "variant_id": self._safe_int(variant_id),
+            "name": self._safe_str(name),
+            "slug": self._safe_str(slug),
+            "brand": self._safe_str(brand),
+            "category_name": self._safe_str(category_name),
+            "color": self._safe_str(color),
+            "size": self._safe_str(size),
+            "price": self._safe_number(price),
+            "available_quantity": self._safe_int(available_quantity),
+            "image_url": self._safe_str(image_url),
+            "status": self._safe_str(status),
+            "searchableText": self._safe_str(searchable_text),
         }
 
-    def _build_product_score_map(
-        self,
-        events: list[dict[str, Any]],
-    ) -> dict[int, float]:
+        normalized["searchText"] = self._build_search_text(normalized)
 
-        product_scores: dict[int, float] = {}
-
-        for event in events:
-            product_id = self._safe_int(event.get("productId"))
-
-            if product_id is None:
-                continue
-
-            event_type = str(event.get("eventType") or "")
-            event_weight = self._safe_float(
-                event.get("eventWeight"),
-                default=float(EVENT_WEIGHTS.get(event_type, 0)),
-            )
-
-            recency_multiplier = self._recency_multiplier(event.get("occurredAt"))
-            score = event_weight * recency_multiplier
-
-            product_scores[product_id] = product_scores.get(product_id, 0.0) + score
-
-        return product_scores
-
-    def _score_product_for_user(
-        self,
-        product: dict[str, Any],
-        user_profile: dict[str, Any],
-    ) -> tuple[float, list[str]]:
-
-        score = 0.0
-        reasons: list[str] = []
-
-        product_id = self._safe_int(product.get("productId"))
-        product_scores = user_profile.get("product_scores", {})
-
-        if product_id is not None and product_id in product_scores:
-            product_score = float(product_scores[product_id])
-            score += product_score
-            reasons.append("Bạn đã từng quan tâm sản phẩm này")
-
-        color = self._safe_str(product.get("color"))
-        color_scores = user_profile.get("color_scores", {})
-
-        if color and color in color_scores:
-            score += min(float(color_scores[color]) * 0.4, 4.0)
-            reasons.append(f"Phù hợp màu bạn hay quan tâm: {color}")
-
-        size = self._safe_str(product.get("size"))
-        size_scores = user_profile.get("size_scores", {})
-
-        if size and size in size_scores:
-            score += min(float(size_scores[size]) * 0.3, 3.0)
-            reasons.append(f"Phù hợp size bạn hay chọn: {size}")
-
-        average_price = user_profile.get("average_price")
-        product_price = self._safe_float(product.get("price"), default=0.0)
-
-        if average_price and product_price > 0:
-            price_score = self._score_price_similarity(product_price, average_price)
-            if price_score > 0:
-                score += price_score
-                reasons.append("Nằm trong khoảng giá bạn thường quan tâm")
-
-        keyword_scores = user_profile.get("keyword_scores", {})
-        searchable_text = normalize_text(
-            " ".join(
-                [
-                    self._safe_str(product.get("name")),
-                    self._safe_str(product.get("categoryName")),
-                    self._safe_str(product.get("brand")),
-                    self._safe_str(product.get("searchableText")),
-                ]
-            )
-        )
-
-        for keyword, keyword_score in keyword_scores.items():
-            normalized_keyword = normalize_text(keyword)
-            if normalized_keyword and normalized_keyword in searchable_text:
-                score += min(float(keyword_score) * 0.5, 3.0)
-                reasons.append(f"Khớp từ khóa bạn từng tìm: {keyword}")
-
-        return score, self._unique_reasons(reasons)
-
-    def _score_product_by_text(
-        self,
-        product: dict[str, Any],
-        normalized_message: str,
-    ) -> tuple[float, list[str]]:
-        # Tính điểm sản phẩm theo câu khách nhập.
-        #
-        # Ví dụ:
-        # message = "áo khoác xanh size L"
-        # product có searchableText chứa áo khoác, xanh, L
-        # → score tăng.
-
-        if not normalized_message:
-            return 0.0, []
-
-        score = 0.0
-        reasons: list[str] = []
-
-        name = normalize_text(self._safe_str(product.get("name")))
-        category = normalize_text(self._safe_str(product.get("categoryName")))
-        brand = normalize_text(self._safe_str(product.get("brand")))
-        color = normalize_text(self._safe_str(product.get("color")))
-        size = normalize_text(self._safe_str(product.get("size")))
-        searchable_text = normalize_text(self._safe_str(product.get("searchableText")))
-
-        product_text = " ".join(
-            [name, category, brand, color, size, searchable_text]
-        )
-
-        message_tokens = [
-            token
-            for token in normalized_message.split()
-            if len(token) >= 2
-        ]
-
-        matched_tokens = 0
-
-        for token in message_tokens:
-            if token in product_text:
-                matched_tokens += 1
-
-        if matched_tokens > 0:
-            score += matched_tokens
-            reasons.append("Khớp nội dung khách đang tìm")
-
-        if category and category in normalized_message:
-            score += 4
-            reasons.append("Khớp danh mục sản phẩm")
-
-        if color and color in normalized_message:
-            score += 3
-            reasons.append("Khớp màu sắc khách muốn")
-
-        if size and size in normalized_message:
-            score += 2
-            reasons.append("Khớp size khách muốn")
-
-        if name and name in normalized_message:
-            score += 5
-            reasons.append("Khớp tên sản phẩm")
-
-        return score, self._unique_reasons(reasons)
-
-    def _score_similar_product(
-        self,
-        target_product: dict[str, Any],
-        candidate_product: dict[str, Any],
-    ) -> tuple[float, list[str]]:
-        # Tính điểm sản phẩm tương tự.
-
-        score = 0.0
-        reasons: list[str] = []
-
-        if self._same_text_field(target_product, candidate_product, "categoryName"):
-            score += 5
-            reasons.append("Cùng danh mục")
-
-        if self._same_text_field(target_product, candidate_product, "brand"):
-            score += 2
-            reasons.append("Cùng thương hiệu")
-
-        if self._same_text_field(target_product, candidate_product, "color"):
-            score += 2
-            reasons.append("Cùng màu sắc")
-
-        if self._same_text_field(target_product, candidate_product, "size"):
-            score += 1
-            reasons.append("Cùng size")
-
-        target_price = self._safe_float(target_product.get("price"), default=0.0)
-        candidate_price = self._safe_float(candidate_product.get("price"), default=0.0)
-
-        if target_price > 0 and candidate_price > 0:
-            price_score = self._score_price_similarity(candidate_price, target_price)
-            if price_score > 0:
-                score += price_score
-                reasons.append("Khoảng giá tương tự")
-
-        return score, self._unique_reasons(reasons)
-
-    def _find_product_context(
-        self,
-        product_contexts: list[dict[str, Any]],
-        product_id: int,
-    ) -> Optional[dict[str, Any]]:
-        for product in product_contexts:
-            if self._safe_int(product.get("productId")) == product_id:
-                return product
-
-        return None
+        return normalized
 
     def _is_recommendable_product(self, product: dict[str, Any]) -> bool:
-        # Kiểm tra sản phẩm có nên gợi ý không.
-        #
-        # Không gợi ý:
-        # - sản phẩm inactive
-        # - variant inactive
-        # - hết hàng
+        product_id = self._safe_int(product.get("product_id"))
 
-        product_status = self._safe_str(product.get("productStatus"))
-        variant_active = product.get("variantActive")
-        available_quantity = self._safe_int(product.get("availableQuantity"))
-
-        if product_status and product_status != "ACTIVE":
+        if product_id is None:
             return False
 
-        if variant_active is False:
+        status = self._normalize_text(product.get("status"))
+
+        if status and status not in ["active", "available", "dang hien thi"]:
             return False
 
-        if available_quantity is not None and available_quantity <= 0:
+        quantity = product.get("available_quantity")
+
+        if isinstance(quantity, int) and quantity <= 0:
             return False
 
         return True
 
-    def _parse_event_meta(self, raw_meta: Any) -> dict[str, Any]:
-        if raw_meta is None:
-            return {}
-
-        if isinstance(raw_meta, dict):
-            return raw_meta
-
-        if not isinstance(raw_meta, str):
-            return {}
-
-        try:
-            parsed = json.loads(raw_meta)
-            return parsed if isinstance(parsed, dict) else {}
-        except json.JSONDecodeError:
-            return {}
-
-    def _recency_multiplier(self, occurred_at: Any) -> float:
-        # Tính hệ số thời gian.
-        #
-        # Event càng mới thì điểm càng cao.
-        #
-        # 0-7 ngày: 1.2
-        # 8-30 ngày: 1.0
-        # 31-90 ngày: 0.7
-        # cũ hơn: 0.4
-
-        if not occurred_at:
-            return 1.0
-
-        occurred_datetime = self._parse_datetime(occurred_at)
-
-        if occurred_datetime is None:
-            return 1.0
-
-        now = datetime.now(timezone.utc)
-
-        if occurred_datetime.tzinfo is None:
-            occurred_datetime = occurred_datetime.replace(tzinfo=timezone.utc)
-
-        days = (now - occurred_datetime).days
-
-        if days <= 7:
-            return 1.2
-
-        if days <= 30:
-            return 1.0
-
-        if days <= 90:
-            return 0.7
-
-        return 0.4
-
-    def _parse_datetime(self, value: Any) -> Optional[datetime]:
-        if isinstance(value, datetime):
-            return value
-
-        if not isinstance(value, str):
-            return None
-
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00"))
-        except ValueError:
-            return None
-
-    def _score_price_similarity(
+    def _score_by_query(
         self,
-        product_price: float,
-        target_price: float,
+        product: dict[str, Any],
+        query: str,
+    ) -> tuple[float, list[str]]:
+        if not query:
+            return 1.0, ["Sản phẩm đang bán trong shop"]
+
+        search_text = self._build_search_text(product)
+        product_name = self._normalize_text(product.get("name"))
+        slug = self._normalize_text(product.get("slug"))
+        category = self._normalize_text(product.get("category_name"))
+        color = self._normalize_text(product.get("color"))
+        size = self._normalize_text(product.get("size"))
+
+        query_tokens = self._tokenize(query)
+        score = 0.0
+        reasons: list[str] = []
+
+        if product_name and product_name in query:
+            score += 10
+            reasons.append("Tên sản phẩm khớp trực tiếp với nhu cầu")
+
+        if slug and slug.replace("-", " ") in query:
+            score += 8
+            reasons.append("Slug sản phẩm khớp với từ khóa tìm kiếm")
+
+        for token in query_tokens:
+            if len(token) < 2:
+                continue
+
+            if token in product_name:
+                score += 4
+                reasons.append(f"Khớp tên sản phẩm: {token}")
+                continue
+
+            if token in category:
+                score += 3
+                reasons.append(f"Khớp danh mục: {token}")
+                continue
+
+            if token in color:
+                score += 3
+                reasons.append(f"Khớp màu sắc: {token}")
+                continue
+
+            if token in size:
+                score += 2
+                reasons.append(f"Khớp size: {token}")
+                continue
+
+            if token in search_text:
+                score += 1
+                reasons.append(f"Khớp mô tả: {token}")
+
+        if "ao" in query_tokens and "ao" in search_text:
+            score += 2
+
+        if "giay" in query_tokens and "giay" in search_text:
+            score += 2
+
+        if "outfit" in query_tokens or "phoi" in query_tokens or "di" in query_tokens:
+            score += self._score_outfit_product(product, query_tokens)
+
+            if score > 0:
+                reasons.append("Phù hợp để phối outfit")
+
+        if not reasons and score > 0:
+            reasons.append("Sản phẩm phù hợp với nhu cầu tìm kiếm")
+
+        return score, self._deduplicate_reasons(reasons)
+
+    def _score_outfit_product(
+        self,
+        product: dict[str, Any],
+        query_tokens: list[str],
     ) -> float:
-        if product_price <= 0 or target_price <= 0:
-            return 0.0
+        search_text = self._build_search_text(product)
+        score = 0.0
 
-        difference_ratio = abs(product_price - target_price) / target_price
+        outfit_keywords = [
+            "ao",
+            "quan",
+            "vay",
+            "dam",
+            "giay",
+            "blazer",
+            "so",
+            "mi",
+            "thun",
+        ]
 
-        if difference_ratio <= 0.1:
-            return 3.0
+        if any(keyword in search_text for keyword in outfit_keywords):
+            score += 2
 
-        if difference_ratio <= 0.25:
-            return 2.0
+        if "lam" in query_tokens and any(
+            keyword in search_text
+            for keyword in ["so mi", "blazer", "quan", "giay", "basic"]
+        ):
+            score += 3
 
-        if difference_ratio <= 0.4:
-            return 1.0
+        if "choi" in query_tokens and any(
+            keyword in search_text
+            for keyword in ["thun", "giay", "jean", "basic"]
+        ):
+            score += 3
 
-        return 0.0
+        if "be" in query_tokens and any(
+            keyword in search_text for keyword in ["be", "kem", "nau"]
+        ):
+            score += 4
 
-    def _same_text_field(
+        return score
+
+    def _score_similarity(
         self,
-        left: dict[str, Any],
-        right: dict[str, Any],
-        field_name: str,
-    ) -> bool:
-        left_value = normalize_text(self._safe_str(left.get(field_name)))
-        right_value = normalize_text(self._safe_str(right.get(field_name)))
+        product: dict[str, Any],
+        target_text: str,
+        target_product: dict[str, Any],
+    ) -> tuple[float, list[str]]:
+        product_text = self._build_search_text(product)
+        target_tokens = self._tokenize(target_text)
 
-        return bool(left_value and right_value and left_value == right_value)
+        score = 0.0
+        reasons: list[str] = []
 
-    def _safe_int(self, value: Any) -> Optional[int]:
+        for token in target_tokens:
+            if len(token) >= 2 and token in product_text:
+                score += 1
+
+        if product.get("category_name") and product.get("category_name") == target_product.get("category_name"):
+            score += 5
+            reasons.append("Cùng danh mục sản phẩm")
+
+        if product.get("color") and product.get("color") == target_product.get("color"):
+            score += 2
+            reasons.append("Cùng màu sắc")
+
+        if product.get("brand") and product.get("brand") == target_product.get("brand"):
+            score += 2
+            reasons.append("Cùng thương hiệu")
+
+        if score > 0 and not reasons:
+            reasons.append("Có nhiều đặc điểm tương tự")
+
+        return score, reasons
+
+    def _fallback_products(
+        self,
+        products: list[dict[str, Any]],
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        fallback_products: list[dict[str, Any]] = []
+
+        for product in products:
+            product_with_score = dict(product)
+            product_with_score["recommendationScore"] = 1.0
+            product_with_score["recommendationReasons"] = [
+                "Sản phẩm đang hiển thị và còn hàng trong shop"
+            ]
+            product_with_score["score"] = 1
+
+            fallback_products.append(product_with_score)
+
+        fallback_products.sort(
+            key=lambda item: (
+                item.get("available_quantity") or 0,
+                item.get("product_id") or 0,
+            ),
+            reverse=True,
+        )
+
+        return fallback_products[:limit]
+
+    def _build_event_score_map(self, events: list[dict[str, Any]]) -> dict[int, float]:
+        event_weights = {
+            "VIEW": 1,
+            "CLICK": 2,
+            "SEARCH": 3,
+            "ADD_TO_CART": 5,
+            "PURCHASE": 10,
+        }
+
+        scores: dict[int, float] = {}
+
+        for event in events:
+            product_id = self._safe_int(
+                self._first_value(event, ["productId", "product_id", "id"])
+            )
+
+            if product_id is None:
+                continue
+
+            event_type = self._safe_str(
+                self._first_value(event, ["eventType", "event_type", "type"])
+            ).upper()
+
+            scores[product_id] = scores.get(product_id, 0) + event_weights.get(event_type, 1)
+
+        return scores
+
+    def _build_search_text(self, product: dict[str, Any]) -> str:
+        parts = [
+            product.get("name"),
+            product.get("slug"),
+            product.get("brand"),
+            product.get("category_name"),
+            product.get("color"),
+            product.get("size"),
+            product.get("searchableText"),
+        ]
+
+        return self._normalize_text(" ".join(str(part) for part in parts if part))
+
+    def _tokenize(self, text: str) -> list[str]:
+        normalized = self._normalize_text(text)
+
+        return [token for token in normalized.split() if token]
+
+    def _normalize_text(self, value: Any) -> str:
+        text = str(value or "").lower().strip()
+
+        replacements = {
+            "á": "a",
+            "à": "a",
+            "ả": "a",
+            "ã": "a",
+            "ạ": "a",
+            "ă": "a",
+            "ắ": "a",
+            "ằ": "a",
+            "ẳ": "a",
+            "ẵ": "a",
+            "ặ": "a",
+            "â": "a",
+            "ấ": "a",
+            "ầ": "a",
+            "ẩ": "a",
+            "ẫ": "a",
+            "ậ": "a",
+            "đ": "d",
+            "é": "e",
+            "è": "e",
+            "ẻ": "e",
+            "ẽ": "e",
+            "ẹ": "e",
+            "ê": "e",
+            "ế": "e",
+            "ề": "e",
+            "ể": "e",
+            "ễ": "e",
+            "ệ": "e",
+            "í": "i",
+            "ì": "i",
+            "ỉ": "i",
+            "ĩ": "i",
+            "ị": "i",
+            "ó": "o",
+            "ò": "o",
+            "ỏ": "o",
+            "õ": "o",
+            "ọ": "o",
+            "ô": "o",
+            "ố": "o",
+            "ồ": "o",
+            "ổ": "o",
+            "ỗ": "o",
+            "ộ": "o",
+            "ơ": "o",
+            "ớ": "o",
+            "ờ": "o",
+            "ở": "o",
+            "ỡ": "o",
+            "ợ": "o",
+            "ú": "u",
+            "ù": "u",
+            "ủ": "u",
+            "ũ": "u",
+            "ụ": "u",
+            "ư": "u",
+            "ứ": "u",
+            "ừ": "u",
+            "ử": "u",
+            "ữ": "u",
+            "ự": "u",
+            "ý": "y",
+            "ỳ": "y",
+            "ỷ": "y",
+            "ỹ": "y",
+            "ỵ": "y",
+        }
+
+        for source, target in replacements.items():
+            text = text.replace(source, target)
+
+        separators = [",", ".", ";", ":", "/", "\\", "-", "_", "(", ")", "[", "]"]
+
+        for separator in separators:
+            text = text.replace(separator, " ")
+
+        return " ".join(text.split())
+
+    def _first_value(self, source: dict[str, Any], keys: list[str]) -> Any:
+        for key in keys:
+            value = source.get(key)
+
+            if value is not None:
+                return value
+
+        return None
+
+    def _safe_str(self, value: Any) -> str | None:
+        if value is None:
+            return None
+
+        text = str(value).strip()
+
+        return text or None
+
+    def _safe_int(self, value: Any) -> int | None:
         if value is None:
             return None
 
@@ -621,29 +635,27 @@ class RecommendationEngineService:
         except (TypeError, ValueError):
             return None
 
-    def _safe_float(self, value: Any, default: float = 0.0) -> float:
+    def _safe_number(self, value: Any) -> float | None:
         if value is None:
-            return default
+            return None
 
         try:
             return float(value)
         except (TypeError, ValueError):
-            return default
+            return None
 
-    def _safe_str(self, value: Any) -> str:
-        if value is None:
-            return ""
-
-        return str(value).strip()
-
-    def _unique_reasons(self, reasons: list[str]) -> list[str]:
-        unique: list[str] = []
+    def _deduplicate_reasons(self, reasons: list[str]) -> list[str]:
+        result: list[str] = []
+        seen: set[str] = set()
 
         for reason in reasons:
-            if reason and reason not in unique:
-                unique.append(reason)
+            if reason in seen:
+                continue
 
-        return unique
+            seen.add(reason)
+            result.append(reason)
+
+        return result[:4]
 
 
 recommendation_engine_service = RecommendationEngineService()

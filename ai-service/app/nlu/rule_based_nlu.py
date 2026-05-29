@@ -20,42 +20,30 @@ class RuleBasedNLU:
     """
     RuleBasedNLU là tầng guardrail an toàn.
 
-    Nó xử lý chắc chắn các case quan trọng:
-    - Chào hỏi không được hiện sản phẩm.
-    - Hỏi size phải bắt được số đo.
-    - Khách phàn nàn thì không bán hàng tiếp.
-    - Hỏi đơn hàng thì không hiện carousel sản phẩm.
+    Nhiệm vụ:
+    - Nhận diện câu chào.
+    - Nhận diện hỏi size.
+    - Nhận diện phàn nàn.
+    - Nhận diện theo dõi đơn hàng.
+    - Nhận diện tìm sản phẩm / gợi ý outfit.
     """
 
     COMPLAINT_KEYWORDS = [
-        "tào lào",
         "tao lao",
-        "vô tri",
         "vo tri",
-        "chán",
         "chan",
-        "sai rồi",
         "sai roi",
-        "không đúng",
         "khong dung",
-        "rep gì",
         "rep gi",
-        "trả lời gì",
         "tra loi gi",
-        "khó chịu",
         "kho chiu",
-        "bực",
         "buc",
     ]
 
     GREETING_KEYWORDS = [
-        "xin chào",
         "xin chao",
-        "chào shop",
         "chao shop",
-        "chào bạn",
         "chao ban",
-        "chào",
         "chao",
         "hello",
         "hi",
@@ -63,133 +51,180 @@ class RuleBasedNLU:
     ]
 
     THANKS_KEYWORDS = [
-        "cảm ơn",
         "cam on",
         "thanks",
         "thank you",
-        "ok cảm ơn",
-        "oke cảm ơn",
-    ]
-
-    OUTFIT_KEYWORDS = [
-        "outfit",
-        "phối đồ",
-        "phoi do",
-        "mix đồ",
-        "mix do",
-        "đi làm",
-        "di lam",
-        "đi chơi",
-        "di choi",
-        "đi tiệc",
-        "di tiec",
-        "tone",
-        "style",
-        "phong cách",
-        "phong cach",
-    ]
-
-    PRODUCT_KEYWORDS = [
-        "áo",
-        "ao",
-        "quần",
-        "quan",
-        "váy",
-        "vay",
-        "đầm",
-        "dam",
-        "blazer",
-        "sơ mi",
-        "so mi",
-        "áo khoác",
-        "ao khoac",
-        "jean",
-        "denim",
-        "sản phẩm",
-        "san pham",
-        "tìm",
-        "tim",
-        "mua",
-    ]
-
-    SIZE_KEYWORDS = [
-        "size",
-        "kích cỡ",
-        "kich co",
-        "mặc vừa",
-        "mac vua",
-        "mặc rộng",
-        "mac rong",
-        "oversize",
-        "cao",
-        "nặng",
-        "nang",
-        "kg",
-        "ký",
-        "ki",
-        "cân",
-        "can",
+        "ok cam on",
+        "oke cam on",
     ]
 
     ORDER_KEYWORDS = [
-        "đơn hàng",
         "don hang",
-        "mã đơn",
         "ma don",
-        "trạng thái đơn",
         "trang thai don",
-        "theo dõi đơn",
         "theo doi don",
-        "kiểm tra đơn",
         "kiem tra don",
         "order",
     ]
 
+    SIZE_KEYWORDS = [
+        "size",
+        "kich co",
+        "mac vua",
+        "mac rong",
+        "oversize",
+        "cao",
+        "nang",
+        "kg",
+        "ky",
+        "ki",
+        "can",
+    ]
+
     PROMOTION_KEYWORDS = [
-        "khuyến mãi",
         "khuyen mai",
-        "giảm giá",
         "giam gia",
         "voucher",
-        "mã giảm",
         "ma giam",
         "sale",
+        "freeship",
     ]
 
     SHIPPING_KEYWORDS = [
-        "giao hàng",
         "giao hang",
         "ship",
         "shipping",
-        "bao lâu",
         "bao lau",
-        "phí ship",
         "phi ship",
+        "van chuyen",
     ]
 
     RETURN_KEYWORDS = [
-        "đổi trả",
         "doi tra",
-        "trả hàng",
         "tra hang",
-        "hoàn tiền",
         "hoan tien",
-        "đổi size",
         "doi size",
+        "bao hanh",
     ]
 
     SECURITY_KEYWORDS = [
         "hack",
         "sql injection",
-        "đánh cắp",
         "danh cap",
         "password",
-        "mật khẩu",
         "mat khau",
     ]
 
+    OUTFIT_KEYWORDS = [
+        "outfit",
+        "phoi do",
+        "mix do",
+        "set do",
+        "combo",
+        "look",
+        "style",
+        "phong cach",
+    ]
+
+    OUTFIT_CONTEXT_KEYWORDS = [
+        "di lam",
+        "di choi",
+        "di tiec",
+        "di hoc",
+        "di hen ho",
+        "cong so",
+        "thanh lich",
+        "nang dong",
+        "nu tinh",
+        "ca tinh",
+        "tone",
+        "mau",
+    ]
+
+    PRODUCT_ACTION_KEYWORDS = [
+        "goi y",
+        "tim",
+        "mua",
+        "chon",
+        "loc",
+        "co",
+        "ban",
+        "recommend",
+        "suggest",
+    ]
+
+    PRODUCT_KEYWORDS = [
+        # Nhóm chung
+        "san pham",
+        "hang",
+        "item",
+        "do",
+        "mau",
+
+        # Áo
+        "ao",
+        "ao thun",
+        "ao phong",
+        "ao so mi",
+        "so mi",
+        "ao khoac",
+        "hoodie",
+        "sweater",
+        "blazer",
+        "vest",
+
+        # Quần
+        "quan",
+        "quan jean",
+        "jean",
+        "denim",
+        "quan tay",
+        "quan au",
+        "quan short",
+        "quan ong suong",
+
+        # Váy / đầm
+        "vay",
+        "dam",
+        "chan vay",
+
+        # Giày dép
+        "giay",
+        "giay da",
+        "giay da nam",
+        "giay the thao",
+        "sneaker",
+        "dep",
+        "sandal",
+
+        # Phụ kiện
+        "phu kien",
+        "tui",
+        "balo",
+        "mu",
+        "non",
+        "that lung",
+        "vi",
+
+        # Thuộc tính sản phẩm
+        "basic",
+        "local",
+        "nam",
+        "nu",
+        "unisex",
+        "den",
+        "trang",
+        "nau",
+        "be",
+        "kem",
+        "xanh",
+        "do",
+        "hong",
+        "size",
+    ]
+
     def analyze_message(self, message: str) -> NLUResult:
-        text = message.strip().lower()
+        text = self._normalize_text(message)
         entities = self._extract_entities(text)
 
         if self._contains_any(text, self.SECURITY_KEYWORDS):
@@ -204,10 +239,10 @@ class RuleBasedNLU:
         if self._is_size_message(text, entities):
             return NLUResult("SIZE_SUGGESTION", "NEUTRAL", entities)
 
-        if self._contains_any(text, self.OUTFIT_KEYWORDS):
+        if self._is_outfit_message(text):
             return NLUResult("OUTFIT_SUGGESTION", "NEUTRAL", entities)
 
-        if self._contains_any(text, self.PRODUCT_KEYWORDS):
+        if self._is_product_message(text):
             return NLUResult("PRODUCT_RECOMMENDATION", "NEUTRAL", entities)
 
         if self._contains_any(text, self.PROMOTION_KEYWORDS):
@@ -281,12 +316,10 @@ class RuleBasedNLU:
 
     def _extract_weight_kg(self, text: str) -> int | None:
         patterns = [
-            r"nặng\s*([3-9][0-9])",
             r"nang\s*([3-9][0-9])",
             r"([3-9][0-9])\s*kg",
-            r"([3-9][0-9])\s*ký",
+            r"([3-9][0-9])\s*ky",
             r"([3-9][0-9])\s*ki",
-            r"([3-9][0-9])\s*cân",
             r"([3-9][0-9])\s*can",
         ]
 
@@ -307,10 +340,10 @@ class RuleBasedNLU:
         return match.group(0).upper()
 
     def _extract_fit_preference(self, text: str) -> str | None:
-        if self._contains_any(text, ["oversize", "rộng", "rong", "thoải mái", "thoai mai"]):
+        if self._contains_any(text, ["oversize", "rong", "thoai mai", "rộng"]):
             return "OVERSIZE"
 
-        if self._contains_any(text, ["ôm", "om", "vừa", "vua", "fit"]):
+        if self._contains_any(text, ["om", "vua", "fit"]):
             return "REGULAR"
 
         return None
@@ -321,8 +354,124 @@ class RuleBasedNLU:
 
         return self._contains_any(text, self.SIZE_KEYWORDS)
 
+    def _is_outfit_message(self, text: str) -> bool:
+        if self._contains_any(text, self.OUTFIT_KEYWORDS):
+            return True
+
+        has_action = self._contains_any(text, self.PRODUCT_ACTION_KEYWORDS)
+        has_outfit_context = self._contains_any(text, self.OUTFIT_CONTEXT_KEYWORDS)
+        has_multiple_item_hint = self._contains_any(
+            text,
+            ["phoi", "mix", "set", "combo", "di lam", "di choi", "di tiec"],
+        )
+
+        return has_action and has_outfit_context and has_multiple_item_hint
+
+    def _is_product_message(self, text: str) -> bool:
+        has_product_keyword = self._contains_any(text, self.PRODUCT_KEYWORDS)
+        has_action_keyword = self._contains_any(text, self.PRODUCT_ACTION_KEYWORDS)
+
+        # Ví dụ:
+        # "gợi ý giày da nam"
+        # "tìm áo thun basic"
+        # "mua quần jean"
+        if has_action_keyword and has_product_keyword:
+            return True
+
+        # Ví dụ:
+        # "áo thun basic"
+        # "giày da nam"
+        # "quần jean đen"
+        if has_product_keyword:
+            return True
+
+        return False
+
     def _contains_any(self, text: str, keywords: list[str]) -> bool:
         return any(keyword in text for keyword in keywords)
+
+    def _normalize_text(self, value: str) -> str:
+        text = str(value or "").lower().strip()
+
+        replacements = {
+            "á": "a",
+            "à": "a",
+            "ả": "a",
+            "ã": "a",
+            "ạ": "a",
+            "ă": "a",
+            "ắ": "a",
+            "ằ": "a",
+            "ẳ": "a",
+            "ẵ": "a",
+            "ặ": "a",
+            "â": "a",
+            "ấ": "a",
+            "ầ": "a",
+            "ẩ": "a",
+            "ẫ": "a",
+            "ậ": "a",
+            "đ": "d",
+            "é": "e",
+            "è": "e",
+            "ẻ": "e",
+            "ẽ": "e",
+            "ẹ": "e",
+            "ê": "e",
+            "ế": "e",
+            "ề": "e",
+            "ể": "e",
+            "ễ": "e",
+            "ệ": "e",
+            "í": "i",
+            "ì": "i",
+            "ỉ": "i",
+            "ĩ": "i",
+            "ị": "i",
+            "ó": "o",
+            "ò": "o",
+            "ỏ": "o",
+            "õ": "o",
+            "ọ": "o",
+            "ô": "o",
+            "ố": "o",
+            "ồ": "o",
+            "ổ": "o",
+            "ỗ": "o",
+            "ộ": "o",
+            "ơ": "o",
+            "ớ": "o",
+            "ờ": "o",
+            "ở": "o",
+            "ỡ": "o",
+            "ợ": "o",
+            "ú": "u",
+            "ù": "u",
+            "ủ": "u",
+            "ũ": "u",
+            "ụ": "u",
+            "ư": "u",
+            "ứ": "u",
+            "ừ": "u",
+            "ử": "u",
+            "ữ": "u",
+            "ự": "u",
+            "ý": "y",
+            "ỳ": "y",
+            "ỷ": "y",
+            "ỹ": "y",
+            "ỵ": "y",
+        }
+
+        for source, target in replacements.items():
+            text = text.replace(source, target)
+
+        separators = [",", ".", ";", ":", "/", "\\", "-", "_", "(", ")", "[", "]"]
+
+        for separator in separators:
+            text = text.replace(separator, " ")
+
+        return " ".join(text.split())
 
 
 rule_based_nlu = RuleBasedNLU()

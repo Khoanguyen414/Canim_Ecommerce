@@ -24,16 +24,16 @@ class ChatService:
             state=state,
         )
 
-        reply_message = self._build_reply_message(
-            message=message,
-            nlu_intent=nlu.intent,
-            policy=policy,
-            state=state,
-        )
-
         recommended_products = self._build_products(
             message=message,
             widget_type=policy["widgetType"],
+        )
+
+        reply_message = self._build_reply_message(
+            nlu_intent=nlu.intent,
+            policy=policy,
+            state=state,
+            recommended_products=recommended_products,
         )
 
         self._update_state_after_reply(
@@ -78,10 +78,10 @@ class ChatService:
 
     def _build_reply_message(
         self,
-        message: str,
         nlu_intent: str,
         policy: dict[str, Any],
         state: Any,
+        recommended_products: list[dict[str, Any]],
     ) -> str:
         widget_type = policy["widgetType"]
 
@@ -99,18 +99,42 @@ class ChatService:
             return self._build_order_reply(state)
 
         if widget_type == "PRODUCT_CAROUSEL":
-            if nlu_intent == "OUTFIT_SUGGESTION":
-                return (
-                    "Dạ với nhu cầu phối đồ của Anh/Chị, Canim gợi ý một vài item phù hợp nè ✨ "
-                    "Mình có thể phối theo tone màu, dịp mặc và phong cách mong muốn để outfit hài hòa hơn ạ."
-                )
-
-            return (
-                "Dạ đây là một vài gợi ý phù hợp với nhu cầu của Anh/Chị nè ✨ "
-                "Anh/Chị muốn em lọc thêm theo màu, size hoặc khoảng giá không ạ?"
+            return self._build_product_reply(
+                nlu_intent=nlu_intent,
+                recommended_products=recommended_products,
             )
 
         return self._build_text_reply(nlu_intent, state)
+
+    def _build_product_reply(
+        self,
+        nlu_intent: str,
+        recommended_products: list[dict[str, Any]],
+    ) -> str:
+        if not recommended_products:
+            if nlu_intent == "OUTFIT_SUGGESTION":
+                return (
+                    "Dạ em hiểu Anh/Chị đang muốn gợi ý outfit ạ ✨ "
+                    "Tuy nhiên hiện dữ liệu sản phẩm phù hợp trong shop chưa đủ để em ghép outfit chính xác. "
+                    "Anh/Chị có thể thử mô tả sát hơn như áo thun, giày, màu be, size M hoặc khoảng giá mong muốn nha."
+                )
+
+            return (
+                "Dạ em hiểu Anh/Chị đang muốn tìm sản phẩm ạ ✨ "
+                "Tuy nhiên hiện em chưa tìm thấy sản phẩm phù hợp trong dữ liệu shop. "
+                "Anh/Chị thử nhập rõ hơn tên sản phẩm, màu, size hoặc khoảng giá giúp em nha."
+            )
+
+        if nlu_intent == "OUTFIT_SUGGESTION":
+            return (
+                "Dạ với nhu cầu phối đồ của Anh/Chị, Canim gợi ý một vài item phù hợp nè ✨ "
+                "Mình có thể phối theo tone màu, dịp mặc và phong cách mong muốn để outfit hài hòa hơn ạ."
+            )
+
+        return (
+            "Dạ đây là một vài gợi ý phù hợp với nhu cầu của Anh/Chị nè ✨ "
+            "Anh/Chị muốn em lọc thêm theo màu, size hoặc khoảng giá không ạ?"
+        )
 
     def _build_text_reply(self, intent: str, state: Any) -> str:
         if intent == "GREETING" and state.last_intent in ["SIZE_SUGGESTION", "COMPLAINT"]:
@@ -151,9 +175,7 @@ class ChatService:
             )
 
         if intent == "SECURITY_BLOCK":
-            return (
-                "Dạ yêu cầu này em không thể hỗ trợ vì có thể ảnh hưởng đến bảo mật hệ thống ạ."
-            )
+            return "Dạ yêu cầu này em không thể hỗ trợ vì có thể ảnh hưởng đến bảo mật hệ thống ạ."
 
         return (
             "Dạ Canim AI Stylist xin chào Anh/Chị ✨ "
@@ -228,15 +250,61 @@ class ChatService:
         if widget_type != "PRODUCT_CAROUSEL":
             return []
 
+        primary_products = self._recommend_products_safely(
+            message=message,
+            limit=5,
+            source="primary",
+        )
+
+        if primary_products:
+            return primary_products
+
+        fallback_queries = [
+            "áo thun basic",
+            "giày da nam",
+            "sản phẩm đang bán còn hàng",
+            "sản phẩm active",
+        ]
+
+        for fallback_query in fallback_queries:
+            fallback_products = self._recommend_products_safely(
+                message=fallback_query,
+                limit=5,
+                source=f"fallback:{fallback_query}",
+            )
+
+            if fallback_products:
+                return fallback_products
+
+        return []
+
+    def _recommend_products_safely(
+        self,
+        message: str,
+        limit: int,
+        source: str,
+    ) -> list[dict[str, Any]]:
         try:
             result = self.recommendation_engine_service.recommend_contextual(
                 message=message,
                 user_id=None,
-                limit=5,
+                limit=limit,
             )
 
-            return self._normalize_products(result)
-        except Exception:
+            products = self._normalize_products(result)
+
+            print(
+                f"[Canim AI] recommendation source={source}, "
+                f"query='{message}', count={len(products)}"
+            )
+
+            return products
+        except Exception as exception:
+            print(
+                f"[Canim AI] recommendation error source={source}, "
+                f"query='{message}', error={exception}"
+            )
+
             return []
 
     def _normalize_products(self, result: Any) -> list[dict[str, Any]]:
@@ -244,7 +312,7 @@ class ChatService:
             return [item for item in result if isinstance(item, dict)]
 
         if isinstance(result, dict):
-            items = result.get("items") or result.get("products") or []
+            items = result.get("items") or result.get("products") or result.get("recommended_products") or []
 
             if isinstance(items, list):
                 return [item for item in items if isinstance(item, dict)]
@@ -253,6 +321,11 @@ class ChatService:
 
         if isinstance(items, list):
             return [item for item in items if isinstance(item, dict)]
+
+        products = getattr(result, "products", None)
+
+        if isinstance(products, list):
+            return [item for item in products if isinstance(item, dict)]
 
         return []
 

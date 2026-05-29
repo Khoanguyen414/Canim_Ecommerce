@@ -1,6 +1,7 @@
 package com.example.canim_ecommerce.mapper;
-import java.util.StringJoiner;
+
 import org.springframework.stereotype.Component;
+
 import com.example.canim_ecommerce.dto.response.ai.AiProductContextResponse;
 import com.example.canim_ecommerce.entity.Category;
 import com.example.canim_ecommerce.entity.Product;
@@ -12,61 +13,72 @@ public class AiProductContextMapper {
     public AiProductContextResponse toAiProductContextResponse(
             ProductVariant variant,
             String imageUrl,
-            Integer availableQuantity
-    ) {
+            Integer availableQuantity) {
         Product product = variant.getProduct();
         Category category = product.getCategory();
+
+        String searchableText = buildSearchableText(product, variant, category);
+
         return AiProductContextResponse.builder()
                 .productId(product.getId())
                 .variantId(variant.getId())
                 .sku(variant.getSku())
+
                 .name(product.getName())
                 .slug(product.getSlug())
                 .shortDesc(product.getShortDesc())
                 .longDesc(product.getLongDesc())
                 .brand(product.getBrand())
+
                 .categoryId(category != null ? category.getId() : null)
                 .categoryName(category != null ? category.getName() : null)
                 .categorySlug(category != null ? category.getSlug() : null)
+
                 .color(variant.getColor())
                 .size(variant.getSize())
                 .price(variant.getPrice())
                 .availableQuantity(availableQuantity)
+
                 .imageUrl(imageUrl)
+
                 .productStatus(product.getStatus() != null ? product.getStatus().name() : null)
                 .variantActive(variant.getIsActive())
-                .searchableText(buildSearchableText(product, variant, category))
+
+                .searchableText(searchableText)
                 .build();
     }
 
     private String buildSearchableText(
             Product product,
             ProductVariant variant,
-            Category category
-    ) {
-        StringJoiner joiner = new StringJoiner(" ");
-        addIfNotBlank(joiner, product.getName());
-        addIfNotBlank(joiner, product.getShortDesc());
-        addIfNotBlank(joiner, product.getLongDesc());
-        addIfNotBlank(joiner, product.getBrand());
-        // Thêm thương hiệu vào searchableText nếu có.
+            Category category) {
+        StringBuilder builder = new StringBuilder();
+
+        append(builder, product.getName());
+        append(builder, product.getSlug());
+        append(builder, product.getShortDesc());
+        append(builder, product.getLongDesc());
+        append(builder, product.getBrand());
 
         if (category != null) {
-            addIfNotBlank(joiner, category.getName());
-            addIfNotBlank(joiner, category.getSlug());
+            append(builder, category.getName());
+            append(builder, category.getSlug());
         }
 
-        addIfNotBlank(joiner, variant.getSku());
-        addIfNotBlank(joiner, variant.getColor());
-        addIfNotBlank(joiner, variant.getSize());
-        return joiner.toString().trim().toLowerCase();
-         
+        append(builder, variant.getSku());
+        append(builder, variant.getColor());
+        append(builder, variant.getSize());
+
+        return builder.toString()
+                .trim()
+                .replaceAll("\\s+", " ");
     }
 
-    private void addIfNotBlank(StringJoiner joiner, String value) {
-        if (value != null && !value.trim().isEmpty()) {
-            joiner.add(value.trim());
-            
+    private void append(StringBuilder builder, String value) {
+        if (value == null || value.isBlank()) {
+            return;
         }
+
+        builder.append(value).append(" ");
     }
 }
