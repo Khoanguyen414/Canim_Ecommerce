@@ -6,29 +6,20 @@ import { cn } from "@/lib/cn"
 import { getMinVariantPrice, getProductMainImage } from "@/lib/product"
 import { productToWishlistItem, useWishlistStore } from "@/store/wishlist.store"
 import { resolveColorCss, uniqueVariantColorLabels } from "@/lib/colorSwatch"
+import { useProductTracking } from "@/hooks/useProductTracking"
 
-/**
- * Card sản phẩm tối giản theo phong cách thời trang hiện đại (IVY moda style):
- *   ảnh ▸ chấm màu (✓) + tim ▸ tên ▸ giá + nút giỏ vuông đen.
- *
- * Hỗ trợ đầy đủ ProductDetail (mặc định) và props phẳng (cho mock/external).
- */
 export interface ProductCardViewProps {
   name: string
   imageUrl?: string
   href: string
   priceVnd: number
   inStock: boolean
-  /** Hiển thị badge NEW góc trái-trên */
   isNew?: boolean
-  /** Mã màu CSS để vẽ chấm màu chính */
   colorCss?: string | null
-  /** Tooltip màu */
   colorLabel?: string | null
   product?: ProductDetail
   onAddToCart?: (product: ProductDetail) => void
 
-  // Các props legacy (mock data) — giữ để tương thích, không hiển thị nữa
   originalVnd?: number | null
   discountPercent?: number
   rating?: number
@@ -41,6 +32,7 @@ export interface ProductCardViewProps {
 
 function isLightSwatch(css: string): boolean {
   const h = css.toLowerCase()
+
   if (
     h.includes("fafafa") ||
     h.includes("fde68a") ||
@@ -50,8 +42,10 @@ function isLightSwatch(css: string): boolean {
   ) {
     return true
   }
+
   const hsl = h.match(/hsl\([^,]+,\s*[^,]+,\s*(\d+(?:\.\d+)?)/)
   if (hsl) return parseFloat(hsl[1]) > 72
+
   return false
 }
 
@@ -69,16 +63,30 @@ export function ProductCardView({
   isSample,
 }: ProductCardViewProps) {
   const productId = product?.id
-  const isWishlisted = useWishlistStore((s) => (productId != null ? s.isWishlisted(productId) : false))
+  const isWishlisted = useWishlistStore((s) =>
+    productId != null ? s.isWishlisted(productId) : false,
+  )
   const toggleWishlist = useWishlistStore((s) => s.toggle)
   const swatch = colorCss ?? null
   const light = swatch ? isLightSwatch(swatch) : false
   const canAdd = Boolean(product && onAddToCart && inStock)
+  const { trackProductClick } = useProductTracking()
+
+  const handleTrackProductClick = () => {
+    if (!product?.id) return
+
+    trackProductClick({
+      productId: product.id,
+      variantId: product.variants?.[0]?.id ?? null,
+      source: isSample ? "AI_RECOMMENDATION_CARD" : "PRODUCT_CARD",
+    })
+  }
 
   return (
     <article className="group flex h-full flex-col bg-white">
       <Link
         to={href}
+        onClick={handleTrackProductClick}
         className="relative block aspect-[3/4] overflow-hidden bg-neutral-100"
       >
         {imageUrl ? (
@@ -153,6 +161,7 @@ export function ProductCardView({
 
       <Link
         to={href}
+        onClick={handleTrackProductClick}
         className="mt-2 line-clamp-1 text-[13px] font-normal leading-snug text-neutral-800 transition-colors hover:text-neutral-950"
       >
         {name}
@@ -162,6 +171,7 @@ export function ProductCardView({
         <p className="text-[15px] font-bold tracking-tight text-neutral-900">
           {formatVnd(priceVnd)}
         </p>
+
         <button
           type="button"
           disabled={!canAdd}
@@ -187,8 +197,11 @@ interface ProductCardProps {
 
 function isNewProduct(createdAt?: string): boolean {
   if (!createdAt) return false
+
   const created = new Date(createdAt).getTime()
+
   if (Number.isNaN(created)) return false
+
   return Date.now() - created < 30 * 24 * 60 * 60 * 1000
 }
 
@@ -198,6 +211,7 @@ export function buildProductCardProps(
 ): ProductCardViewProps {
   const colors = uniqueVariantColorLabels(p, 1)
   const primary = colors[0]
+
   return {
     name: p.name,
     imageUrl: getProductMainImage(p),

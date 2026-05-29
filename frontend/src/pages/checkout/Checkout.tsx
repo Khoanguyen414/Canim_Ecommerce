@@ -1,19 +1,25 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { CreditCard, MapPin, ShoppingCart, Truck } from "lucide-react"
+
+import { EmptyState } from "@/components/common/EmptyState"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
-import { MapPin, CreditCard, Truck } from "lucide-react"
+import { cn } from "@/lib/cn"
+import { deliverySummaryFromCustomer, validateCustomerForm } from "@/lib/checkoutCustomer"
+import { formatVnd } from "@/lib/format"
+import { userEventService } from "@/services/userEvent.service"
+import {
+  getVietnamAddressData,
+  type VnDistrict,
+  type VnProvince,
+  type VnWard,
+} from "@/services/vnAddress.service"
+import { useAuthStore } from "@/store/auth.store"
 import { useCartStore } from "@/store/cart.store"
 import { useOrderStore } from "@/store/order.store"
-import { useAuthStore } from "@/store/auth.store"
-import { formatVnd } from "@/lib/format"
-import { EmptyState } from "@/components/common/EmptyState"
-import { ShoppingCart } from "lucide-react"
-import { deliverySummaryFromCustomer, validateCustomerForm } from "@/lib/checkoutCustomer"
-import { cn } from "@/lib/cn"
-import { getVietnamAddressData, type VnDistrict, type VnProvince, type VnWard } from "@/services/vnAddress.service"
 
 export default function Checkout() {
   const navigate = useNavigate()
@@ -51,19 +57,24 @@ export default function Checkout() {
   const shippingChosen = shippingOptions.find((s) => s.id === shippingId)
   const tax = Math.round(subtotal() * 0.08)
   const total = subtotal() + shippingFee + tax
+
   const selectedProvince = useMemo(
     () => provinces.find((province) => province.name === formData.city),
     [provinces, formData.city],
   )
+
   const districts: VnDistrict[] = selectedProvince?.districts ?? []
+
   const selectedDistrict = useMemo(
     () => districts.find((district) => district.name === formData.district),
     [districts, formData.district],
   )
+
   const wards: VnWard[] = selectedDistrict?.wards ?? []
 
   useEffect(() => {
     if (!user) return
+
     setFormData((prev) => ({
       ...prev,
       fullName: prev.fullName || user.fullName || "",
@@ -74,8 +85,10 @@ export default function Checkout() {
 
   useEffect(() => {
     let mounted = true
+
     setLoadingLocations(true)
     setLocationError(null)
+
     void getVietnamAddressData()
       .then((data) => {
         if (!mounted) return
@@ -98,16 +111,20 @@ export default function Checkout() {
   const clearFieldErrors = (...keys: string[]) => {
     setFormErrors((prev) => {
       const next = { ...prev }
+
       keys.forEach((key) => {
         delete next[key]
       })
+
       return next
     })
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
+
     setFormData((prev) => ({ ...prev, [name]: value }))
+
     if (formErrors[name]) {
       setFormErrors((prev) => {
         const next = { ...prev }
@@ -119,20 +136,38 @@ export default function Checkout() {
 
   const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const city = e.target.value
+
     setFormData((prev) => ({ ...prev, city, district: "", ward: "" }))
     clearFieldErrors("city", "district", "ward")
   }
 
   const handleDistrictChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const district = e.target.value
+
     setFormData((prev) => ({ ...prev, district, ward: "" }))
     clearFieldErrors("district", "ward")
   }
 
   const handleWardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const ward = e.target.value
+
     setFormData((prev) => ({ ...prev, ward }))
     clearFieldErrors("ward")
+  }
+
+  const trackLocalPurchaseEvents = async (orderCode: string) => {
+    await Promise.allSettled(
+      lines.map((line) =>
+        userEventService.trackEvent({
+          eventType: "PURCHASE",
+          productId: line.productId,
+          variantId: line.variantId,
+          source: "CHECKOUT_LOCAL_CONFIRM",
+          page: "/checkout",
+          referrer: orderCode,
+        }),
+      ),
+    )
   }
 
   const handlePlaceOrder = async () => {
@@ -147,10 +182,13 @@ export default function Checkout() {
       district: formData.district,
       ward: formData.ward,
     })
+
     setFormErrors(errs)
+
     if (Object.keys(errs).length > 0) return
 
     setSubmitting(true)
+
     try {
       const id = crypto.randomUUID()
       const orderCode = `DH-${Date.now()}`
@@ -186,6 +224,9 @@ export default function Checkout() {
         shippingMethodId: shippingId,
         shippingMethodName: shippingChosen?.name ?? "",
       })
+
+      await trackLocalPurchaseEvents(orderCode)
+
       setFormErrors({})
       clear()
       navigate(`/orders/${id}/confirm`)
@@ -214,6 +255,7 @@ export default function Checkout() {
   return (
     <div className="container py-8">
       <h1 className="mb-4 text-3xl font-bold">Thanh toán</h1>
+
       <p className="mb-8 rounded-lg border border-amber-200/80 bg-amber-50 px-4 py-3 text-sm text-amber-950">
         Đơn của bạn được lưu trên thiết bị để xem lại sau khi đặt. Thanh toán và xác nhận từ cửa hàng sẽ được hoàn thiện thêm trong thời gian tới.
       </p>
@@ -227,42 +269,41 @@ export default function Checkout() {
                 Địa chỉ giao hàng
               </CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-4">
               {Object.keys(formErrors).length > 0 ? (
                 <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
                   <p className="font-semibold">Vui lòng điền đủ thông tin giao hàng:</p>
+
                   <ul className="mt-2 list-disc space-y-0.5 pl-5">
                     {Object.entries(formErrors).map(([k, msg]) => (
-                      <li key={k}>
-                        {msg}
-                      </li>
+                      <li key={k}>{msg}</li>
                     ))}
                   </ul>
                 </div>
               ) : null}
+
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-1">
-                  <Input
-                    placeholder="Họ và tên *"
-                    name="fullName"
-                    value={formData.fullName}
-                    onChange={handleChange}
-                    className={fieldClass("fullName")}
-                    autoComplete="name"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Input
-                    placeholder="Email (tuỳ chọn)"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className={fieldClass("email")}
-                    autoComplete="email"
-                  />
-                </div>
+                <Input
+                  placeholder="Họ và tên *"
+                  name="fullName"
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  className={fieldClass("fullName")}
+                  autoComplete="name"
+                />
+
+                <Input
+                  placeholder="Email (tuỳ chọn)"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className={fieldClass("email")}
+                  autoComplete="email"
+                />
               </div>
+
               <Input
                 placeholder="Số điện thoại *"
                 name="phone"
@@ -271,6 +312,7 @@ export default function Checkout() {
                 className={fieldClass("phone")}
                 autoComplete="tel"
               />
+
               <Input
                 placeholder="Địa chỉ (số nhà, đường) *"
                 name="address"
@@ -279,6 +321,7 @@ export default function Checkout() {
                 className={fieldClass("address")}
                 autoComplete="street-address"
               />
+
               {locationError ? (
                 <div className="space-y-2">
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -289,6 +332,7 @@ export default function Checkout() {
                       onChange={handleChange}
                       className={fieldClass("ward")}
                     />
+
                     <Input
                       placeholder="Quận / Huyện *"
                       name="district"
@@ -296,6 +340,7 @@ export default function Checkout() {
                       onChange={handleChange}
                       className={fieldClass("district")}
                     />
+
                     <Input
                       placeholder="Tỉnh / Thành *"
                       name="city"
@@ -304,6 +349,7 @@ export default function Checkout() {
                       className={fieldClass("city")}
                     />
                   </div>
+
                   <p className="text-sm text-destructive">{locationError}</p>
                 </div>
               ) : (
@@ -318,12 +364,14 @@ export default function Checkout() {
                     <option value="">
                       {loadingLocations ? "Đang tải phường / xã..." : "Chọn phường / xã *"}
                     </option>
+
                     {wards.map((ward) => (
                       <option key={ward.code} value={ward.name}>
                         {ward.name}
                       </option>
                     ))}
                   </Select>
+
                   <Select
                     name="district"
                     value={formData.district}
@@ -334,12 +382,14 @@ export default function Checkout() {
                     <option value="">
                       {loadingLocations ? "Đang tải quận / huyện..." : "Chọn quận / huyện *"}
                     </option>
+
                     {districts.map((district) => (
                       <option key={district.code} value={district.name}>
                         {district.name}
                       </option>
                     ))}
                   </Select>
+
                   <Select
                     name="city"
                     value={formData.city}
@@ -347,7 +397,10 @@ export default function Checkout() {
                     disabled={loadingLocations}
                     className={fieldClass("city")}
                   >
-                    <option value="">{loadingLocations ? "Đang tải tỉnh / thành..." : "Chọn tỉnh / thành *"}</option>
+                    <option value="">
+                      {loadingLocations ? "Đang tải tỉnh / thành..." : "Chọn tỉnh / thành *"}
+                    </option>
+
                     {provinces.map((province) => (
                       <option key={province.code} value={province.name}>
                         {province.name}
@@ -366,6 +419,7 @@ export default function Checkout() {
                 Vận chuyển
               </CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-3">
               {shippingOptions.map((method) => (
                 <label
@@ -378,6 +432,7 @@ export default function Checkout() {
                     checked={shippingId === method.id}
                     onChange={() => setShippingId(method.id)}
                   />
+
                   <div className="flex-1">
                     <p className="font-medium">{method.name}</p>
                     <p className="text-sm text-muted-foreground">{formatVnd(method.price)}</p>
@@ -394,6 +449,7 @@ export default function Checkout() {
                 Thanh toán
               </CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-3">
               {[
                 { id: "cod", name: "Thanh toán khi nhận hàng (COD)" },
@@ -411,6 +467,7 @@ export default function Checkout() {
                     checked={formData.paymentMethod === method.id}
                     onChange={handleChange}
                   />
+
                   <span className="font-medium">{method.name}</span>
                 </label>
               ))}
@@ -421,37 +478,50 @@ export default function Checkout() {
         <div className="lg:col-span-1">
           <Card className="sticky top-24 space-y-4 p-6">
             <h2 className="text-xl font-bold">Đơn hàng</h2>
+
             <div className="max-h-56 space-y-2 overflow-y-auto text-sm">
               {lines.map((l) => (
                 <div key={l.lineId} className="flex justify-between gap-2">
                   <span className="line-clamp-2">
                     {l.productName} × {l.quantity}
                   </span>
+
                   <span className="shrink-0">{formatVnd(l.price * l.quantity)}</span>
                 </div>
               ))}
             </div>
+
             <div className="space-y-2 border-t border-border pt-4 text-sm">
               <div className="flex justify-between">
                 <span>Tạm tính</span>
                 <span>{formatVnd(subtotal())}</span>
               </div>
+
               <div className="flex justify-between">
                 <span>Vận chuyển</span>
                 <span>{formatVnd(shippingFee)}</span>
               </div>
+
               <div className="flex justify-between">
                 <span>Thuế (ước tính)</span>
                 <span>{formatVnd(tax)}</span>
               </div>
             </div>
+
             <div className="flex justify-between border-t border-border pt-4 text-lg font-bold">
               <span>Tổng</span>
               <span className="text-primary">{formatVnd(total)}</span>
             </div>
-            <Button className="h-11 w-full" type="button" disabled={submitting} onClick={() => void handlePlaceOrder()}>
+
+            <Button
+              className="h-11 w-full"
+              type="button"
+              disabled={submitting}
+              onClick={() => void handlePlaceOrder()}
+            >
               {submitting ? "Đang xử lý..." : "Đặt hàng"}
             </Button>
+
             <p className="text-center text-xs text-muted-foreground">
               Sau khi đặt hàng, bạn có thể xem lại thông tin nhận hàng và chỉnh sửa nếu cần trên trang xác nhận.
             </p>
