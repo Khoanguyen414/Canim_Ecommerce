@@ -1,6 +1,8 @@
 package com.example.canim_ecommerce.service.impl;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -27,6 +29,8 @@ import com.example.canim_ecommerce.service.InventoryService;
 import com.example.canim_ecommerce.service.UserEventService;
 import com.example.canim_ecommerce.service.cart.CartRedisCache;
 import com.example.canim_ecommerce.utils.SecurityUtils;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +51,7 @@ public class CartServiceImpl implements CartService {
     CartRedisCache cartRedisCache;
     CartItemRepository cartItemRepository;
     ProductImageRepository productImageRepository;
+    ObjectMapper objectMapper;
 
     @Override
     public CartResponse getMyCart() {
@@ -117,7 +122,7 @@ public class CartServiceImpl implements CartService {
         CartResponse response = cartMapper.toCartResponse(cart);
         enrichCartData(response);
 
-        userEventService.logEventAsync(userId, variant.getProduct().getId(), EventType.ADD_TO_CART, "{\"quantity\":" + request.getQuantity() + "}");
+        logAddToCartEvent(userId, variant, request.getQuantity());
         return response;
     }
 
@@ -191,6 +196,41 @@ public class CartServiceImpl implements CartService {
             cart.getItems().clear();
             cartRedisCache.evict(userId);
         });
+    }
+
+    private void logAddToCartEvent(Long userId, ProductVariant variant, Integer quantity) {
+        if (variant == null || variant.getProduct() == null) {
+            return;
+        }
+
+        userEventService.logEventAsync(
+                userId,
+                variant.getProduct().getId(),
+                EventType.ADD_TO_CART,
+                buildAddToCartMeta(variant, quantity));
+    }
+
+    private String buildAddToCartMeta(ProductVariant variant, Integer quantity) {
+        Map<String, Object> meta = new LinkedHashMap<>();
+
+        meta.put("quantity", quantity);
+        meta.put("variantId", variant.getId());
+        meta.put("sku", variant.getSku());
+        meta.put("color", variant.getColor());
+        meta.put("size", variant.getSize());
+        meta.put("price", variant.getPrice());
+        meta.put("productId", variant.getProduct() == null ? null : variant.getProduct().getId());
+        meta.put("productName", variant.getProduct() == null ? null : variant.getProduct().getName());
+        meta.put("source", "CART_ADD");
+        meta.put("sourceMeaning", "Khách thêm sản phẩm vào giỏ hàng");
+
+        try {
+            return objectMapper.writeValueAsString(meta);
+        } catch (JsonProcessingException exception) {
+            log.warn("Không thể build ADD_TO_CART eventMeta JSON: {}", exception.getMessage());
+
+            return "{\"source\":\"CART_ADD\"}";
+        }
     }
 
     private void enrichCartData(CartResponse response) {
