@@ -6,7 +6,7 @@ import { Alert } from "@/components/ui/Alert"
 import { Badge } from "@/components/ui/Badge"
 import { orderService } from "@/services/order.service"
 import { getApiErrorMessage } from "@/lib/apiError"
-import { formatVnd, toNumber } from "@/lib/format"
+import { formatVnd } from "@/lib/format"
 import {
   ORDER_STATUS_VI,
   PAYMENT_METHOD_VI,

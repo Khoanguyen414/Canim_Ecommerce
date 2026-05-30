@@ -1,0 +1,27 @@
+# Environment
+.env
+.env.local
+.env.prod
+.env.production
+.env.*.local
+!.env.example
+!**/.env.example
+!**/.env.production.example
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Docker local overrides
+docker-compose.override.yml
+
+# Vite cache
+**/.vite/

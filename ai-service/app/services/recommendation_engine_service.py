@@ -5,6 +5,93 @@ from app.clients.backend_client import backend_client
 
 DEFAULT_LIMIT = 8
 
+SCORING_STOPWORDS = frozenset(
+    {
+        "goi",
+        "y",
+        "tim",
+        "mua",
+        "chon",
+        "loc",
+        "shop",
+        "co",
+        "ban",
+        "san",
+        "pham",
+        "can",
+        "toi",
+        "tooi",
+        "em",
+        "minh",
+        "muon",
+        "cho",
+        "nao",
+        "gi",
+        "the",
+        "mot",
+        "vai",
+        "nhu",
+        "cua",
+        "trong",
+        "hay",
+        "la",
+        "se",
+        "ma",
+        "dang",
+        "recommend",
+        "suggest",
+        "ve",
+        "xin",
+        "oi",
+        "ak",
+        "product",
+        "hang",
+        "item",
+        "outfit",
+        "phoi",
+        "thoi",
+        "mau",
+    }
+)
+
+GENDER_TOKENS = frozenset({"nam", "nu", "unisex"})
+
+PRODUCT_ANCHOR_TOKENS = frozenset(
+    {
+        "giay",
+        "sneaker",
+        "dep",
+        "sandal",
+        "boot",
+        "ao",
+        "polo",
+        "thun",
+        "hoodie",
+        "blazer",
+        "khoac",
+        "quan",
+        "jean",
+        "vay",
+        "dam",
+        "tui",
+        "balo",
+        "non",
+        "mu",
+        "basic",
+        "local",
+        "chuyen",
+        "day",
+        "lac",
+        "nhan",
+        "vong",
+        "bong",
+        "tai",
+        "mat",
+        "khan",
+        "kinh",
+    }
+)
+
 
 class RecommendationEngineService:
     """
@@ -14,7 +101,7 @@ class RecommendationEngineService:
     - Lấy sản phẩm từ backend.
     - Normalize field vì backend có thể trả productId hoặc id, imageUrl hoặc image_url.
     - Match query khách theo name, slug, category, color, size, searchableText.
-    - Nếu không match, fallback về sản phẩm ACTIVE/còn hàng.
+    - Không fallback sản phẩm không liên quan khi query cụ thể không match.
     """
 
     def __init__(self) -> None:
@@ -54,12 +141,19 @@ class RecommendationEngineService:
         )
 
         if scored_products:
-            return scored_products[:limit]
+            return self._dedupe_by_product_id(scored_products, limit, query=query)
+
+        if self._tokenize(query):
+            print(
+                "[RecommendationEngine] Query no match, returning empty:",
+                query,
+            )
+            return []
 
         fallback_products = self._fallback_products(products, limit=limit)
 
         print(
-            "[RecommendationEngine] Query no match, fallback products:",
+            "[RecommendationEngine] Empty query, fallback products:",
             len(fallback_products),
         )
 
@@ -116,7 +210,10 @@ class RecommendationEngineService:
             reverse=True,
         )
 
-        return scored_products[:limit] if scored_products else self._fallback_products(products, limit)
+        if scored_products:
+            return self._dedupe_by_product_id(scored_products, limit)
+
+        return self._fallback_products(products, limit=limit)
 
     def recommend_similar(
         self,
@@ -164,7 +261,10 @@ class RecommendationEngineService:
             reverse=True,
         )
 
-        return scored_products[:limit] if scored_products else self._fallback_products(products, limit)
+        if scored_products:
+            return self._dedupe_by_product_id(scored_products, limit)
+
+        return self._fallback_products(products, limit=limit)
 
     def recommend_also_viewed(
         self,
@@ -307,6 +407,52 @@ class RecommendationEngineService:
 
         return True
 
+    def extract_product_query_label(self, message: str) -> str | None:
+        query = self._normalize_text(message)
+        meaningful_tokens = self._meaningful_query_tokens(query)
+
+        if not meaningful_tokens:
+            return None
+
+        return " ".join(meaningful_tokens)
+
+    def _meaningful_query_tokens(self, query: str) -> list[str]:
+        return [
+            token
+            for token in self._tokenize(query)
+            if token not in SCORING_STOPWORDS and len(token) >= 2
+        ]
+
+    def _required_anchor_tokens(self, query_tokens: list[str]) -> list[str]:
+        return [token for token in query_tokens if token in PRODUCT_ANCHOR_TOKENS]
+
+    def _as_token_set(self, text: str) -> set[str]:
+        return set(self._tokenize(text))
+
+    def _text_has_token(self, text: str, token: str) -> bool:
+        if not text or not token:
+            return False
+
+        if " " in token:
+            return token in self._normalize_text(text)
+
+        return token in self._as_token_set(text)
+
+    def _product_matches_required_anchors(
+        self,
+        product_name: str,
+        search_text: str,
+        required_anchors: list[str],
+    ) -> bool:
+        if not required_anchors:
+            return True
+
+        product_tokens = self._as_token_set(product_name)
+        search_tokens = self._as_token_set(search_text)
+        combined_tokens = product_tokens | search_tokens
+
+        return any(anchor in combined_tokens for anchor in required_anchors)
+
     def _score_by_query(
         self,
         product: dict[str, Any],
@@ -323,58 +469,91 @@ class RecommendationEngineService:
         size = self._normalize_text(product.get("size"))
 
         query_tokens = self._tokenize(query)
+        meaningful_tokens = self._meaningful_query_tokens(query)
+        required_anchors = self._required_anchor_tokens(meaningful_tokens)
+
+        product_tokens = self._as_token_set(product_name)
+        category_tokens = self._as_token_set(category)
+        color_tokens = self._as_token_set(color)
+        size_tokens = self._as_token_set(size)
+        search_tokens = self._as_token_set(search_text)
+
+        if not self._product_matches_required_anchors(
+            product_name=product_name,
+            search_text=search_text,
+            required_anchors=required_anchors,
+        ):
+            return 0.0, []
+
         score = 0.0
         reasons: list[str] = []
+        has_strong_match = False
+
+        meaningful_phrase = " ".join(meaningful_tokens)
+
+        if meaningful_phrase and len(meaningful_tokens) >= 2 and meaningful_phrase in product_name:
+            score += 12
+            has_strong_match = True
+            reasons.append("Tên sản phẩm khớp cụm từ khách tìm")
 
         if product_name and product_name in query:
             score += 10
+            has_strong_match = True
             reasons.append("Tên sản phẩm khớp trực tiếp với nhu cầu")
 
         if slug and slug.replace("-", " ") in query:
             score += 8
+            has_strong_match = True
             reasons.append("Slug sản phẩm khớp với từ khóa tìm kiếm")
 
-        for token in query_tokens:
-            if len(token) < 2:
+        for token in meaningful_tokens:
+            if token in GENDER_TOKENS:
+                if token in product_tokens:
+                    score += 2
+                    reasons.append(f"Khớp phân loại: {token}")
                 continue
 
-            if token in product_name:
+            if token in product_tokens:
                 score += 4
+                has_strong_match = True
                 reasons.append(f"Khớp tên sản phẩm: {token}")
                 continue
 
-            if token in category:
+            if token in category_tokens:
                 score += 3
+                has_strong_match = True
                 reasons.append(f"Khớp danh mục: {token}")
                 continue
 
-            if token in color:
+            if token in color_tokens:
                 score += 3
                 reasons.append(f"Khớp màu sắc: {token}")
                 continue
 
-            if token in size:
+            if token in size_tokens:
                 score += 2
                 reasons.append(f"Khớp size: {token}")
                 continue
 
-            if token in search_text:
-                score += 1
-                reasons.append(f"Khớp mô tả: {token}")
+            if token in search_tokens and token in PRODUCT_ANCHOR_TOKENS:
+                score += 2
+                has_strong_match = True
+                reasons.append(f"Khớp loại sản phẩm: {token}")
 
-        if "ao" in query_tokens and "ao" in search_text:
-            score += 2
-
-        if "giay" in query_tokens and "giay" in search_text:
-            score += 2
-
-        if "outfit" in query_tokens or "phoi" in query_tokens or "di" in query_tokens:
-            score += self._score_outfit_product(product, query_tokens)
+        if (
+            "outfit" in query_tokens
+            or "phoi" in query_tokens
+            or "di" in query_tokens
+        ):
+            score += self._score_outfit_product(product, meaningful_tokens)
 
             if score > 0:
                 reasons.append("Phù hợp để phối outfit")
 
-        if not reasons and score > 0:
+        if score <= 0 or not has_strong_match:
+            return 0.0, []
+
+        if not reasons:
             reasons.append("Sản phẩm phù hợp với nhu cầu tìm kiếm")
 
         return score, self._deduplicate_reasons(reasons)
@@ -454,6 +633,66 @@ class RecommendationEngineService:
 
         return score, reasons
 
+    def _dedupe_by_product_id(
+        self,
+        products: list[dict[str, Any]],
+        limit: int,
+        query: str = "",
+    ) -> list[dict[str, Any]]:
+        query_tokens = self._tokenize(query)
+        grouped: dict[int | None, list[dict[str, Any]]] = {}
+
+        for product in products:
+            product_id = self._safe_int(product.get("product_id"))
+            grouped.setdefault(product_id, []).append(product)
+
+        ranked_groups = sorted(
+            grouped.values(),
+            key=lambda variants: max(
+                self._variant_selection_score(variant, query_tokens)
+                for variant in variants
+            ),
+            reverse=True,
+        )
+
+        deduped: list[dict[str, Any]] = []
+
+        for variants in ranked_groups:
+            best_variant = max(
+                variants,
+                key=lambda variant: self._variant_selection_score(variant, query_tokens),
+            )
+            deduped.append(best_variant)
+
+            if len(deduped) >= limit:
+                break
+
+        return deduped
+
+    def _variant_selection_score(
+        self,
+        product: dict[str, Any],
+        query_tokens: list[str],
+    ) -> float:
+        score = float(product.get("recommendationScore") or 0)
+        color = self._normalize_text(product.get("color"))
+        size = self._normalize_text(product.get("size"))
+        stock = float(product.get("available_quantity") or 0)
+
+        for token in query_tokens:
+            if len(token) < 2:
+                continue
+
+            if token in color:
+                score += 3
+
+            if token == size or token in size:
+                score += 3
+
+        score += min(stock, 100) / 100
+
+        return score
+
     def _fallback_products(
         self,
         products: list[dict[str, Any]],
@@ -479,7 +718,7 @@ class RecommendationEngineService:
             reverse=True,
         )
 
-        return fallback_products[:limit]
+        return self._dedupe_by_product_id(fallback_products, limit)
 
     def _build_event_score_map(self, events: list[dict[str, Any]]) -> dict[int, float]:
         event_weights = {

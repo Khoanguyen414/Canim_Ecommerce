@@ -18,11 +18,7 @@ class DialoguePolicyService:
         nlu_emotion: EmotionType,
         state: ConversationState,
     ) -> dict[str, Any]:
-        if (
-            nlu_intent == "COMPLAINT"
-            or nlu_emotion == "ANGRY"
-            or state.bot_status == "NEEDS_HUMAN_ATTENTION"
-        ):
+        if nlu_intent == "COMPLAINT" or nlu_emotion == "ANGRY":
             state.bot_status = "NEEDS_HUMAN_ATTENTION"
 
             return {

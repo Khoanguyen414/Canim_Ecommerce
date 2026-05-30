@@ -169,7 +169,7 @@ function safeEmotion(value?: string): AiEmotion {
 function getProductsForWidget(
   widgetType: CanimWidgetType,
   products?: AiProductSuggestion[],
-) {
+): AiProductSuggestion[] {
   if (widgetType !== "PRODUCT_CAROUSEL") {
     return []
   }
@@ -456,6 +456,7 @@ export default function CanimAiChatWidget() {
     data: AiChatApiResponse,
   ): CanimChatMessage => {
     const widgetType = safeWidgetType(data.widgetType)
+    const products = getProductsForWidget(widgetType, data.recommended_products)
 
     return {
       id: createId("assistant"),
@@ -465,7 +466,7 @@ export default function CanimAiChatWidget() {
       emotion: safeEmotion(data.emotion),
       widgetType,
       entities: data.entities ?? {},
-      products: getProductsForWidget(widgetType, data.recommended_products),
+      products,
       shouldHandoff: Boolean(data.should_handoff),
       handoffReason: data.handoff_reason ?? undefined,
       quickReplies: data.quickReplies ?? [],

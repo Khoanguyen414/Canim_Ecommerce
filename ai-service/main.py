@@ -14,10 +14,7 @@ app = FastAPI(
 app.include_router(recommendation_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.customer_frontend_url,
-        settings.admin_frontend_url,
-    ],
+    allow_origins=settings.cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

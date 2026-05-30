@@ -20,16 +20,16 @@ class RuleBasedNLU:
     """
     RuleBasedNLU là tầng guardrail an toàn.
 
-    Nhiệm vụ:
-    - Nhận diện câu chào.
-    - Nhận diện hỏi size.
-    - Nhận diện phàn nàn.
-    - Nhận diện theo dõi đơn hàng.
-    - Nhận diện tìm sản phẩm / gợi ý outfit.
+    Thứ tự nhận diện intent:
+    SECURITY_BLOCK → COMPLAINT → ORDER_TRACKING → OUTFIT/PRODUCT → SIZE
+    → PROMOTION/SHIPPING/RETURN → THANKS → GREETING → UNKNOWN
     """
 
     COMPLAINT_KEYWORDS = [
         "tao lao",
+        "tào lao",
+        "tra loi tao lao",
+        "tra loi tao lao qua",
         "vo tri",
         "chan",
         "sai roi",
@@ -67,18 +67,23 @@ class RuleBasedNLU:
         "order",
     ]
 
-    SIZE_KEYWORDS = [
+    SIZE_PHRASE_KEYWORDS = [
+        "size nao",
+        "size gi",
+        "mac size nao",
+        "mac size gi",
+        "kich co nao",
+        "kich co gi",
+        "tu van size",
+        "goi y size",
+        "mac vua khong",
+        "mac vua duoc khong",
+    ]
+
+    SIZE_WORD_KEYWORDS = [
         "size",
-        "kich co",
-        "mac vua",
-        "mac rong",
+        "kichco",
         "oversize",
-        "cao",
-        "nang",
-        "kg",
-        "ky",
-        "ki",
-        "can",
     ]
 
     PROMOTION_KEYWORDS = [
@@ -141,74 +146,81 @@ class RuleBasedNLU:
         "mau",
     ]
 
-    PRODUCT_ACTION_KEYWORDS = [
+    PRODUCT_ACTION_PHRASES = [
         "goi y",
+        "co ban",
+        "dang ban",
+        "shop co",
+    ]
+
+    PRODUCT_ACTION_WORDS = [
         "tim",
         "mua",
         "chon",
         "loc",
-        "co",
-        "ban",
         "recommend",
         "suggest",
     ]
 
-    PRODUCT_KEYWORDS = [
-        # Nhóm chung
+    PRODUCT_PHRASE_KEYWORDS = [
         "san pham",
-        "hang",
-        "item",
-        "do",
-        "mau",
-
-        # Áo
-        "ao",
         "ao thun",
         "ao phong",
         "ao so mi",
-        "so mi",
         "ao khoac",
-        "hoodie",
-        "sweater",
-        "blazer",
-        "vest",
-
-        # Quần
-        "quan",
+        "ao polo",
         "quan jean",
-        "jean",
-        "denim",
         "quan tay",
         "quan au",
         "quan short",
         "quan ong suong",
-
-        # Váy / đầm
-        "vay",
-        "dam",
         "chan vay",
-
-        # Giày dép
-        "giay",
         "giay da",
         "giay da nam",
         "giay the thao",
+        "phu kien",
+        "that lung",
+        "day chuyen",
+        "mat day",
+        "vong tay",
+        "bong tai",
+        "trang suc",
+    ]
+
+    PRODUCT_WORD_KEYWORDS = [
+        "hang",
+        "item",
+        "ao",
+        "polo",
+        "so",
+        "mi",
+        "hoodie",
+        "sweater",
+        "blazer",
+        "vest",
+        "quan",
+        "jean",
+        "denim",
+        "vay",
+        "dam",
+        "giay",
         "sneaker",
         "dep",
         "sandal",
-
-        # Phụ kiện
-        "phu kien",
         "tui",
         "balo",
         "mu",
         "non",
-        "that lung",
         "vi",
-
-        # Thuộc tính sản phẩm
         "basic",
         "local",
+        "chuyen",
+        "day",
+        "lac",
+        "nhan",
+        "vong",
+        "khan",
+        "kinh",
         "nam",
         "nu",
         "unisex",
@@ -220,7 +232,6 @@ class RuleBasedNLU:
         "xanh",
         "do",
         "hong",
-        "size",
     ]
 
     def analyze_message(self, message: str) -> NLUResult:
@@ -236,14 +247,14 @@ class RuleBasedNLU:
         if self._contains_any(text, self.ORDER_KEYWORDS) or entities.get("orderCode"):
             return NLUResult("ORDER_TRACKING", "NEUTRAL", entities)
 
-        if self._is_size_message(text, entities):
-            return NLUResult("SIZE_SUGGESTION", "NEUTRAL", entities)
-
         if self._is_outfit_message(text):
             return NLUResult("OUTFIT_SUGGESTION", "NEUTRAL", entities)
 
         if self._is_product_message(text):
             return NLUResult("PRODUCT_RECOMMENDATION", "NEUTRAL", entities)
+
+        if self._is_size_message(text, entities):
+            return NLUResult("SIZE_SUGGESTION", "NEUTRAL", entities)
 
         if self._contains_any(text, self.PROMOTION_KEYWORDS):
             return NLUResult("PROMOTION", "NEUTRAL", entities)
@@ -285,23 +296,37 @@ class RuleBasedNLU:
         return entities
 
     def _extract_height_cm(self, text: str) -> int | None:
+        standalone = re.fullmatch(
+            r"(?:cao\s*)?(1[4-9][0-9]|2[0-1][0-9])\s*(?:cm)?",
+            text.strip(),
+        )
+
+        if standalone:
+            return int(standalone.group(1))
+
         patterns = [
-            r"(?:cao\s*)?([1-2])m\s*([0-9]{1,2})",
-            r"\bm\s*([0-9]{2})\b",
-            r"(?:cao\s*)?(1[4-9][0-9]|2[0-1][0-9])\s*cm",
-            r"cao\s*(1[4-9][0-9]|2[0-1][0-9])",
+            (r"(?:cao\s*)?([1-2])m\s*([0-9]{1,2})\b", "meters"),
+            (r"\bm([0-9]{2})\b", "compact_m"),
+            (r"\bm\s*([0-9]{2})\b", "compact_m"),
+            (r"\bm([0-9])(?![0-9])\b", "compact_m_single"),
+            (r"\b(1[4-9][0-9]|2[0-1][0-9])\s+[3-9][0-9](?:\s*kg|\b)", "bare_with_weight"),
+            (r"(?:cao\s*)?(1[4-9][0-9]|2[0-1][0-9])\s*cm", "cm"),
+            (r"\bcao\s*(1[4-9][0-9]|2[0-1][0-9])\b", "cao"),
         ]
 
-        for pattern in patterns:
+        for pattern, mode in patterns:
             match = re.search(pattern, text)
 
             if not match:
                 continue
 
-            if pattern == r"\bm\s*([0-9]{2})\b":
+            if mode in {"compact_m"}:
                 return 100 + int(match.group(1))
 
-            if len(match.groups()) == 2:
+            if mode == "compact_m_single":
+                return 100 + int(match.group(1)) * 10
+
+            if mode == "meters":
                 meters = int(match.group(1))
                 centimeters = int(match.group(2))
 
@@ -316,11 +341,13 @@ class RuleBasedNLU:
 
     def _extract_weight_kg(self, text: str) -> int | None:
         patterns = [
-            r"nang\s*([3-9][0-9])",
-            r"([3-9][0-9])\s*kg",
-            r"([3-9][0-9])\s*ky",
-            r"([3-9][0-9])\s*ki",
-            r"([3-9][0-9])\s*can",
+            r"\bnang\s*([3-9][0-9])\b",
+            r"\b(?:1[4-9][0-9]|2[0-1][0-9])\s+([3-9][0-9])(?:\s*kg|\b)",
+            r"\b([3-9][0-9])\s*kg\b",
+            r"\b([3-9][0-9])\s*ky\b",
+            r"\b([3-9][0-9])\s*ki\b",
+            r"\b([3-9][0-9])\s*can\b",
+            r",\s*([3-9][0-9])(?:\s*kg|\s|$)",
         ]
 
         for pattern in patterns:
@@ -340,25 +367,67 @@ class RuleBasedNLU:
         return match.group(0).upper()
 
     def _extract_fit_preference(self, text: str) -> str | None:
-        if self._contains_any(text, ["oversize", "rong", "thoai mai", "rộng"]):
+        if self._contains_any(text, ["oversize", "mac rong", "rong", "thoai mai"]):
             return "OVERSIZE"
 
-        if self._contains_any(text, ["om", "vua", "fit"]):
+        if self._contains_any(text, ["mac vua", "om", "vua", "fit"]):
             return "REGULAR"
 
         return None
 
     def _is_size_message(self, text: str, entities: dict[str, Any]) -> bool:
-        if entities.get("heightCm") or entities.get("weightKg"):
+        if entities.get("heightCm") is not None or entities.get("weightKg") is not None:
             return True
 
-        return self._contains_any(text, self.SIZE_KEYWORDS)
+        if self._contains_any(text, self.SIZE_PHRASE_KEYWORDS):
+            return True
+
+        if self._contains_word(text, "size") or self._contains_word(text, "kichco"):
+            return True
+
+        if self._contains_word(text, "cao") and (
+            entities.get("weightKg") is not None
+            or self._contains_word(text, "nang")
+            or re.search(r"\bkg\b", text)
+        ):
+            return True
+
+        if self._contains_word(text, "nang") and re.search(r"\bkg\b", text):
+            return True
+
+        if re.search(r"\bkg\b", text) and re.search(r"\b[3-9][0-9]\b", text):
+            return True
+
+        return False
+
+    def is_fit_preference_only(self, text: str, entities: dict[str, Any]) -> bool:
+        if not entities.get("fitPreference"):
+            return False
+
+        return not self._is_size_message(text, entities)
+
+    def is_measurement_followup(self, text: str) -> bool:
+        normalized = self._normalize_text(text)
+
+        if self._extract_height_cm(normalized) is not None:
+            return True
+
+        if self._extract_weight_kg(normalized) is not None:
+            return True
+
+        return bool(
+            re.search(r"\bm[0-9]", normalized)
+            or re.search(r"\b(1[4-9][0-9]|2[0-1][0-9])\b", normalized)
+            or re.search(r"\b[3-9][0-9]\s*kg\b", normalized)
+            or re.search(r"\bnang\b", normalized)
+            or re.search(r"\bcao\b", normalized)
+        )
 
     def _is_outfit_message(self, text: str) -> bool:
         if self._contains_any(text, self.OUTFIT_KEYWORDS):
             return True
 
-        has_action = self._contains_any(text, self.PRODUCT_ACTION_KEYWORDS)
+        has_action = self._has_product_action(text)
         has_outfit_context = self._contains_any(text, self.OUTFIT_CONTEXT_KEYWORDS)
         has_multiple_item_hint = self._contains_any(
             text,
@@ -368,27 +437,45 @@ class RuleBasedNLU:
         return has_action and has_outfit_context and has_multiple_item_hint
 
     def _is_product_message(self, text: str) -> bool:
-        has_product_keyword = self._contains_any(text, self.PRODUCT_KEYWORDS)
-        has_action_keyword = self._contains_any(text, self.PRODUCT_ACTION_KEYWORDS)
+        has_product_keyword = self._has_product_keyword(text)
+        has_action_keyword = self._has_product_action(text)
 
-        # Ví dụ:
-        # "gợi ý giày da nam"
-        # "tìm áo thun basic"
-        # "mua quần jean"
         if has_action_keyword and has_product_keyword:
             return True
 
-        # Ví dụ:
-        # "áo thun basic"
-        # "giày da nam"
-        # "quần jean đen"
-        if has_product_keyword:
+        if has_product_keyword and not self._contains_any(text, self.GREETING_KEYWORDS):
             return True
 
         return False
 
+    def _has_product_action(self, text: str) -> bool:
+        if self._contains_any(text, self.PRODUCT_ACTION_PHRASES):
+            return True
+
+        return any(self._contains_word(text, keyword) for keyword in self.PRODUCT_ACTION_WORDS)
+
+    def _has_product_keyword(self, text: str) -> bool:
+        if self._contains_any(text, self.PRODUCT_PHRASE_KEYWORDS):
+            return True
+
+        return any(self._contains_word(text, keyword) for keyword in self.PRODUCT_WORD_KEYWORDS)
+
     def _contains_any(self, text: str, keywords: list[str]) -> bool:
-        return any(keyword in text for keyword in keywords)
+        return any(self._contains_keyword(text, keyword) for keyword in keywords)
+
+    def _contains_keyword(self, text: str, keyword: str) -> bool:
+        normalized_keyword = self._normalize_text(keyword)
+
+        if not normalized_keyword:
+            return False
+
+        if " " in normalized_keyword:
+            return normalized_keyword in text
+
+        return self._contains_word(text, normalized_keyword)
+
+    def _contains_word(self, text: str, word: str) -> bool:
+        return re.search(rf"\b{re.escape(word)}\b", text) is not None
 
     def _normalize_text(self, value: str) -> str:
         text = str(value or "").lower().strip()
@@ -465,6 +552,9 @@ class RuleBasedNLU:
 
         for source, target in replacements.items():
             text = text.replace(source, target)
+
+        text = text.replace("kích cỡ", "kich co")
+        text = text.replace("kich co", "kichco")
 
         separators = [",", ".", ";", ":", "/", "\\", "-", "_", "(", ")", "[", "]"]
 

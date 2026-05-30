@@ -11,6 +11,14 @@ import { ErrorState } from "@/components/common/ErrorState"
 import { getApiErrorMessage } from "@/lib/apiError"
 import { formatVnd, toNumber } from "@/lib/format"
 import { getProductMainImage } from "@/lib/product"
+import {
+  getDistinctColors,
+  getSizeOptionsForColor,
+  getVariantSelectionError,
+  productHasSizes,
+  resolveVariantSelection,
+  variantInStock,
+} from "@/lib/productVariantSelection"
 import { useCartStore } from "@/store/cart.store"
 import { productToWishlistItem, useWishlistStore } from "@/store/wishlist.store"
 import { cn } from "@/lib/cn"
@@ -30,7 +38,10 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
-  const [variantId, setVariantId] = useState<number | null>(null)
+  const [selectedColor, setSelectedColor] = useState<string | null>(null)
+  const [selectedSize, setSelectedSize] = useState<string | null>(null)
+  const [legacyVariantId, setLegacyVariantId] = useState<number | null>(null)
+  const [selectionError, setSelectionError] = useState<string | null>(null)
   const [activeImage, setActiveImage] = useState<string | undefined>(undefined)
   const [tab, setTab] = useState<"desc" | "info" | "reviews">(
     orderItemId ? "reviews" : "desc",
@@ -50,13 +61,16 @@ export default function ProductDetail() {
     void (async () => {
       setLoading(true)
       setError(null)
+      setSelectedColor(null)
+      setSelectedSize(null)
+      setLegacyVariantId(null)
+      setSelectionError(null)
+      setQuantity(1)
       try {
         const { data } = await productService.getPublicById(pid)
         if (!data.success || !data.result) throw new Error(data.message || "Không tìm thấy sản phẩm")
         const p = data.result
         setProduct(p)
-        const first = p.variants?.[0]
-        setVariantId(first?.id ?? null)
         setActiveImage(getProductMainImage(p))
       } catch (e) {
         setError(getApiErrorMessage(e))
@@ -67,10 +81,36 @@ export default function ProductDetail() {
     })()
   }, [id])
 
+  const variants = product?.variants ?? []
+  const colorOptions = useMemo(() => getDistinctColors(variants), [variants])
+  const hasColorPicker = colorOptions.length > 0
+  const hasSizePicker = productHasSizes(variants)
+
+  const sizeOptions = useMemo(
+    () => getSizeOptionsForColor(variants, selectedColor),
+    [variants, selectedColor],
+  )
+
+  const usesLegacyVariantSelect =
+    !hasSizePicker && (variants.length ?? 0) > 1
+
   const variant = useMemo(() => {
-    if (!product?.variants?.length) return null
-    return product.variants.find((v) => v.id === variantId) ?? product.variants[0]
-  }, [product, variantId])
+    if (usesLegacyVariantSelect) {
+      if (!legacyVariantId) return null
+      return variants.find((v) => v.id === legacyVariantId) ?? null
+    }
+    return resolveVariantSelection(variants, selectedColor, selectedSize)
+  }, [variants, selectedColor, selectedSize, legacyVariantId, usesLegacyVariantSelect])
+
+  const validationMessage = useMemo(() => {
+    if (usesLegacyVariantSelect) {
+      if (!legacyVariantId) return "Vui lòng chọn biến thể trước khi mua."
+      const picked = variants.find((v) => v.id === legacyVariantId)
+      if (picked && !variantInStock(picked)) return "Biến thể đã chọn hiện hết hàng."
+      return null
+    }
+    return getVariantSelectionError(variants, selectedColor, selectedSize, variant)
+  }, [usesLegacyVariantSelect, legacyVariantId, variants, selectedColor, selectedSize, variant])
 
   const images = useMemo(() => {
     if (!product?.images?.length) return []
@@ -87,8 +127,28 @@ export default function ProductDetail() {
     toggleWishlist(productToWishlistItem(product))
   }
 
+  const handleSelectColor = (color: string) => {
+    setSelectedColor(color)
+    setSelectedSize(null)
+    setSelectionError(null)
+  }
+
+  const handleSelectSize = (size: string) => {
+    setSelectedSize(size)
+    setSelectionError(null)
+  }
+
   const handleAddToCart = () => {
-    if (!product || !variant) return
+    if (!product) return
+    const message = validationMessage
+    if (message || !variant) {
+      setSelectionError(message ?? "Vui lòng chọn màu và size trước khi mua.")
+      return
+    }
+
+    const maxQty = variant.quantity ?? quantity
+    const safeQty = Math.min(Math.max(1, quantity), maxQty > 0 ? maxQty : quantity)
+
     const img = activeImage ?? getProductMainImage(product)
     addLine({
       productId: product.id,
@@ -98,7 +158,7 @@ export default function ProductDetail() {
       color: variant.color,
       size: variant.size,
       price: toNumber(variant.price),
-      quantity,
+      quantity: safeQty,
       imageUrl: img,
     })
     navigate("/cart")
@@ -107,8 +167,9 @@ export default function ProductDetail() {
   if (loading) return <LoadingSpinner label="Đang tải chi tiết..." />
   if (error || !product) return <ErrorState message={error ?? "Không có dữ liệu"} />
 
-  const inStock = (product.variants?.length ?? 0) > 0
-  const price = variant ? toNumber(variant.price) : 0
+  const inStock = variantInStock(variant)
+  const price = variant ? toNumber(variant.price) : toNumber(variants[0]?.price)
+  const canAddToCart = !validationMessage && inStock && Boolean(variant)
 
   return (
     <div className="container py-6">
@@ -171,20 +232,100 @@ export default function ProductDetail() {
               {product.shortDesc ? <p className="text-sm leading-relaxed text-gray-600">{product.shortDesc}</p> : null}
 
               <div className="space-y-4 border-y border-gray-100 py-4">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-[#253d4e]">Variant</label>
-                  <Select
-                    value={variantId?.toString() ?? ""}
-                    onChange={(e) => setVariantId(Number(e.target.value))}
-                    disabled={!product.variants?.length}
-                  >
-                    {product.variants?.map((v: ProductVariant) => (
-                      <option key={v.id} value={v.id}>
-                        {[v.sku, v.color, v.size].filter(Boolean).join(" · ")}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
+                {hasColorPicker ? (
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-[#253d4e]">
+                      Màu sắc <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {colorOptions.map((color) => {
+                        const active = selectedColor?.toLowerCase() === color.toLowerCase()
+                        const colorVariants = variants.filter(
+                          (v) => v.color?.trim().toLowerCase() === color.toLowerCase(),
+                        )
+                        const colorInStock = colorVariants.some((v) => variantInStock(v))
+                        return (
+                          <button
+                            key={color}
+                            type="button"
+                            disabled={!colorInStock}
+                            onClick={() => handleSelectColor(color)}
+                            className={cn(
+                              "rounded-md border px-4 py-2 text-sm font-semibold transition-colors",
+                              active
+                                ? "border-primary bg-primary text-white"
+                                : colorInStock
+                                  ? "border-gray-300 text-[#253d4e] hover:border-primary"
+                                  : "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400 line-through",
+                            )}
+                          >
+                            {color}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {hasSizePicker ? (
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-[#253d4e]">
+                      Size <span className="text-rose-500">*</span>
+                    </label>
+                    {hasColorPicker && !selectedColor ? (
+                      <p className="text-sm text-gray-500">Chọn màu trước, sau đó chọn size.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {sizeOptions.map(({ size, variant: sizeVariant }) => {
+                          const sizeInStock = variantInStock(sizeVariant)
+                          const active = selectedSize === size
+                          return (
+                            <button
+                              key={size}
+                              type="button"
+                              disabled={!sizeInStock}
+                              onClick={() => handleSelectSize(size)}
+                              className={cn(
+                                "min-w-[2.75rem] rounded-md border px-3 py-2 text-sm font-semibold transition-colors",
+                                active
+                                  ? "border-primary bg-primary text-white"
+                                  : sizeInStock
+                                    ? "border-gray-300 text-[#253d4e] hover:border-primary"
+                                    : "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400 line-through",
+                              )}
+                            >
+                              {size}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                {usesLegacyVariantSelect ? (
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-[#253d4e]">
+                      Biến thể <span className="text-rose-500">*</span>
+                    </label>
+                    <Select
+                      value={legacyVariantId?.toString() ?? ""}
+                      onChange={(e) => {
+                        const next = e.target.value ? Number(e.target.value) : null
+                        setLegacyVariantId(next)
+                        setSelectionError(null)
+                      }}
+                    >
+                      <option value="">— Chọn biến thể —</option>
+                      {variants.map((v: ProductVariant) => (
+                        <option key={v.id} value={v.id} disabled={!variantInStock(v)}>
+                          {[v.sku, v.color, v.size].filter(Boolean).join(" · ")}
+                          {!variantInStock(v) ? " (hết hàng)" : ""}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                ) : null}
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#253d4e]">Quantity</label>
@@ -195,9 +336,11 @@ export default function ProductDetail() {
                     <input
                       type="number"
                       min={1}
+                      max={variant?.quantity ?? undefined}
                       value={quantity}
                       onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
                       className="w-16 rounded-md border border-gray-200 py-1.5 text-center text-sm"
+                      disabled={!canAddToCart}
                     />
                     <Button variant="outline" size="sm" type="button" onClick={() => setQuantity((q) => q + 1)}>
                       +
@@ -206,10 +349,20 @@ export default function ProductDetail() {
                 </div>
               </div>
 
+              {selectionError || validationMessage ? (
+                <p className="text-sm font-medium text-rose-600" role="alert">
+                  {selectionError ?? validationMessage}
+                </p>
+              ) : null}
+
+              {!canAddToCart && variant && !inStock ? (
+                <p className="text-sm text-rose-600">Biến thể đã chọn hiện hết hàng.</p>
+              ) : null}
+
               <div className="flex flex-wrap gap-3">
                 <Button
                   className="min-h-11 flex-1 bg-primary font-bold hover:bg-primary/90 sm:flex-none sm:px-10"
-                  disabled={!inStock}
+                  disabled={!canAddToCart}
                   type="button"
                   onClick={handleAddToCart}
                 >
@@ -232,6 +385,12 @@ export default function ProductDetail() {
                 </Button>
               </div>
 
+              {!canAddToCart && (hasColorPicker || hasSizePicker) ? (
+                <p className="text-xs text-gray-500">
+                  Chọn đủ màu và size để thêm vào giỏ và tiếp tục thanh toán.
+                </p>
+              ) : null}
+
               <dl className="grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-lg bg-[#f4f6f8] p-3">
                   <dt className="text-gray-500">Category</dt>
@@ -239,7 +398,15 @@ export default function ProductDetail() {
                 </div>
                 <div className="rounded-lg bg-[#f4f6f8] p-3">
                   <dt className="text-gray-500">Stock</dt>
-                  <dd className="font-semibold text-primary">{inStock ? "In stock" : "Unavailable"}</dd>
+                  <dd className="font-semibold text-primary">
+                    {variant && inStock
+                      ? variant.quantity != null
+                        ? `${variant.quantity} có sẵn`
+                        : "In stock"
+                      : variant && !inStock
+                        ? "Hết hàng"
+                        : "Chọn màu & size"}
+                  </dd>
                 </div>
               </dl>
             </div>

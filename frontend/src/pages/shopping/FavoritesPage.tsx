@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { Heart, ShoppingCart, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/common/EmptyState"
@@ -7,9 +7,11 @@ import { useWishlistStore } from "@/store/wishlist.store"
 import { useCartStore } from "@/store/cart.store"
 import { productService } from "@/services/product.service"
 import { getDefaultVariant } from "@/lib/product"
+import { requiresVariantSelection } from "@/lib/productVariantSelection"
 import { toNumber } from "@/lib/format"
 
 export default function FavoritesPage() {
+  const navigate = useNavigate()
   const items = useWishlistStore((s) => s.items)
   const remove = useWishlistStore((s) => s.remove)
   const addLine = useCartStore((s) => s.addLine)
@@ -19,6 +21,10 @@ export default function FavoritesPage() {
       const { data } = await productService.getPublicById(productId)
       if (!data.success || !data.result) return
       const p = data.result
+      if (requiresVariantSelection(p.variants ?? [])) {
+        navigate(`/products/${p.id}`)
+        return
+      }
       const variant = getDefaultVariant(p)
       if (!variant) return
       addLine({

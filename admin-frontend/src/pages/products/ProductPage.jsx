@@ -2,7 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { ProductTable } from "./ProductTable"
 import { ProductFormModal } from "./ProductFormModal"
 import { productService } from "@/services/product.service"
+import { inventoryService } from "@/services/inventory.service"
 import { getApiErrorMessage } from "@/lib/apiError"
+import { buildInitialInboundItems, formatInboundSummary } from "@/lib/productInbound"
+import {
+  buildCreateVariantsPayload,
+  buildVariantPreviews,
+  computeVariantSummary,
+  validateCreateProductForm,
+} from "@/lib/productVariants"
 
 const PAGE_SIZE = 10
 
@@ -38,21 +46,21 @@ function mapProduct(raw) {
 }
 
 function buildCreatePayload(formData) {
-  const fallbackSku = `${(formData.name || "PRODUCT").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12) || "PRODUCT"}-${Date.now()}`
-  const parsedPrice = Number(formData.variantPrice)
+  const variants = buildCreateVariantsPayload({
+    name: formData.name,
+    categoryId: formData.categoryId,
+    variantPrice: formData.variantPrice,
+    colors: formData.colors ?? [],
+    selectedSizes: formData.selectedSizes ?? [],
+    stockMatrix: formData.stockMatrix ?? {},
+  })
+
   return {
     name: formData.name.trim(),
     shortDesc: formData.shortDesc?.trim() || "",
     longDesc: formData.longDesc?.trim() || "",
     categoryId: Number(formData.categoryId),
-    variants: [
-      {
-        sku: formData.variantSku?.trim() || fallbackSku,
-        color: formData.variantColor?.trim() || null,
-        size: formData.variantSize?.trim() || null,
-        price: Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0,
-      },
-    ],
+    variants,
   }
 }
 
@@ -191,9 +199,8 @@ export function ProductPage() {
     setSuccess("")
     try {
       await productService.hideProduct(id)
-      setSuccess("Đã ẩn sản phẩm. Chuyển sang tab «Sản phẩm đã ẩn» để xóa vĩnh viễn nếu cần.")
-      setCurrentPage(1)
-      setShowHiddenProducts(true)
+      setProducts((prev) => prev.filter((p) => p.id !== id))
+      setSuccess("Đã ẩn sản phẩm. Bạn có thể tiếp tục ẩn các sản phẩm khác. Chuyển sang tab «Sản phẩm đã ẩn» khi cần khôi phục hoặc xóa.")
     } catch (err) {
       setError(getApiErrorMessage(err, "Ẩn sản phẩm thất bại"))
     }
@@ -222,9 +229,8 @@ export function ProductPage() {
     setSuccess("")
     try {
       await productService.restoreProduct(id)
-      setSuccess("Đã khôi phục sản phẩm — hiển thị lại trên web")
-      setCurrentPage(1)
-      setShowHiddenProducts(false)
+      setProducts((prev) => prev.filter((p) => p.id !== id))
+      setSuccess("Đã khôi phục sản phẩm — hiển thị lại trên web. Bạn có thể tiếp tục xử lý các sản phẩm đã ẩn khác.")
     } catch (err) {
       setError(getApiErrorMessage(err, "Khôi phục thất bại"))
     }
@@ -237,20 +243,75 @@ export function ProductPage() {
 
     try {
       let productId = selectedProduct?.id || null
+      let inboundSummary = null
 
       if (!productId) {
-        const sku = formData.variantSku?.trim()
-        const price = Number(formData.variantPrice)
-        if (!sku) {
-          throw new Error("Variant SKU is required.")
+        const createSlice = {
+          name: formData.name,
+          categoryId: formData.categoryId,
+          variantPrice: formData.variantPrice,
+          colors: formData.colors ?? [],
+          selectedSizes: formData.selectedSizes ?? [],
+          stockMatrix: formData.stockMatrix ?? {},
+          warehouseId: formData.warehouseId,
+          supplierId: formData.supplierId,
         }
-        if (!Number.isFinite(price) || price < 0) {
-          throw new Error("Variant price must be a non-negative number.")
+        const validationErrors = validateCreateProductForm(createSlice)
+        const firstError = Object.values(validationErrors)[0]
+        if (firstError) {
+          throw new Error(firstError)
         }
+
+        const variantSummary = computeVariantSummary(
+          createSlice.colors,
+          createSlice.selectedSizes,
+          createSlice.stockMatrix,
+        )
+        const variantPreviews = buildVariantPreviews(
+          formData.name,
+          createSlice.colors,
+          createSlice.selectedSizes,
+          createSlice.stockMatrix,
+        )
+
         const { data } = await productService.createProduct(buildCreatePayload(formData))
         productId = resolveProductId(data)
         if (!productId) {
           throw new Error("Tạo sản phẩm thành công nhưng không nhận được ID — không thể upload ảnh.")
+        }
+
+        if (variantSummary.totalStock > 0) {
+          const createdVariants = data?.result?.variants ?? []
+          const unitPrice = Number(formData.variantPrice)
+          const inboundItems = buildInitialInboundItems(
+            createdVariants,
+            variantPreviews,
+            Number.isFinite(unitPrice) ? unitPrice : 0,
+          )
+
+          if (inboundItems.length === 0) {
+            throw new Error(
+              "Sản phẩm đã tạo nhưng không map được biến thể để nhập kho — kiểm tra SKU hoặc nhập kho thủ công.",
+            )
+          }
+
+          const inboundRes = await inventoryService.inbound({
+            warehouseId: Number(formData.warehouseId),
+            supplierId: Number(formData.supplierId),
+            note:
+              formData.inboundNote?.trim() ||
+              `Nhập kho lúc tạo sản phẩm: ${formData.name.trim()}`,
+            items: inboundItems,
+          })
+
+          if (!inboundRes.data?.success) {
+            throw new Error(
+              inboundRes.data?.message ??
+                `Sản phẩm đã tạo (ID ${productId}) nhưng nhập kho thất bại — dùng Phiếu nhập kho để nhập thủ công.`,
+            )
+          }
+
+          inboundSummary = formatInboundSummary(inboundItems)
         }
       } else {
         await productService.updateProduct(productId, buildUpdatePayload(formData))
@@ -285,7 +346,7 @@ export function ProductPage() {
       const isEdit = Boolean(selectedProduct)
       if (uploadErrors.length > 0) {
         setError(
-          `Sản phẩm đã ${isEdit ? "cập nhật" : "tạo"} (ID ${productId}) nhưng upload ảnh thất bại: ${uploadErrors.join(" | ")}`,
+          `Sản phẩm đã ${isEdit ? "cập nhật" : "tạo"} (ID ${productId})${inboundSummary ? `, đã nhập kho (${inboundSummary})` : ""} nhưng upload ảnh thất bại: ${uploadErrors.join(" | ")}`,
         )
         setSuccess(null)
       } else if (
@@ -293,10 +354,20 @@ export function ProductPage() {
         productId
       ) {
         setSuccess(
-          isEdit ? "Cập nhật sản phẩm và upload ảnh thành công" : "Tạo sản phẩm và upload ảnh thành công",
+          isEdit
+            ? "Cập nhật sản phẩm và upload ảnh thành công"
+            : inboundSummary
+              ? `Tạo sản phẩm, nhập kho (${inboundSummary}) và upload ảnh thành công`
+              : "Tạo sản phẩm và upload ảnh thành công",
         )
       } else {
-        setSuccess(isEdit ? "Cập nhật sản phẩm thành công" : "Tạo sản phẩm thành công")
+        setSuccess(
+          isEdit
+            ? "Cập nhật sản phẩm thành công"
+            : inboundSummary
+              ? `Tạo sản phẩm và nhập kho thành công (${inboundSummary})`
+              : "Tạo sản phẩm thành công",
+        )
       }
       if (uploadErrors.length === 0) {
         closeModal()
@@ -408,7 +479,7 @@ export function ProductPage() {
               <p className="form-text mb-0">
                 {showHiddenProducts
                   ? "Sản phẩm đã ẩn: «Khôi phục» để bán lại trên web, hoặc «Xóa vĩnh viễn» để xóa hẳn."
-                  : "Sản phẩm đang bán / tạm ngưng. Dùng nút «Ẩn» để đưa sang tab đã ẩn."}
+                  : "Sản phẩm đang bán / tạm ngưng. Dùng nút «Ẩn» để ẩn khỏi shop — bạn vẫn ở tab này để ẩn tiếp."}
               </p>
             </div>
           </div>

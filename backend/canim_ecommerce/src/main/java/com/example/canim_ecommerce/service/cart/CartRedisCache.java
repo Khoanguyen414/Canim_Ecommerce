@@ -3,13 +3,13 @@ package com.example.canim_ecommerce.service.cart;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import com.example.canim_ecommerce.entity.Cart;
 
 import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 
@@ -23,20 +23,32 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class CartRedisCache {
 
     static final String KEY_PREFIX = "cart:user:";
     static final long TTL_DAYS = 7L;
 
-    RedisTemplate<String, Object> redisTemplate;
+    ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider;
+
+    public CartRedisCache(ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider) {
+        this.redisTemplateProvider = redisTemplateProvider;
+    }
+
+    private RedisTemplate<String, Object> redisTemplate() {
+        return redisTemplateProvider.getIfAvailable();
+    }
 
     public static String keyForUser(Long userId) {
         return KEY_PREFIX + userId;
     }
 
     public Optional<Cart> get(Long userId) {
+        RedisTemplate<String, Object> redisTemplate = redisTemplate();
+        if (redisTemplate == null) {
+            return Optional.empty();
+        }
+
         String key = keyForUser(userId);
         try {
             Object raw = redisTemplate.opsForValue().get(key);
@@ -51,6 +63,11 @@ public class CartRedisCache {
     }
 
     public void put(Long userId, Cart cart) {
+        RedisTemplate<String, Object> redisTemplate = redisTemplate();
+        if (redisTemplate == null) {
+            return;
+        }
+
         try {
             redisTemplate.opsForValue().set(keyForUser(userId), cart, TTL_DAYS, TimeUnit.DAYS);
         } catch (Exception e) {
@@ -59,6 +76,11 @@ public class CartRedisCache {
     }
 
     public void evict(Long userId) {
+        RedisTemplate<String, Object> redisTemplate = redisTemplate();
+        if (redisTemplate == null) {
+            return;
+        }
+
         try {
             redisTemplate.delete(keyForUser(userId));
         } catch (Exception e) {
