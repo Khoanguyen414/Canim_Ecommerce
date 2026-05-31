@@ -28,7 +28,7 @@ import type { ProductDetail } from "@/types/api.types"
 export default function Products() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const addLine = useCartStore((s) => s.addLine)
+  const addToCart = useCartStore((s) => s.addToCart)
   const { facets, page, patchFacets, applyFacets, clearFacets, setPage } = useProductFacetParams()
   const trackedSearchRef = useRef<Set<string>>(new Set())
   const { trackSearch } = useProductTracking()
@@ -69,12 +69,12 @@ export default function Products() {
     }
   }, [searchParams, applyFacets, trackSearch])
 
-  const handleQuickAdd = (p: ProductDetail) => {
+  const handleQuickAdd = async (p: ProductDetail) => {
     const v = getDefaultVariant(p)
 
     if (!v) return
 
-    addLine({
+    await addToCart({
       productId: p.id,
       variantId: v.id,
       productName: p.name,

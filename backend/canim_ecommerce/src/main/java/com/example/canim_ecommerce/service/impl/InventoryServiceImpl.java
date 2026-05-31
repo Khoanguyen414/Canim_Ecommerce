@@ -154,6 +154,7 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public byte[] exportInventoryReport() {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
@@ -167,30 +168,42 @@ public class InventoryServiceImpl implements InventoryService {
             createRow(s1, 0, headerStyle, "Mã Kho", "SKU", "Sản Phẩm", "Danh Mục", "Phân loại", "Tồn", "Giá Vốn TB",
                     "Thành Tiền", "Cảnh Báo");
 
-            List<Inventory> invs = inventoryRepository.findAllByOrderByWarehouseIdAscVariant_SkuAsc();
+            List<Inventory> invs = inventoryRepository.findAllForExport();
             int rowIdx = 1;
             for (Inventory inv : invs) {
-                Row r = s1.createRow(rowIdx++);
                 ProductVariant v = inv.getVariant();
+                if (v == null) {
+                    continue;
+                }
+
+                Row r = s1.createRow(rowIdx++);
+                var product = v.getProduct();
+                String productName = product != null ? nullSafe(product.getName()) : "";
+                String categoryName =
+                        product != null && product.getCategory() != null
+                                ? nullSafe(product.getCategory().getName())
+                                : "";
+                int quantity = inv.getQuantity() != null ? inv.getQuantity() : 0;
+                int minStock = inv.getMinStock() != null ? inv.getMinStock() : 0;
 
                 double wac = calculateWAC(v.getId(), inv.getWarehouseId());
 
                 r.createCell(0).setCellValue("Kho " + inv.getWarehouseId());
-                r.createCell(1).setCellValue(v.getSku());
-                r.createCell(2).setCellValue(v.getProduct().getName());
-                r.createCell(3).setCellValue(v.getProduct().getCategory().getName());
+                r.createCell(1).setCellValue(nullSafe(v.getSku()));
+                r.createCell(2).setCellValue(productName);
+                r.createCell(3).setCellValue(categoryName);
                 r.createCell(4).setCellValue(formatVariant(v));
-                r.createCell(5).setCellValue(inv.getQuantity());
+                r.createCell(5).setCellValue(quantity);
 
                 Cell cWac = r.createCell(6);
                 cWac.setCellValue(wac);
                 cWac.setCellStyle(moneyStyle);
 
                 Cell cTotal = r.createCell(7);
-                cTotal.setCellValue(wac * inv.getQuantity());
+                cTotal.setCellValue(wac * quantity);
                 cTotal.setCellStyle(moneyStyle);
 
-                if (inv.getQuantity() <= inv.getMinStock()) {
+                if (quantity <= minStock) {
                     Cell cAlert = r.createCell(8);
                     cAlert.setCellValue("SẮP HẾT HÀNG");
                     cAlert.setCellStyle(alertStyle);
@@ -200,48 +213,59 @@ public class InventoryServiceImpl implements InventoryService {
             Sheet s2 = workbook.createSheet("2. Chi Tiết Lô Hàng");
             createRow(s2, 0, headerStyle, "Mã Kho", "Mã Lô", "SKU", "Sản Phẩm", "Nhà Cung Cấp", "SĐT NCC", "Tồn Lô",
                     "Giá Nhập", "Ngày Nhập");
-            List<InventoryBatch> batches = inventoryBatchRepository.findAllByQuantityRemainingGreaterThan(0);
+            List<InventoryBatch> batches = inventoryBatchRepository.findAllActiveBatchesForExport();
             rowIdx = 1;
             for (InventoryBatch b : batches) {
+                ProductVariant batchVariant = b.getVariant();
+                if (batchVariant == null) {
+                    continue;
+                }
+
                 Row r = s2.createRow(rowIdx++);
                 Supplier sup = b.getSupplier();
                 r.createCell(0).setCellValue("Kho " + b.getWarehouseId());
-                r.createCell(1).setCellValue(b.getBatchCode());
-                r.createCell(2).setCellValue(b.getVariant().getSku());
-                r.createCell(3).setCellValue(b.getVariant().getProduct().getName());
-                r.createCell(4).setCellValue(sup != null ? sup.getName() : "N/A");
-                r.createCell(5).setCellValue(sup != null ? sup.getPhone() : "-");
-                r.createCell(6).setCellValue(b.getQuantityRemaining());
+                r.createCell(1).setCellValue(nullSafe(b.getBatchCode()));
+                r.createCell(2).setCellValue(nullSafe(batchVariant.getSku()));
+                r.createCell(3).setCellValue(
+                        batchVariant.getProduct() != null ? nullSafe(batchVariant.getProduct().getName()) : "");
+                r.createCell(4).setCellValue(sup != null ? nullSafe(sup.getName()) : "N/A");
+                r.createCell(5).setCellValue(sup != null ? nullSafe(sup.getPhone()) : "-");
+                r.createCell(6).setCellValue(b.getQuantityRemaining() != null ? b.getQuantityRemaining() : 0);
 
                 Cell cPrice = r.createCell(7);
-                cPrice.setCellValue(b.getImportPrice().doubleValue());
+                cPrice.setCellValue(b.getImportPrice() != null ? b.getImportPrice().doubleValue() : 0d);
                 cPrice.setCellStyle(moneyStyle);
 
-                r.createCell(8).setCellValue(b.getCreatedAt().format(FULL_TIME_FORMAT));
+                r.createCell(8).setCellValue(
+                        b.getCreatedAt() != null ? b.getCreatedAt().format(FULL_TIME_FORMAT) : "");
             }
 
             Sheet s3 = workbook.createSheet("3. Nhật Ký Giao Dịch");
             createRow(s3, 0, headerStyle, "Ngày Giờ", "Mã Kho", "Mã Chứng Từ", "Loại", "SKU", "Số Lượng", "Lý Do",
                     "Người Thực Hiện");
-            List<InventoryTransaction> txs = inventoryTransactionRepository.findAllByOrderByCreatedAtDesc();
+            List<InventoryTransaction> txs = inventoryTransactionRepository.findAllForExport();
             rowIdx = 1;
             for (InventoryTransaction tx : txs) {
+                if (tx.getVariant() == null) {
+                    continue;
+                }
+
                 Row r = s3.createRow(rowIdx++);
-                r.createCell(0).setCellValue(tx.getCreatedAt().format(FULL_TIME_FORMAT));
+                r.createCell(0).setCellValue(
+                        tx.getCreatedAt() != null ? tx.getCreatedAt().format(FULL_TIME_FORMAT) : "");
                 r.createCell(1).setCellValue("Kho " + tx.getWarehouseId());
-                r.createCell(2).setCellValue(tx.getReferenceType() + "-" + tx.getReferenceId());
-                r.createCell(3).setCellValue(tx.getType().toString());
-                r.createCell(4).setCellValue(tx.getVariant().getSku());
-                r.createCell(5).setCellValue(tx.getQuantity());
-                r.createCell(6).setCellValue(tx.getReferenceType());
-                r.createCell(7).setCellValue("Nhân viên ID: " + tx.getCreatedBy());
+                r.createCell(2).setCellValue(nullSafe(tx.getReferenceType()) + "-" + tx.getReferenceId());
+                r.createCell(3).setCellValue(tx.getType() != null ? tx.getType().toString() : "");
+                r.createCell(4).setCellValue(nullSafe(tx.getVariant().getSku()));
+                r.createCell(5).setCellValue(tx.getQuantity() != null ? tx.getQuantity() : 0);
+                r.createCell(6).setCellValue(nullSafe(tx.getReferenceType()));
+                r.createCell(7).setCellValue(
+                        tx.getCreatedBy() != null ? "Nhân viên ID: " + tx.getCreatedBy() : "N/A");
             }
 
-            for (int i = 0; i < 11; i++) {
-                s1.autoSizeColumn(i);
-                s2.autoSizeColumn(i);
-                s3.autoSizeColumn(i);
-            }
+            autoSizeColumns(s1, 9);
+            autoSizeColumns(s2, 9);
+            autoSizeColumns(s3, 8);
             workbook.write(out);
             return out.toByteArray();
         } catch (Exception e) {
@@ -386,18 +410,30 @@ public class InventoryServiceImpl implements InventoryService {
 
     private double calculateWAC(Long variantId, Long warehouseId) {
         List<InventoryBatch> batches = inventoryBatchRepository.findAllByVariantId(variantId);
+        if (batches == null || batches.isEmpty()) {
+            return 0;
+        }
 
-        double totalVal = batches.stream()
-                .filter(b -> b.getWarehouseId().equals(warehouseId))
-                .mapToDouble(b -> b.getImportPrice().doubleValue() * b.getQuantityRemaining())
-                .sum();
-
-        int totalQty = batches.stream()
-                .filter(b -> b.getWarehouseId().equals(warehouseId))
-                .mapToInt(InventoryBatch::getQuantityRemaining)
-                .sum();
+        double totalVal = 0;
+        int totalQty = 0;
+        for (InventoryBatch batch : batches) {
+            if (batch.getWarehouseId() == null || !batch.getWarehouseId().equals(warehouseId)) {
+                continue;
+            }
+            int qty = batch.getQuantityRemaining() != null ? batch.getQuantityRemaining() : 0;
+            if (qty <= 0) {
+                continue;
+            }
+            double price = batch.getImportPrice() != null ? batch.getImportPrice().doubleValue() : 0d;
+            totalVal += price * qty;
+            totalQty += qty;
+        }
 
         return totalQty == 0 ? 0 : totalVal / totalQty;
+    }
+
+    private String nullSafe(String value) {
+        return value != null ? value : "";
     }
 
     private String formatVariant(ProductVariant v) {
@@ -411,6 +447,16 @@ public class InventoryServiceImpl implements InventoryService {
             Cell c = r.createCell(i);
             c.setCellValue(vals[i]);
             c.setCellStyle(st);
+        }
+    }
+
+    private void autoSizeColumns(Sheet sheet, int count) {
+        for (int i = 0; i < count; i++) {
+            try {
+                sheet.autoSizeColumn(i);
+            } catch (Exception ignored) {
+                sheet.setColumnWidth(i, 5000);
+            }
         }
     }
 

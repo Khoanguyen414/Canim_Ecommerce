@@ -28,7 +28,7 @@ export default function Home() {
   )
 
   const { products, loading, error, reload } = usePublicProducts(homeFacets, 1, 12)
-  const addLine = useCartStore((s) => s.addLine)
+  const addToCart = useCartStore((s) => s.addToCart)
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
 
@@ -68,12 +68,12 @@ export default function Home() {
 
   const tabCategories = useMemo(() => categoryPreview.slice(0, 5), [categoryPreview])
 
-  const handleQuickAdd = (p: ProductDetail) => {
+  const handleQuickAdd = async (p: ProductDetail) => {
     const v = getDefaultVariant(p)
 
     if (!v) return
 
-    addLine({
+    await addToCart({
       productId: p.id,
       variantId: v.id,
       productName: p.name,

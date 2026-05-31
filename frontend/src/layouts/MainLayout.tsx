@@ -1,16 +1,23 @@
 import { useEffect, useState } from "react"
 import { Outlet, useLocation, useSearchParams } from "react-router-dom"
+import CanimAiChatWidget from "@/components/ai/CanimAiChatWidget"
 import Header from "@/components/layout/Header"
 import Footer from "@/components/layout/Footer"
 import AuthModal from "@/components/auth/AuthModal"
 import WelcomePromoModal from "@/components/layout/WelcomePromoModal"
+import { syncGuestCartOnceAfterLogin } from "@/lib/cartSync"
 import { useAuthModalStore } from "@/store/auth-modal.store"
+import { useAuthStore } from "@/store/auth.store"
+import { useCartStore } from "@/store/cart.store"
 
 export default function MainLayout() {
   const { pathname } = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const authQ = searchParams.get("auth")
   const [promoOpen, setPromoOpen] = useState(false)
+  const user = useAuthStore((s) => s.user)
+  const initialized = useAuthStore((s) => s.initialized)
+  const refreshFromBackend = useCartStore((s) => s.refreshFromBackend)
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -38,6 +45,16 @@ export default function MainLayout() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!initialized || !user) return
+
+    void (async () => {
+      const guestLines = [...useCartStore.getState().lines]
+      await syncGuestCartOnceAfterLogin(user.id, guestLines)
+      await refreshFromBackend()
+    })()
+  }, [initialized, user?.id, refreshFromBackend])
+
   return (
     <div className="relative flex min-h-screen flex-col bg-[#fffaf7]">
       <a
@@ -57,6 +74,7 @@ export default function MainLayout() {
       <Footer />
       <WelcomePromoModal open={promoOpen} onClose={() => setPromoOpen(false)} />
       <AuthModal />
+      <CanimAiChatWidget />
     </div>
   )
 }

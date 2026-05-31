@@ -14,7 +14,7 @@ export default function FavoritesPage() {
   const navigate = useNavigate()
   const items = useWishlistStore((s) => s.items)
   const remove = useWishlistStore((s) => s.remove)
-  const addLine = useCartStore((s) => s.addLine)
+  const addToCart = useCartStore((s) => s.addToCart)
 
   const handleAddToCart = async (productId: number) => {
     try {
@@ -27,7 +27,7 @@ export default function FavoritesPage() {
       }
       const variant = getDefaultVariant(p)
       if (!variant) return
-      addLine({
+      await addToCart({
         productId: p.id,
         variantId: variant.id,
         productName: p.name,

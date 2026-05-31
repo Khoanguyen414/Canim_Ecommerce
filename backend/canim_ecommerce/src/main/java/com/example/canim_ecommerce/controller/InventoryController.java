@@ -43,7 +43,8 @@ public class InventoryController {
         byte[] excelData = inventoryService.exportInventoryReport();
 
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.setContentType(MediaType.parseMediaType(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
         headers.setContentDispositionFormData("attachment", "Bao_Cao_Ton_Kho_" + System.currentTimeMillis() + ".xlsx");
 
         return ResponseEntity.ok()

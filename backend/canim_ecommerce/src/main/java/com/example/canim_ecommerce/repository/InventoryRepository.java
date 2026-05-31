@@ -42,4 +42,13 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
             @Param("warehouseId") Long warehouseId);
 
     List<Inventory> findAllByOrderByWarehouseIdAscVariant_SkuAsc();
+
+    @Query("""
+            SELECT DISTINCT i FROM Inventory i
+            INNER JOIN FETCH i.variant v
+            INNER JOIN FETCH v.product p
+            LEFT JOIN FETCH p.category
+            ORDER BY i.warehouseId ASC, v.sku ASC
+            """)
+    List<Inventory> findAllForExport();
 }

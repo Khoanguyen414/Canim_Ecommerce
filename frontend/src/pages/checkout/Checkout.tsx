@@ -20,14 +20,14 @@ import {
   type AddressCheckoutMode,
 } from "@/components/checkout/SavedAddressPicker"
 import type { UserAddressDto } from "@/types/api.types"
-import { syncLocalCartToServer } from "@/lib/cartSync"
 import { getApiErrorMessage } from "@/lib/apiError"
+import { cartService } from "@/services/cart.service"
 import { shippingAddressFromParts } from "@/lib/orderLabels"
 import type { PaymentMethod } from "@/types/api.types"
 
 export default function Checkout() {
   const navigate = useNavigate()
-  const { lines, subtotal, clear } = useCartStore()
+  const { lines, subtotal, clear, refreshFromBackend } = useCartStore()
   const user = useAuthStore((s) => s.user)
 
   const [formData, setFormData] = useState(() => ({
@@ -72,6 +72,11 @@ export default function Checkout() {
     [districts, formData.district],
   )
   const wards: VnWard[] = selectedDistrict?.wards ?? []
+
+  useEffect(() => {
+    if (!user) return
+    void refreshFromBackend()
+  }, [user?.id, refreshFromBackend])
 
   useEffect(() => {
     if (!user) return
@@ -187,7 +192,10 @@ export default function Checkout() {
     setSubmitting(true)
     setFormErrors({})
     try {
-      await syncLocalCartToServer(lines)
+      const variantIds = lines.map((l) => l.variantId)
+      if (variantIds.length > 0) {
+        await cartService.toggleSelection(variantIds, true)
+      }
 
       const note = shippingChosen
         ? `Vận chuyển: ${shippingChosen.name}. ${formData.email ? `Email: ${formData.email.trim()}` : ""}`.trim()
@@ -239,6 +247,7 @@ export default function Checkout() {
       }
 
       const order = checkoutRes.result
+      await cartService.clearCart()
       clear()
 
       if (formData.paymentMethod === "COD") {
