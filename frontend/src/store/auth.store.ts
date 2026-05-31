@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { authService } from "@/services/auth.service"
 import { userService } from "@/services/user.service"
+import { useCartStore } from "@/store/cart.store"
 import type { AuthResult, UserProfile } from "@/types/api.types"
 
 export type AuthUser = {
@@ -105,6 +106,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     localStorage.removeItem("accessToken")
     localStorage.removeItem("refreshToken")
+    useCartStore.getState().resetOnLogout()
     set({ user: null, accessToken: null, initialized: true })
   },
 }))

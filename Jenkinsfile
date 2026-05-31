@@ -66,8 +66,8 @@ pipeline {
             echo 'Demo URLs:'
             echo '  Backend: http://localhost:8080/canim_ecommerce'
             echo '  AI:      http://localhost:8001'
-            echo '  Storefront: npm run dev in frontend/ (port 5173)'
-            echo '  Admin:      npm run dev in admin-frontend/ (port 5174)'
+            echo '  Storefront: http://localhost:5173'
+            echo '  Admin:      http://localhost:5174'
         }
     }
 }

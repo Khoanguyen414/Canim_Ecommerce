@@ -31,7 +31,7 @@ export default function ProductDetail() {
   const orderItemIdParam = searchParams.get("orderItemId")
   const orderItemId = orderItemIdParam ? Number(orderItemIdParam) : null
   const navigate = useNavigate()
-  const addLine = useCartStore((s) => s.addLine)
+  const addToCart = useCartStore((s) => s.addToCart)
   const toggleWishlist = useWishlistStore((s) => s.toggle)
 
   const [product, setProduct] = useState<ProductModel | null>(null)
@@ -138,7 +138,7 @@ export default function ProductDetail() {
     setSelectionError(null)
   }
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!product) return
     const message = validationMessage
     if (message || !variant) {
@@ -150,18 +150,22 @@ export default function ProductDetail() {
     const safeQty = Math.min(Math.max(1, quantity), maxQty > 0 ? maxQty : quantity)
 
     const img = activeImage ?? getProductMainImage(product)
-    addLine({
-      productId: product.id,
-      variantId: variant.id,
-      productName: product.name,
-      sku: variant.sku,
-      color: variant.color,
-      size: variant.size,
-      price: toNumber(variant.price),
-      quantity: safeQty,
-      imageUrl: img,
-    })
-    navigate("/cart")
+    try {
+      await addToCart({
+        productId: product.id,
+        variantId: variant.id,
+        productName: product.name,
+        sku: variant.sku,
+        color: variant.color,
+        size: variant.size,
+        price: toNumber(variant.price),
+        quantity: safeQty,
+        imageUrl: img,
+      })
+      navigate("/cart")
+    } catch {
+      setSelectionError("Không thể thêm vào giỏ hàng. Vui lòng thử lại.")
+    }
   }
 
   if (loading) return <LoadingSpinner label="Đang tải chi tiết..." />

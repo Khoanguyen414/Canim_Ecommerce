@@ -1,34 +1,93 @@
+import { useEffect, useState } from "react"
 import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
 import { EmptyState } from "@/components/common/EmptyState"
+import { LoadingSpinner } from "@/components/common/LoadingSpinner"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useProductTracking } from "@/hooks/useProductTracking"
+import { getApiErrorMessage } from "@/lib/apiError"
 import { openLoginModalWithReturnTo } from "@/lib/authRedirect"
 import { formatVnd } from "@/lib/format"
+import { cartService } from "@/services/cart.service"
 import { useAuthStore } from "@/store/auth.store"
 import { useCartStore } from "@/store/cart.store"
+import type { CartLine } from "@/types/api.types"
 
 export default function Cart() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
-  const { lines, removeLine, setQuantity, subtotal, clear } = useCartStore()
+  const { lines, removeLine, setQuantity, subtotal, clear, refreshFromBackend, loading } =
+    useCartStore()
   const { trackProductClick } = useProductTracking()
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!user) return
+    void refreshFromBackend()
+  }, [user?.id, refreshFromBackend])
 
   const shipping = lines.length ? 30000 : 0
   const tax = Math.round(subtotal() * 0.08)
   const total = subtotal() + shipping + tax
 
-  const handleCartProductClick = (item: {
-    productId: number
-    variantId?: number | null
-  }) => {
+  const handleCartProductClick = (item: { productId: number; variantId?: number | null }) => {
     trackProductClick({
       productId: item.productId,
       variantId: item.variantId ?? null,
       source: "CART_ITEM",
     })
+  }
+
+  const runCartAction = async (action: () => Promise<void>) => {
+    setActionError(null)
+    try {
+      await action()
+    } catch (err) {
+      setActionError(getApiErrorMessage(err))
+    }
+  }
+
+  const handleRemove = (item: CartLine) => {
+    if (user) {
+      void runCartAction(async () => {
+        await cartService.removeCartItem(item.variantId)
+        await refreshFromBackend()
+      })
+      return
+    }
+    removeLine(item.lineId)
+  }
+
+  const handleSetQuantity = (item: CartLine, quantity: number) => {
+    if (user) {
+      void runCartAction(async () => {
+        if (quantity <= 0) {
+          await cartService.removeCartItem(item.variantId)
+        } else {
+          await cartService.updateCartItem(item.variantId, quantity, item.isSelected ?? true)
+        }
+        await refreshFromBackend()
+      })
+      return
+    }
+    setQuantity(item.lineId, quantity)
+  }
+
+  const handleClear = () => {
+    if (user) {
+      void runCartAction(async () => {
+        await cartService.clearCart()
+        await refreshFromBackend()
+      })
+      return
+    }
+    clear()
+  }
+
+  if (user && loading && lines.length === 0) {
+    return <LoadingSpinner label="Đang tải giỏ hàng..." />
   }
 
   if (lines.length === 0) {
@@ -50,15 +109,14 @@ export default function Cart() {
       <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-3xl font-bold">Shopping cart</h1>
 
-        <Button
-          variant="ghost"
-          className="text-destructive"
-          type="button"
-          onClick={() => clear()}
-        >
+        <Button variant="ghost" className="text-destructive" type="button" onClick={handleClear}>
           Clear cart
         </Button>
       </div>
+
+      {actionError ? (
+        <p className="mb-4 text-sm text-destructive">{actionError}</p>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
@@ -94,9 +152,7 @@ export default function Cart() {
                     {item.size ? ` · ${item.size}` : ""}
                   </p>
 
-                  <p className="mt-2 font-bold text-primary">
-                    {formatVnd(item.price)}
-                  </p>
+                  <p className="mt-2 font-bold text-primary">{formatVnd(item.price)}</p>
                 </div>
 
                 <div className="flex flex-col items-end justify-between">
@@ -105,7 +161,7 @@ export default function Cart() {
                     size="sm"
                     className="text-destructive"
                     type="button"
-                    onClick={() => removeLine(item.lineId)}
+                    onClick={() => handleRemove(item)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -115,20 +171,18 @@ export default function Cart() {
                       variant="outline"
                       size="sm"
                       type="button"
-                      onClick={() => setQuantity(item.lineId, item.quantity - 1)}
+                      onClick={() => handleSetQuantity(item, item.quantity - 1)}
                     >
                       <Minus className="h-3 w-3" />
                     </Button>
 
-                    <span className="w-8 text-center text-sm">
-                      {item.quantity}
-                    </span>
+                    <span className="w-8 text-center text-sm">{item.quantity}</span>
 
                     <Button
                       variant="outline"
                       size="sm"
                       type="button"
-                      onClick={() => setQuantity(item.lineId, item.quantity + 1)}
+                      onClick={() => handleSetQuantity(item, item.quantity + 1)}
                     >
                       <Plus className="h-3 w-3" />
                     </Button>

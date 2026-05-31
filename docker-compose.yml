@@ -1,5 +1,4 @@
-# Full-stack local demo (backend + AI + MySQL + Redis).
-# Frontends: run separately with npm run dev (see docs/DEPLOY_FREE_GUIDE.md).
+# Full-stack local demo: MySQL + Redis + Backend + AI + Storefront + Admin.
 
 services:
   mysql:
@@ -82,6 +81,38 @@ services:
       AI_CORS_ALLOWED_ORIGINS: ${AI_CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:5174}
       AI_NLU_MODE: rule_based
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/canim_ecommerce}
+        VITE_AI_API_BASE_URL: ${VITE_AI_API_BASE_URL:-http://localhost:8001}
+        VITE_AI_CHAT_MOCK: ${VITE_AI_CHAT_MOCK:-false}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
+    container_name: canim_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - ai-service
+    ports:
+      - "${FRONTEND_HOST_PORT:-5173}:80"
+
+  admin-frontend:
+    build:
+      context: ./admin-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/canim_ecommerce}
+        VITE_STOREFRONT_URL: ${VITE_STOREFRONT_URL:-http://localhost:5173}
+    container_name: canim_admin_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${ADMIN_FRONTEND_HOST_PORT:-5174}:80"
+
 volumes:
   canim_mysql_data:
   canim_redis_data:
@@ -89,7 +120,7 @@ volumes:
 # Local URLs:
 #   Backend API:  http://localhost:8080/canim_ecommerce
 #   AI service:   http://localhost:8001
+#   Storefront:   http://localhost:5173
+#   Admin:        http://localhost:5174
 #   MySQL:        localhost:3307 (host) -> mysql:3306 (container)
 #   Redis:        localhost:6379
-#   Storefront:   cd frontend && npm run dev  -> http://localhost:5173
-#   Admin:        cd admin-frontend && npm run dev -> http://localhost:5174
