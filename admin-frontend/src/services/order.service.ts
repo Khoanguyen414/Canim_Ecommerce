@@ -4,6 +4,7 @@ import type {
   OrderDetailRecord,
   OrderStatus,
   OrderSummaryRecord,
+  OrderTrackingRecord,
   PagedResult,
   PaymentStatus,
 } from "@/types/api"

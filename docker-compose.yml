@@ -1,0 +1,95 @@
+# Full-stack local demo (backend + AI + MySQL + Redis).
+# Frontends: run separately with npm run dev (see docs/DEPLOY_FREE_GUIDE.md).
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: canim_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-canim_ecommerce}
+      MYSQL_USER: ${MYSQL_USER:-canim}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-canim}
+    ports:
+      - "${MYSQL_HOST_PORT:-3307}:3306"
+    volumes:
+      - canim_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: canim_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - canim_redis_data:/data
+
+  backend:
+    build:
+      context: ./backend/canim_ecommerce
+      dockerfile: Dockerfile
+    container_name: canim_backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "${BACKEND_HOST_PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8080
+      SERVER_SERVLET_CONTEXT_PATH: /canim_ecommerce
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-canim_ecommerce}
+      MYSQL_USER: ${MYSQL_USER:-canim}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-canim}
+      REDIS_ENABLED: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-use-long-random-string}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:5174,http://localhost:*}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      AI_SERVICE_URL: http://ai-service:8001
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: canim_ai_service
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${AI_HOST_PORT:-8001}:8001"
+    environment:
+      APP_ENV: development
+      AI_PORT: 8001
+      AI_DEBUG: "true"
+      BACKEND_API_BASE_URL: http://backend:8080/canim_ecommerce
+      AI_CORS_ALLOWED_ORIGINS: ${AI_CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:5174}
+      AI_NLU_MODE: rule_based
+
+volumes:
+  canim_mysql_data:
+  canim_redis_data:
+
+# Local URLs:
+#   Backend API:  http://localhost:8080/canim_ecommerce
+#   AI service:   http://localhost:8001
+#   MySQL:        localhost:3307 (host) -> mysql:3306 (container)
+#   Redis:        localhost:6379
+#   Storefront:   cd frontend && npm run dev  -> http://localhost:5173
+#   Admin:        cd admin-frontend && npm run dev -> http://localhost:5174

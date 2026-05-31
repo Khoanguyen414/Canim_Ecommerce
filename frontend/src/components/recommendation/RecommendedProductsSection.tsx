@@ -48,6 +48,29 @@ const getProductName = (product: AiRecommendedProduct) => {
   return product.name ?? product.productName ?? "Sản phẩm Canim"
 }
 
+function dedupeByProductId(
+  products: AiRecommendedProduct[],
+): AiRecommendedProduct[] {
+  const deduped: AiRecommendedProduct[] = []
+  const seenProductIds = new Set<number>()
+
+  for (const product of products) {
+    const productId = getProductId(product)
+
+    if (productId != null) {
+      if (seenProductIds.has(productId)) {
+        continue
+      }
+
+      seenProductIds.add(productId)
+    }
+
+    deduped.push(product)
+  }
+
+  return deduped
+}
+
 const getImageUrl = (product: AiRecommendedProduct) => {
   return product.imageUrl ?? product.image_url ?? product.mainImageUrl ?? null
 }
@@ -169,7 +192,7 @@ export default function RecommendedProductsSection({
       .then((response) => {
         if (!mounted) return
 
-        setItems(response.items ?? [])
+        setItems(dedupeByProductId(response.items ?? []))
       })
       .finally(() => {
         if (!mounted) return

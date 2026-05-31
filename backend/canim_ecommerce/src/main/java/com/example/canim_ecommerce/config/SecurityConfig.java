@@ -1,6 +1,8 @@
 package com.example.canim_ecommerce.config;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.crypto.spec.SecretKeySpec;
 
@@ -39,7 +41,12 @@ public class SecurityConfig {
     @Value("${security.jwt.secret}")
     String secretkey;
 
+    @Value("${app.cors.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*}")
+    String corsAllowedOriginPatterns;
+
     String[] PUBLIC_ENDPOINTS = {
+            "/actuator/health",
+            "/actuator/health/**",
             "/auth/**",
             "/v3/api-docs/**",
             "/swagger-ui/**",
@@ -96,7 +103,11 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
 
         config.setAllowCredentials(true);
-        config.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+        List<String> originPatterns = Arrays.stream(corsAllowedOriginPatterns.split(","))
+                .map(String::trim)
+                .filter(pattern -> !pattern.isEmpty())
+                .collect(Collectors.toList());
+        config.setAllowedOriginPatterns(originPatterns);
         config.setAllowedMethods(List.of(
                 "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

@@ -1,9 +1,13 @@
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { Check, Heart, ShoppingBag } from "lucide-react"
 import type { ProductDetail } from "@/types/api.types"
 import { formatVnd } from "@/lib/format"
 import { cn } from "@/lib/cn"
 import { getMinVariantPrice, getProductMainImage } from "@/lib/product"
+import {
+  requiresVariantSelection,
+  variantInStock,
+} from "@/lib/productVariantSelection"
 import { productToWishlistItem, useWishlistStore } from "@/store/wishlist.store"
 import { resolveColorCss, uniqueVariantColorLabels } from "@/lib/colorSwatch"
 import { useProductTracking } from "@/hooks/useProductTracking"
@@ -49,6 +53,12 @@ function isLightSwatch(css: string): boolean {
   return false
 }
 
+function productHasSellableStock(p: ProductDetail): boolean {
+  const variants = p.variants ?? []
+  if (!variants.length) return false
+  return variants.some((v) => variantInStock(v))
+}
+
 export function ProductCardView({
   name,
   imageUrl,
@@ -62,15 +72,20 @@ export function ProductCardView({
   onAddToCart,
   isSample,
 }: ProductCardViewProps) {
+  const navigate = useNavigate()
   const productId = product?.id
   const isWishlisted = useWishlistStore((s) =>
     productId != null ? s.isWishlisted(productId) : false,
   )
   const toggleWishlist = useWishlistStore((s) => s.toggle)
+  const { trackProductClick } = useProductTracking()
+
   const swatch = colorCss ?? null
   const light = swatch ? isLightSwatch(swatch) : false
-  const canAdd = Boolean(product && onAddToCart && inStock)
-  const { trackProductClick } = useProductTracking()
+  const needsVariantPick = product ? requiresVariantSelection(product.variants ?? []) : false
+  const canQuickAdd = Boolean(product && onAddToCart && inStock && !needsVariantPick)
+  const canOpenDetailFromBag = Boolean(product && inStock && needsVariantPick)
+  const canUseBag = canQuickAdd || canOpenDetailFromBag
 
   const handleTrackProductClick = () => {
     if (!product?.id) return
@@ -80,6 +95,21 @@ export function ProductCardView({
       variantId: product.variants?.[0]?.id ?? null,
       source: isSample ? "AI_RECOMMENDATION_CARD" : "PRODUCT_CARD",
     })
+  }
+
+  const handleBagClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!product || !inStock) return
+
+    if (needsVariantPick) {
+      handleTrackProductClick()
+      navigate(href)
+      return
+    }
+
+    if (!onAddToCart) return
+    onAddToCart(product)
   }
 
   return (
@@ -174,14 +204,11 @@ export function ProductCardView({
 
         <button
           type="button"
-          disabled={!canAdd}
+          disabled={!canUseBag}
           className="flex h-9 w-9 shrink-0 items-center justify-center bg-neutral-900 text-white transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-35"
-          aria-label="Thêm vào giỏ"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            if (product && onAddToCart) onAddToCart(product)
-          }}
+          aria-label={needsVariantPick ? "Chọn màu và size" : "Thêm vào giỏ"}
+          title={needsVariantPick ? "Chọn màu và size trước khi mua" : undefined}
+          onClick={handleBagClick}
         >
           <ShoppingBag className="h-4 w-4 stroke-[1.5]" />
         </button>
@@ -217,7 +244,7 @@ export function buildProductCardProps(
     imageUrl: getProductMainImage(p),
     href: `/products/${p.id}`,
     priceVnd: getMinVariantPrice(p),
-    inStock: (p.variants?.length ?? 0) > 0,
+    inStock: productHasSellableStock(p),
     isNew: isNewProduct(p.createdAt),
     colorCss: primary ? resolveColorCss(primary) : null,
     colorLabel: primary ?? null,
