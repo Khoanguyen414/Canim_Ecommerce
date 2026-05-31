@@ -4,7 +4,7 @@ import com.example.canim_ecommerce.dto.request.cart.AddToCartRequest;
 import com.example.canim_ecommerce.dto.request.cart.ToggleSelectionRequest;
 import com.example.canim_ecommerce.dto.request.cart.UpdateCartItemRequest;
 import com.example.canim_ecommerce.dto.response.CartResponse;
-import com.example.canim_ecommerce.service.CartService;
+import com.example.canim_ecommerce.service.cart.CartService;
 
 import jakarta.validation.Valid;
 import lombok.AccessLevel;

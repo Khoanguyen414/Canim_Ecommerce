@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.canim_ecommerce.entity.User;
-import com.example.canim_ecommerce.service.UserService;
+import com.example.canim_ecommerce.service.user.UserService;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;

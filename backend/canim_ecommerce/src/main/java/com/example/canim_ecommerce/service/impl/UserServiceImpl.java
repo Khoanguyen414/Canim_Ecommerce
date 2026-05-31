@@ -21,7 +21,7 @@ import com.example.canim_ecommerce.exception.ApiException;
 import com.example.canim_ecommerce.mapper.UserMapper;
 import com.example.canim_ecommerce.repository.RoleRepository;
 import com.example.canim_ecommerce.repository.UserRepository;
-import com.example.canim_ecommerce.service.UserService;
+import com.example.canim_ecommerce.service.user.UserService;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;

@@ -18,7 +18,7 @@ import com.example.canim_ecommerce.dto.request.address.UpdateUserAddressRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.UserAddressResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;
-import com.example.canim_ecommerce.service.UserAddressService;
+import com.example.canim_ecommerce.service.user.UserAddressService;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;

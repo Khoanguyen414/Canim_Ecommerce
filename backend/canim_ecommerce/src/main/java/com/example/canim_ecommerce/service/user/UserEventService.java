@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.service;
+package com.example.canim_ecommerce.service.user;
 
 import java.time.LocalDateTime;
 import java.util.Collection;

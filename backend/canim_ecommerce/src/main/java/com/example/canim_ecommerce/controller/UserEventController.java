@@ -10,7 +10,7 @@ import com.example.canim_ecommerce.dto.request.user_event.TrackUserEventRequest;
 import com.example.canim_ecommerce.enums.ApiStatus;
 import com.example.canim_ecommerce.enums.EventType;
 import com.example.canim_ecommerce.exception.ApiException;
-import com.example.canim_ecommerce.service.UserEventService;
+import com.example.canim_ecommerce.service.user.UserEventService;
 import com.example.canim_ecommerce.utils.SecurityUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

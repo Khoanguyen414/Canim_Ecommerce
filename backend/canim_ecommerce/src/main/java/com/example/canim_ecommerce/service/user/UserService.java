@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.service;
+package com.example.canim_ecommerce.service.user;
 
 import java.util.List;
 import java.util.Optional;

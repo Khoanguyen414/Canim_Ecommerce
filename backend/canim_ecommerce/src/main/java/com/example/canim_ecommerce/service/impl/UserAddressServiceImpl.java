@@ -15,7 +15,7 @@ import com.example.canim_ecommerce.enums.ApiStatus;
 import com.example.canim_ecommerce.exception.ApiException;
 import com.example.canim_ecommerce.mapper.UserAddressMapper;
 import com.example.canim_ecommerce.repository.UserAddressRepository;
-import com.example.canim_ecommerce.service.UserAddressService;
+import com.example.canim_ecommerce.service.user.UserAddressService;
 import com.example.canim_ecommerce.utils.SecurityUtils;
 
 import lombok.AccessLevel;

@@ -1,4 +1,4 @@
-package com.example.canim_ecommerce.service;
+package com.example.canim_ecommerce.service.cart;
 
 import com.example.canim_ecommerce.dto.request.cart.AddToCartRequest;
 import com.example.canim_ecommerce.dto.request.cart.ToggleSelectionRequest;

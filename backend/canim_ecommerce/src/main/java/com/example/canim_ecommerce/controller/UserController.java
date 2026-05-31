@@ -9,7 +9,7 @@ import com.example.canim_ecommerce.dto.request.user.UserUpdateRequest;
 import com.example.canim_ecommerce.dto.response.ApiResponse;
 import com.example.canim_ecommerce.dto.response.UserResponse;
 import com.example.canim_ecommerce.enums.ApiStatus;
-import com.example.canim_ecommerce.service.UserService;
+import com.example.canim_ecommerce.service.user.UserService;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;

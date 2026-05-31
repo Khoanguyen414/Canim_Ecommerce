@@ -42,9 +42,9 @@ import com.example.canim_ecommerce.repository.UserRepository;
 import com.example.canim_ecommerce.security.jwt.JwtTokenProvider;
 import com.example.canim_ecommerce.service.AuthService;
 import com.example.canim_ecommerce.service.RoleService;
-import com.example.canim_ecommerce.service.UserService;
 import com.example.canim_ecommerce.service.auth.GoogleIdTokenVerifier;
 import com.example.canim_ecommerce.service.auth.GoogleIdTokenVerifier.GoogleUserInfo;
+import com.example.canim_ecommerce.service.user.UserService;
 import com.nimbusds.jwt.SignedJWT;
 
 import lombok.AccessLevel;

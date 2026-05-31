@@ -7,7 +7,7 @@ import java.util.List;
 import com.example.canim_ecommerce.entity.UserEvent;
 import com.example.canim_ecommerce.enums.EventType;
 import com.example.canim_ecommerce.repository.UserEventRepository;
-import com.example.canim_ecommerce.service.UserEventService;
+import com.example.canim_ecommerce.service.user.UserEventService;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;

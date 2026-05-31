@@ -11,7 +11,7 @@ import com.example.canim_ecommerce.entity.UserEvent;
 import com.example.canim_ecommerce.enums.EventType;
 import com.example.canim_ecommerce.mapper.AiUserEventContextMapper;
 import com.example.canim_ecommerce.service.AiUserEventContextService;
-import com.example.canim_ecommerce.service.UserEventService;
+import com.example.canim_ecommerce.service.user.UserEventService;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
