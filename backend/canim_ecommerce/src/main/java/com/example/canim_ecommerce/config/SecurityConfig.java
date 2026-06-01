@@ -41,19 +41,26 @@ public class SecurityConfig {
     @Value("${security.jwt.secret}")
     String secretkey;
 
-    @Value("${app.cors.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*}")
+    // Ưu tiên app.cors.allowed-origin-patterns.
+    // Nếu không có thì đọc CORS_ALLOWED_ORIGINS trên Railway.
+    // Nếu cả hai không có thì fallback localhost để chạy dev local.
+    @Value("${app.cors.allowed-origin-patterns:${CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}}")
     String corsAllowedOriginPatterns;
 
     String[] PUBLIC_ENDPOINTS = {
             "/actuator/health",
             "/actuator/health/**",
+
             "/auth/**",
+
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
+
             "/categories/**",
             "/products/**",
             "/uploads/**",
+
             "/payments/vnpay/return",
             "/payments/vnpay/ipn",
             "/payments/momo/return",
@@ -102,16 +109,27 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowCredentials(true);
         List<String> originPatterns = Arrays.stream(corsAllowedOriginPatterns.split(","))
                 .map(String::trim)
                 .filter(pattern -> !pattern.isEmpty())
                 .collect(Collectors.toList());
+
+        // Dùng allowedOriginPatterns để hỗ trợ cả domain thật và pattern local như http://localhost:*.
         config.setAllowedOriginPatterns(originPatterns);
+
+        // Cho phép browser gọi API và preflight OPTIONS.
         config.setAllowedMethods(List.of(
-                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
+        ));
+
         config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("Authorization"));
+
+        // Authorization cho JWT.
+        // Content-Disposition giúp frontend đọc header khi tải Excel/file.
+        config.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
+
+        config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
@@ -129,6 +147,10 @@ public class SecurityConfig {
                         sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
+                        // Browser sẽ gửi OPTIONS trước các request như POST /auth/login.
+                        // Nếu không permit OPTIONS, request thật sẽ bị chặn CORS/preflight.
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                         // Endpoint public chỉ đọc dữ liệu sản phẩm sạch cho Python AI.
                         // Không dùng token admin, không cho sửa dữ liệu.
                         .requestMatchers(HttpMethod.GET, "/ai/products/context").permitAll()

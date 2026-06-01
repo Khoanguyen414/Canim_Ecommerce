@@ -1,7 +1,8 @@
 import axios from "axios"
 
 const aiBaseURL =
-  import.meta.env.VITE_AI_API_BASE_URL ?? "http://localhost:8001"
+  import.meta.env.VITE_AI_API_BASE_URL ||
+  "https://ai-service-production-4439.up.railway.app"
 
 export const aiApi = axios.create({
   baseURL: aiBaseURL,

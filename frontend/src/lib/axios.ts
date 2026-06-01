@@ -2,8 +2,8 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios"
 import type { ApiResponse, AuthResult } from "@/types/api.types"
 
 const baseURL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/canim_ecommerce"
-
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://backend-production-6e50.up.railway.app/canim_ecommerce"
 export const api = axios.create({
   baseURL,
   headers: { "Content-Type": "application/json" },
