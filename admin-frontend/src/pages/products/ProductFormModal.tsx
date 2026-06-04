@@ -1,5 +1,5 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/purity */
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from "react"
 import { ColorManager } from "@/components/products/ColorManager"
 import { InitialInboundSection } from "@/components/products/InitialInboundSection"

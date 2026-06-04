@@ -5,11 +5,10 @@ import { ChevronRight, RotateCcw, ShieldCheck, Truck } from "lucide-react"
 import { ErrorState } from "@/components/common/ErrorState"
 import { LoadingSpinner } from "@/components/common/LoadingSpinner"
 import { EarthCategoryAtlas } from "@/components/home/EarthCategoryAtlas"
-import ProductCard, { ProductCardView } from "@/components/product/ProductCard"
+import ProductCard from "@/components/product/ProductCard"
 import RecommendedProductsSection from "@/components/recommendation/RecommendedProductsSection"
 import { HomeNestHero } from "@/components/shop/HomeNestHero"
 import type { ProductFacetParams } from "@/config/productFacets"
-import { HOME_SHOWCASE_MOCK, mockDiscountPercent } from "@/data/homeShowcaseMock"
 import { usePublicProducts } from "@/hooks/usePublicProducts"
 import { getApiErrorMessage } from "@/lib/apiError"
 import { toNumber } from "@/lib/format"
@@ -20,21 +19,27 @@ import type { CategoryNode, ProductDetail } from "@/types/api.types"
 
 export default function Home() {
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined)
-
-  const homeFacets = useMemo(
-    (): ProductFacetParams => ({ categoryId }),
-    [categoryId],
-  )
-
-  const { products, loading, error, reload } = usePublicProducts(homeFacets, 1, 12)
-  const addToCart = useCartStore((s) => s.addToCart)
-  const navigate = useNavigate()
-
   const [categories, setCategories] = useState<CategoryNode[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [categoriesError, setCategoriesError] = useState<string | null>(null)
-
   const [newsletterEmail, setNewsletterEmail] = useState("")
+
+  const addToCart = useCartStore((state) => state.addToCart)
+  const navigate = useNavigate()
+
+  const homeFacets = useMemo(
+    (): ProductFacetParams => ({
+      categoryId,
+    }),
+    [categoryId],
+  )
+
+  const {
+    products,
+    loading,
+    error,
+    reload,
+  } = usePublicProducts(homeFacets, 1, 12)
 
   const loadCategories = useCallback(async () => {
     setCategoriesLoading(true)
@@ -60,32 +65,36 @@ export default function Home() {
     void loadCategories()
   }, [loadCategories])
 
-  const categoryPreview = useMemo(() => categories.slice(0, 6), [categories])
+  const categoryPreview = useMemo(() => {
+    return categories.slice(0, 6)
+  }, [categories])
 
-  const tabCategories = useMemo(() => categoryPreview.slice(0, 5), [categoryPreview])
+  const tabCategories = useMemo(() => {
+    return categoryPreview.slice(0, 5)
+  }, [categoryPreview])
 
-  const handleQuickAdd = async (p: ProductDetail) => {
-    const v = getDefaultVariant(p)
+  const handleQuickAdd = async (product: ProductDetail) => {
+    const variant = getDefaultVariant(product)
 
-    if (!v) return
+    if (!variant) return
 
     await addToCart({
-      productId: p.id,
-      variantId: v.id,
-      productName: p.name,
-      sku: v.sku,
-      color: v.color,
-      size: v.size,
-      price: toNumber(v.price),
+      productId: product.id,
+      variantId: variant.id,
+      productName: product.name,
+      sku: variant.sku,
+      color: variant.color,
+      size: variant.size,
+      price: toNumber(variant.price),
       quantity: 1,
-      imageUrl: getProductMainImage(p),
+      imageUrl: getProductMainImage(product),
     })
 
     navigate("/cart")
   }
 
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleNewsletterSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
 
     if (!newsletterEmail.trim()) return
 
@@ -97,11 +106,13 @@ export default function Home() {
       <HomeNestHero />
 
       {/*
-        Tạm ẩn section "Dành cho bạn" vì luồng PERSONALIZED chưa có dữ liệu thật ổn định.
-        Trước đây section này fallback sang mock data trong aiRecommendation.service.ts,
-        dẫn đến hiển thị sản phẩm không tồn tại và gây lỗi Product not found khi click.
-        Khi AI personalized recommendation lấy được sản phẩm thật từ backend,
-        có thể bật lại section này.
+        Đã ẩn section "Dành cho bạn".
+        Lý do:
+        - Personalized recommendation chưa có dữ liệu hành vi người dùng thật.
+        - Trước đó dễ bị trùng với "Sản phẩm đang hot".
+        - Nếu fallback mock/fake product sẽ gây lỗi Product not found.
+        Khi AI personalized recommendation có dữ liệu thật từ lịch sử xem/tìm kiếm/giỏ hàng,
+        có thể bật lại một section riêng sau.
       */}
 
       <section className="container mx-auto px-4 pb-10 pt-2">
@@ -122,19 +133,19 @@ export default function Home() {
             Tất cả
           </button>
 
-          {tabCategories.map((c) => (
+          {tabCategories.map((category) => (
             <button
-              key={c.id}
+              key={category.id}
               type="button"
-              onClick={() => setCategoryId(c.id)}
+              onClick={() => setCategoryId(category.id)}
               className={`max-w-[140px] truncate border-b-2 pb-2 transition ${
-                categoryId === c.id
+                categoryId === category.id
                   ? "border-neutral-900 text-neutral-900"
                   : "border-transparent text-neutral-500 hover:text-neutral-800"
               }`}
-              title={c.name}
+              title={category.name}
             >
-              {c.name}
+              {category.name}
             </button>
           ))}
 
@@ -148,40 +159,26 @@ export default function Home() {
 
         {loading ? <LoadingSpinner label="Đang tải sản phẩm…" /> : null}
 
-        {!loading && error ? <ErrorState message={error} onRetry={() => void reload()} /> : null}
+        {!loading && error ? (
+          <ErrorState message={error} onRetry={() => void reload()} />
+        ) : null}
 
-        {!loading && !error && products.length === 0 && categories.length > 0 ? (
-          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            <strong>Chưa có sản phẩm trong mục này.</strong> Bạn thử chọn danh mục khác hoặc quay lại sau nhé.
+        {!loading && !error && products.length === 0 ? (
+          <div className="mx-auto max-w-2xl rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-center text-sm text-amber-900">
+            <strong>Chưa có sản phẩm phù hợp.</strong>
+            <span className="ml-1">
+              Bạn thử chọn danh mục khác hoặc quay lại sau nhé.
+            </span>
           </div>
         ) : null}
 
         {!loading && !error && products.length > 0 ? (
           <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {products.map((p) => (
-              <ProductCard key={p.id} product={p} onAddToCart={handleQuickAdd} />
-            ))}
-          </div>
-        ) : null}
-
-        {!loading && !error && products.length === 0 ? (
-          <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {HOME_SHOWCASE_MOCK.map((m) => (
-              <ProductCardView
-                key={m.id}
-                name={m.name}
-                imageUrl={m.image}
-                href="/products"
-                priceVnd={m.priceVnd}
-                originalVnd={m.originalVnd}
-                discountPercent={mockDiscountPercent(m.priceVnd, m.originalVnd)}
-                rating={m.rating}
-                reviewCount={m.reviewCount}
-                inStock
-                verified
-                soldLabel={m.soldLabel}
-                isSample
-                showBrowseFallback
+            {products.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onAddToCart={handleQuickAdd}
               />
             ))}
           </div>
@@ -264,32 +261,39 @@ export default function Home() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-8">
             {[
               {
-                t: "Giao hàng nhanh",
-                d: "Theo dõi đơn sau khi thanh toán — cập nhật trạng thái minh bạch.",
+                title: "Giao hàng nhanh",
+                description:
+                  "Theo dõi đơn sau khi thanh toán — cập nhật trạng thái minh bạch.",
                 Icon: Truck,
               },
               {
-                t: "Thanh toán an toàn",
-                d: "Thông tin được mã hóa và xử lý theo quy trình bảo mật hiện đại.",
+                title: "Thanh toán an toàn",
+                description:
+                  "Thông tin được mã hóa và xử lý theo quy trình bảo mật hiện đại.",
                 Icon: ShieldCheck,
               },
               {
-                t: "Đổi trả dễ dàng",
-                d: "Ưu tiên trải nghiệm khách hàng — liên hệ bất cứ lúc nào bạn cần.",
+                title: "Đổi trả dễ dàng",
+                description:
+                  "Ưu tiên trải nghiệm khách hàng — liên hệ bất cứ lúc nào bạn cần.",
                 Icon: RotateCcw,
               },
-            ].map(({ t, d, Icon }) => (
+            ].map(({ title, description, Icon }) => (
               <div
-                key={t}
+                key={title}
                 className="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-gradient-to-b from-white to-gray-50/80 p-8 text-center shadow-md shadow-gray-900/[0.04] transition duration-300 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-lg hover:shadow-primary/10"
               >
                 <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-inner ring-1 ring-primary/10 transition group-hover:scale-105 group-hover:bg-primary/18">
                   <Icon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
                 </div>
 
-                <h3 className="mb-3 text-xl font-bold text-[#253d4e]">{t}</h3>
+                <h3 className="mb-3 text-xl font-bold text-[#253d4e]">
+                  {title}
+                </h3>
 
-                <p className="text-[15px] leading-relaxed text-gray-600">{d}</p>
+                <p className="text-[15px] leading-relaxed text-gray-600">
+                  {description}
+                </p>
               </div>
             ))}
           </div>
@@ -318,7 +322,7 @@ export default function Home() {
               id="home-newsletter-email"
               type="email"
               value={newsletterEmail}
-              onChange={(e) => setNewsletterEmail(e.target.value)}
+              onChange={(event) => setNewsletterEmail(event.target.value)}
               placeholder="Nhập email của bạn"
               className="min-h-[52px] flex-1 rounded-xl border border-white/25 bg-white/95 px-4 py-3 text-gray-900 shadow-inner outline-none placeholder:text-gray-500 focus:border-white focus:ring-2 focus:ring-white/80"
             />
