@@ -15,7 +15,6 @@ import { getApiErrorMessage } from "@/lib/apiError"
 import { toNumber } from "@/lib/format"
 import { getDefaultVariant, getProductMainImage } from "@/lib/product"
 import { categoryService } from "@/services/category.service"
-import { useAuthStore } from "@/store/auth.store"
 import { useCartStore } from "@/store/cart.store"
 import type { CategoryNode, ProductDetail } from "@/types/api.types"
 
@@ -29,10 +28,7 @@ export default function Home() {
 
   const { products, loading, error, reload } = usePublicProducts(homeFacets, 1, 12)
   const addToCart = useCartStore((s) => s.addToCart)
-  const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
-
-  const userId = user?.id ? Number(user.id) : null
 
   const [categories, setCategories] = useState<CategoryNode[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
@@ -100,14 +96,13 @@ export default function Home() {
     <div className="min-h-screen bg-white pb-8">
       <HomeNestHero />
 
-      <section className="container mx-auto px-4 pb-8 pt-4">
-        <RecommendedProductsSection
-          type="PERSONALIZED"
-          userId={userId}
-          title="Dành cho bạn"
-          subtitle="Canim AI gợi ý dựa trên sản phẩm bạn đã xem, tìm kiếm hoặc thêm vào giỏ."
-        />
-      </section>
+      {/*
+        Tạm ẩn section "Dành cho bạn" vì luồng PERSONALIZED chưa có dữ liệu thật ổn định.
+        Trước đây section này fallback sang mock data trong aiRecommendation.service.ts,
+        dẫn đến hiển thị sản phẩm không tồn tại và gây lỗi Product not found khi click.
+        Khi AI personalized recommendation lấy được sản phẩm thật từ backend,
+        có thể bật lại section này.
+      */}
 
       <section className="container mx-auto px-4 pb-10 pt-2">
         <h2 className="mb-6 text-center text-base font-medium uppercase tracking-[0.28em] text-neutral-900 md:text-lg">
@@ -302,25 +297,20 @@ export default function Home() {
       </div>
 
       <div className="relative overflow-hidden bg-gradient-to-br from-primary via-[#f47f68] to-[#f2a98a] py-14 text-white md:py-16">
-        <div
-          className="pointer-events-none absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.06\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-90"
-          aria-hidden
-        />
-
-        <div className="container relative z-[1] mx-auto px-4 text-center">
-          <h2 className="mb-3 text-3xl font-extrabold tracking-tight md:text-4xl">
-            Nhận tin ưu đãi
+        <div className="container relative z-10 mx-auto px-4 text-center">
+          <h2 className="mb-4 text-3xl font-extrabold tracking-tight md:text-4xl">
+            Nhận ưu đãi mới nhất từ Canim
           </h2>
 
-          <p className="mx-auto mb-10 max-w-2xl text-lg text-white/90">
-            Đăng ký để nhận mã giảm giá và tin mới — không spam, chỉ nội dung hữu ích.
+          <p className="mx-auto mb-8 max-w-2xl text-lg text-white/90">
+            Đăng ký để nhận thông tin khuyến mãi, sản phẩm mới và gợi ý phối đồ phù hợp.
           </p>
 
           <form
             onSubmit={handleNewsletterSubmit}
-            className="mx-auto flex max-w-lg flex-col gap-3 rounded-2xl border border-white/20 bg-white/10 p-2 shadow-xl backdrop-blur-md sm:flex-row sm:items-stretch sm:p-2"
+            className="mx-auto flex max-w-xl flex-col gap-3 sm:flex-row"
           >
-            <label className="sr-only" htmlFor="home-newsletter-email">
+            <label htmlFor="home-newsletter-email" className="sr-only">
               Email
             </label>
 
