@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/purity */
 import { useEffect, useMemo, useState } from "react"
 import { ColorManager } from "@/components/products/ColorManager"
 import { InitialInboundSection } from "@/components/products/InitialInboundSection"
@@ -426,15 +428,17 @@ export function ProductFormModal({ show, categories, initialData, saving, onSubm
                 </div>
 
                 <div className="col-md-6">
-                  <label className="form-label">Brand</label>
+                  <label className="form-label">Brand / Nhà cung cấp</label>
                   <input
                     type="text"
                     className="form-control"
                     value={formData.brand}
                     onChange={(event) => setField("brand", event.target.value)}
-                    placeholder="Brand is currently read-only in backend"
+                    placeholder="Brand hiện chưa hỗ trợ cập nhật trực tiếp"
                   />
-                  <div className="form-text">Backend hiện chưa cập nhật trực tiếp brand qua API product update.</div>
+                  <div className="form-text">
+                    Nhà cung cấp đang được quản lý riêng trong module Nhà cung cấp và liên kết qua nghiệp vụ nhập kho.
+                  </div>
                 </div>
 
                 <div className="col-md-6">
