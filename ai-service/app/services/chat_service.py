@@ -146,6 +146,150 @@ class ChatService:
         if intent in self.TOPIC_CHANGE_INTENTS:
             state.bot_status = "ACTIVE"
 
+
+    def _normalize_user_text(self, value: str) -> str:
+        return rule_based_nlu._normalize_text(value or "")
+
+    def _detect_product_family(self, message: str) -> str:
+        text = self._normalize_user_text(message)
+
+        if any(keyword in text for keyword in ["giay", "dep", "sandal"]):
+            return "FOOTWEAR"
+
+        if "nhan" in text:
+            return "RING"
+
+        if any(keyword in text for keyword in ["mu", "non", "bucket", "golf"]):
+            return "HAT"
+
+        if any(keyword in text for keyword in ["ca vat", "caravat", "cravat"]):
+            return "TIE"
+
+        if any(keyword in text for keyword in ["vong co", "day chuyen"]):
+            return "NECKLACE"
+
+        if any(keyword in text for keyword in ["dong ho", "vong tay"]):
+            return "ACCESSORY"
+
+        if any(keyword in text for keyword in ["ao", "hoodie", "hoodi", "thun"]):
+            return "TOP"
+
+        if any(keyword in text for keyword in ["quan", "jeans", "jogger"]):
+            return "BOTTOM"
+
+        return "GENERAL"
+
+    def _build_size_guide_by_family(self, message: str) -> str | None:
+        family = self._detect_product_family(message)
+        text = self._normalize_user_text(message)
+
+        if "nhan" in text and any(keyword in text for keyword in ["vong co", "day chuyen"]):
+            return (
+                "Dạ với nhẫn và vòng cổ, mình không nên dùng size áo quần S/M/L ạ ✨\n"
+                "- Nhẫn: nên chọn theo size ngón tay 6–12 hoặc đường kính nhẫn. Ví dụ size 6 khoảng 16.5mm, "
+                "size 8 khoảng 18.1mm, size 10 khoảng 19.8mm.\n"
+                "- Vòng cổ/dây chuyền: nên chọn theo chiều dài hoặc kiểu dáng. Nếu shop chưa quản lý chiều dài chi tiết, "
+                "có thể để Free size."
+            )
+
+        if family == "FOOTWEAR":
+            return (
+                "Dạ với dép/giày, mình nên chọn theo số chân thay vì S/M/L ạ 👣\n"
+                "- Size 36: chân khoảng 22.5–23cm\n"
+                "- Size 37: chân khoảng 23–23.5cm\n"
+                "- Size 38: chân khoảng 24cm\n"
+                "- Size 39: chân khoảng 24.5cm\n"
+                "- Size 40: chân khoảng 25cm\n"
+                "- Size 41: chân khoảng 25.5–26cm\n"
+                "- Size 42: chân khoảng 26.5cm\n"
+                "- Size 43: chân khoảng 27–27.5cm\n\n"
+                "Nếu sản phẩm cũ đang hiện S/M/L thì đó là dữ liệu variant cũ. "
+                "Admin nên cập nhật lại size dép/giày sang 36–43 để đúng nghiệp vụ ạ."
+            )
+
+        if family == "RING":
+            return (
+                "Dạ với nhẫn, mình nên chọn theo size ngón tay hoặc đường kính nhẫn ạ 💍\n"
+                "- Size 6: đường kính khoảng 16.5mm\n"
+                "- Size 7: khoảng 17.3mm\n"
+                "- Size 8: khoảng 18.1mm\n"
+                "- Size 9: khoảng 18.9mm\n"
+                "- Size 10: khoảng 19.8mm\n"
+                "- Size 11: khoảng 20.6mm\n"
+                "- Size 12: khoảng 21.4mm\n\n"
+                "Nhẫn không nên dùng size áo quần như S/M/L nếu không có bảng quy đổi riêng."
+            )
+
+        if family == "HAT":
+            return (
+                "Dạ với mũ/nón, thường có thể dùng Free size hoặc chọn theo vòng đầu ạ 🧢\n"
+                "- Free size: phù hợp đa số người dùng\n"
+                "- 56cm: đầu nhỏ\n"
+                "- 57cm: trung bình\n"
+                "- 58cm: hơi lớn\n\n"
+                "Nếu admin tạo sản phẩm mũ thì nên dùng Free size, 56cm, 57cm hoặc 58cm."
+            )
+
+        if family == "TIE":
+            return (
+                "Dạ cà vạt thường không cần size như áo quần ạ 👔\n"
+                "Mình nên chọn theo màu sắc, chất liệu và phong cách phối đồ. "
+                "Trong hệ thống có thể để size là Free size cho cà vạt."
+            )
+
+        if family == "NECKLACE":
+            return (
+                "Dạ với vòng cổ/dây chuyền, thường chọn theo chiều dài hoặc kiểu dáng ạ ✨\n"
+                "Nếu hệ thống chưa quản lý chiều dài chi tiết thì có thể để Free size. "
+                "Không nên dùng S/M/L như áo quần."
+            )
+
+        if family == "ACCESSORY":
+            return (
+                "Dạ với phụ kiện như đồng hồ/vòng tay, thường chọn theo kiểu dáng, màu sắc hoặc kích thước cổ tay ạ. "
+                "Nếu chưa có thông số chi tiết, mình có thể để Free size."
+            )
+
+        return None
+
+    def _build_product_search_intro(self, message: str) -> str:
+        family = self._detect_product_family(message)
+
+        if family == "FOOTWEAR":
+            return (
+                "Dạ em tìm thấy một số mẫu dép/giày phù hợp nè ✨ "
+                "Với dép/giày, Anh/Chị nên chọn theo số chân như 36, 37, 38, 39, 40, 41, 42, 43 để mang vừa hơn ạ."
+            )
+
+        if family == "RING":
+            return (
+                "Dạ em tìm thấy một số mẫu nhẫn phù hợp nè ✨ "
+                "Với nhẫn, Anh/Chị nên chọn theo size ngón tay hoặc đường kính nhẫn để đeo vừa hơn ạ."
+            )
+
+        if family == "HAT":
+            return (
+                "Dạ em tìm thấy một số mẫu mũ phù hợp nè ✨ "
+                "Với mũ, Anh/Chị có thể chọn Free size hoặc kiểm tra vòng đầu khoảng 56–58cm ạ."
+            )
+
+        if family == "TIE":
+            return (
+                "Dạ em tìm thấy một số mẫu cà vạt phù hợp nè ✨ "
+                "Cà vạt thường không cần size, Anh/Chị có thể chọn theo màu, chất liệu hoặc phong cách phối đồ ạ."
+            )
+
+        if family == "NECKLACE":
+            return (
+                "Dạ em tìm thấy một số mẫu vòng cổ/dây chuyền phù hợp nè ✨ "
+                "Phụ kiện này thường chọn theo kiểu dáng, màu sắc hoặc chiều dài, không dùng size áo quần ạ."
+            )
+
+        return (
+            "Dạ đây là một vài gợi ý phù hợp với nhu cầu của Anh/Chị nè ✨ "
+            "Anh/Chị muốn em lọc thêm theo màu, size hoặc khoảng giá không ạ?"
+        )
+
     def _build_reply_message(
         self,
         nlu_intent: str,
@@ -171,7 +315,7 @@ class ChatService:
             )
 
         if widget_type == "SIZE_ADVICE":
-            return self._build_size_reply(state, nlu_intent)
+            return self._build_size_reply(state, nlu_intent, user_message)
 
         if widget_type == "ORDER_LOOKUP":
             return self._build_order_reply(state)
@@ -222,10 +366,7 @@ class ChatService:
                 "Mình có thể phối theo tone màu, dịp mặc và phong cách mong muốn để outfit hài hòa hơn ạ."
             )
 
-        return (
-            "Dạ đây là một vài gợi ý phù hợp với nhu cầu của Anh/Chị nè ✨ "
-            "Anh/Chị muốn em lọc thêm theo màu, size hoặc khoảng giá không ạ?"
-        )
+        return self._build_product_search_intro(user_message)
 
     def _build_text_reply(self, intent: str, state: Any) -> str:
         if intent == "GREETING" and state.last_intent in ["SIZE_SUGGESTION", "COMPLAINT"]:
@@ -274,7 +415,12 @@ class ChatService:
             "hoặc hỗ trợ kiểm tra đơn hàng ạ."
         )
 
-    def _build_size_reply(self, state: Any, nlu_intent: str) -> str:
+    def _build_size_reply(self, state: Any, nlu_intent: str, user_message: str = "") -> str:
+        family_size_reply = self._build_size_guide_by_family(user_message)
+
+        if family_size_reply:
+            return family_size_reply
+
         height_cm = state.collected_entities.get("heightCm")
         weight_kg = state.collected_entities.get("weightKg")
         fit_preference = state.collected_entities.get("fitPreference")

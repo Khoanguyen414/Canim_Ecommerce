@@ -21,7 +21,7 @@ class RuleBasedNLU:
     RuleBasedNLU là tầng guardrail an toàn.
 
     Thứ tự nhận diện intent:
-    SECURITY_BLOCK → COMPLAINT → ORDER_TRACKING → OUTFIT/PRODUCT → SIZE
+    SECURITY_BLOCK → ORDER_TRACKING → SIZE → OUTFIT/PRODUCT → COMPLAINT
     → PROMOTION/SHIPPING/RETURN → THANKS → GREETING → UNKNOWN
     """
 
@@ -31,7 +31,8 @@ class RuleBasedNLU:
         "tra loi tao lao",
         "tra loi tao lao qua",
         "vo tri",
-        "chan",
+        "chan qua",
+        "chan that",
         "sai roi",
         "khong dung",
         "rep gi",
@@ -78,6 +79,16 @@ class RuleBasedNLU:
         "goi y size",
         "mac vua khong",
         "mac vua duoc khong",
+        "co chan",
+        "so chan",
+        "size chan",
+        "size giay",
+        "size dep",
+        "size nhan",
+        "co nhan",
+        "duong kinh",
+        "ngon tay",
+        "vong dau",
     ]
 
     SIZE_WORD_KEYWORDS = [
@@ -175,6 +186,21 @@ class RuleBasedNLU:
         "quan short",
         "quan ong suong",
         "chan vay",
+        "giay the thao",
+        "dep to ong",
+        "dep sandal",
+        "dep hong",
+        "ca vat",
+        "caravat",
+        "cravat",
+        "dong ho",
+        "dong ho thoi trang",
+        "vong co",
+        "nhan bac",
+        "nhan ma vang",
+        "mu tron",
+        "mu bucket",
+        "mu golf",
         "giay da",
         "giay da nam",
         "giay the thao",
@@ -207,6 +233,12 @@ class RuleBasedNLU:
         "sneaker",
         "dep",
         "sandal",
+        "ca",
+        "vat",
+        "caravat",
+        "cravat",
+        "dong",
+        "ho",
         "tui",
         "balo",
         "mu",
@@ -241,20 +273,24 @@ class RuleBasedNLU:
         if self._contains_any(text, self.SECURITY_KEYWORDS):
             return NLUResult("SECURITY_BLOCK", "NEUTRAL", entities)
 
-        if self._contains_any(text, self.COMPLAINT_KEYWORDS):
-            return NLUResult("COMPLAINT", "ANGRY", entities)
-
         if self._contains_any(text, self.ORDER_KEYWORDS) or entities.get("orderCode"):
             return NLUResult("ORDER_TRACKING", "NEUTRAL", entities)
 
+        # Size guide must be checked before complaint because Vietnamese words like
+        # "cỡ chân" normalize to "co chan" and can otherwise be mistaken as dissatisfaction.
+        if self._is_size_message(text, entities):
+            return NLUResult("SIZE_SUGGESTION", "NEUTRAL", entities)
+
+        # Product search must be checked before greeting so messages like
+        # "tìm cà vạt" never fall back to a generic hello response.
         if self._is_outfit_message(text):
             return NLUResult("OUTFIT_SUGGESTION", "NEUTRAL", entities)
 
         if self._is_product_message(text):
             return NLUResult("PRODUCT_RECOMMENDATION", "NEUTRAL", entities)
 
-        if self._is_size_message(text, entities):
-            return NLUResult("SIZE_SUGGESTION", "NEUTRAL", entities)
+        if self._contains_any(text, self.COMPLAINT_KEYWORDS):
+            return NLUResult("COMPLAINT", "ANGRY", entities)
 
         if self._contains_any(text, self.PROMOTION_KEYWORDS):
             return NLUResult("PROMOTION", "NEUTRAL", entities)
@@ -396,6 +432,9 @@ class RuleBasedNLU:
             return True
 
         if re.search(r"\bkg\b", text) and re.search(r"\b[3-9][0-9]\b", text):
+            return True
+
+        if self._contains_any(text, ["co chan", "so chan", "size chan", "size giay", "size dep", "size nhan", "co nhan", "duong kinh", "ngon tay", "vong dau"]):
             return True
 
         return False

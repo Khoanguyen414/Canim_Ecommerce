@@ -1,9 +1,8 @@
-/* eslint-disable react-hooks/purity */
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useMemo, useState } from "react"
+/* eslint-disable react-hooks/purity */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ColorManager } from "@/components/products/ColorManager"
 import { InitialInboundSection } from "@/components/products/InitialInboundSection"
-import { SizeSelector } from "@/components/products/SizeSelector"
 import { VariantMatrixTable } from "@/components/products/VariantMatrixTable"
 import { VariantPreviewTable } from "@/components/products/VariantPreviewTable"
 import { VariantSummary } from "@/components/products/VariantSummary"
@@ -29,6 +28,100 @@ function slugify(value: string) {
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
+}
+
+
+const CLOTHING_SIZES = ["S", "M", "L", "XL", "XXL"] as const
+const FOOTWEAR_SIZES = ["36", "37", "38", "39", "40", "41", "42", "43"] as const
+const RING_SIZES = ["6", "7", "8", "9", "10", "11", "12"] as const
+const HAT_SIZES = ["Free size", "56cm", "57cm", "58cm"] as const
+const ONE_SIZE_OPTIONS = ["Free size"] as const
+const INITIAL_IMAGE_URL_ROWS = [{ key: "row-initial", url: "" }]
+
+type ImageUrlRow = {
+  key: string
+  url: string
+}
+
+function normalizeVietnameseText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+}
+
+function getProductSizeOptions(productName: string, categoryName?: string): string[] {
+  const text = normalizeVietnameseText(`${productName} ${categoryName ?? ""}`)
+
+  if (text.includes("giay") || text.includes("dep") || text.includes("sandal")) {
+    return [...FOOTWEAR_SIZES]
+  }
+
+  if (text.includes("nhan")) {
+    return [...RING_SIZES]
+  }
+
+  if (text.includes("mu") || text.includes("non") || text.includes("bucket") || text.includes("golf")) {
+    return [...HAT_SIZES]
+  }
+
+  if (
+    text.includes("ca vat") ||
+    text.includes("caravat") ||
+    text.includes("cravat") ||
+    text.includes("dong ho") ||
+    text.includes("vong co") ||
+    text.includes("vong tay") ||
+    text.includes("day chuyen")
+  ) {
+    return [...ONE_SIZE_OPTIONS]
+  }
+
+  if (
+    text.includes("ao") ||
+    text.includes("hoodi") ||
+    text.includes("hoodie") ||
+    text.includes("thun") ||
+    text.includes("quan") ||
+    text.includes("jeans") ||
+    text.includes("jogger")
+  ) {
+    return [...CLOTHING_SIZES]
+  }
+
+  return [...STANDARD_SIZES]
+}
+
+/*
+ * Legacy variant helpers were originally typed for STANDARD_SIZES only.
+ * Backend actually stores variant.size as a string, so these tiny adapters keep
+ * the admin form type-safe at the boundary while allowing category-specific sizes
+ * like 36-43, Free size, 56cm, and ring sizes 6-12.
+ */
+function ensureDynamicStockMatrix(
+  colors: ProductColor[],
+  selectedSizes: string[],
+  stockMatrix: StockMatrix,
+): StockMatrix {
+  return ensureStockMatrix(colors, selectedSizes as never, stockMatrix) as StockMatrix
+}
+
+function buildDynamicVariantPreviews(
+  productName: string,
+  colors: ProductColor[],
+  selectedSizes: string[],
+  stockMatrix: StockMatrix,
+) {
+  return buildVariantPreviews(productName, colors, selectedSizes as never, stockMatrix)
+}
+
+function computeDynamicVariantSummary(
+  colors: ProductColor[],
+  selectedSizes: string[],
+  stockMatrix: StockMatrix,
+) {
+  return computeVariantSummary(colors, selectedSizes as never, stockMatrix)
 }
 
 type ProductImage = {
@@ -68,7 +161,7 @@ const EMPTY_FORM: ProductFormValues = {
   categoryId: "",
   variantPrice: "",
   colors: [],
-  selectedSizes: [...STANDARD_SIZES],
+  selectedSizes: [...CLOTHING_SIZES],
   stockMatrix: {},
   warehouseId: "",
   supplierId: "",
@@ -92,7 +185,8 @@ type ProductFormModalProps = {
 
 export function ProductFormModal({ show, categories, initialData, saving, onSubmit, onClose }: ProductFormModalProps) {
   const [formData, setFormData] = useState<ProductFormValues>(EMPTY_FORM)
-  const [imageUrlRows, setImageUrlRows] = useState([{ key: `row-${Date.now()}`, url: "" }])
+  const imageUrlRowCounterRef = useRef(0)
+  const [imageUrlRows, setImageUrlRows] = useState<ImageUrlRow[]>(INITIAL_IMAGE_URL_ROWS)
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [initialSnapshot, setInitialSnapshot] = useState<ProductFormValues>(EMPTY_FORM)
   const [manualSlug, setManualSlug] = useState(false)
@@ -101,7 +195,20 @@ export function ProductFormModal({ show, categories, initialData, saving, onSubm
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [inboundMasterLoading, setInboundMasterLoading] = useState(false)
 
+  const createImageUrlRow = useCallback((): ImageUrlRow => {
+    imageUrlRowCounterRef.current += 1
+    return { key: `row-${imageUrlRowCounterRef.current}`, url: "" }
+  }, [])
+
   const isCreate = !formData.id
+
+  const selectedCategoryName = useMemo(() => {
+    return categories.find((category) => String(category.id) === formData.categoryId)?.name ?? ""
+  }, [categories, formData.categoryId])
+
+  const sizeOptions = useMemo(() => {
+    return getProductSizeOptions(formData.name, selectedCategoryName)
+  }, [formData.name, selectedCategoryName])
 
   useEffect(() => {
     if (!show) return
@@ -128,10 +235,10 @@ export function ProductFormModal({ show, categories, initialData, saving, onSubm
     setFormData(mapped)
     setInitialSnapshot(mapped)
     setUploadFiles([])
-    setImageUrlRows([{ key: `row-${Date.now()}`, url: "" }])
+    setImageUrlRows([createImageUrlRow()])
     setManualSlug(Boolean(mapped.id))
     setValidationErrors({})
-  }, [show, initialData?.id])
+  }, [show, initialData, createImageUrlRow])
 
   useEffect(() => {
     if (!show || initialData?.id) return
@@ -169,6 +276,26 @@ export function ProductFormModal({ show, categories, initialData, saving, onSubm
     }
   }, [show, initialData?.id])
 
+  useEffect(() => {
+    if (!show || !isCreate) return
+
+    setFormData((prev) => {
+      const validSelectedSizes = prev.selectedSizes.filter((size) => sizeOptions.includes(size))
+
+      if (validSelectedSizes.length === prev.selectedSizes.length && validSelectedSizes.length > 0) {
+        return prev
+      }
+
+      const nextSelectedSizes = validSelectedSizes.length > 0 ? validSelectedSizes : [...sizeOptions]
+
+      return {
+        ...prev,
+        selectedSizes: nextSelectedSizes,
+        stockMatrix: ensureDynamicStockMatrix(prev.colors, nextSelectedSizes, prev.stockMatrix),
+      }
+    })
+  }, [show, isCreate, sizeOptions])
+
   const previewImages = useMemo(
     () =>
       (formData.images || []).map((image, index) => ({
@@ -199,13 +326,13 @@ export function ProductFormModal({ show, categories, initialData, saving, onSubm
   const variantPreviews = useMemo(
     () =>
       isCreate
-        ? buildVariantPreviews(formData.name, formData.colors, formData.selectedSizes, formData.stockMatrix)
+        ? buildDynamicVariantPreviews(formData.name, formData.colors, formData.selectedSizes, formData.stockMatrix)
         : [],
     [isCreate, formData.name, formData.colors, formData.selectedSizes, formData.stockMatrix],
   )
 
   const variantSummary = useMemo(
-    () => computeVariantSummary(formData.colors, formData.selectedSizes, formData.stockMatrix),
+    () => computeDynamicVariantSummary(formData.colors, formData.selectedSizes, formData.stockMatrix),
     [formData.colors, formData.selectedSizes, formData.stockMatrix],
   )
 
@@ -229,7 +356,7 @@ export function ProductFormModal({ show, categories, initialData, saving, onSubm
     setFormData((prev) => ({
       ...prev,
       colors,
-      stockMatrix: ensureStockMatrix(colors, prev.selectedSizes, prev.stockMatrix),
+      stockMatrix: ensureDynamicStockMatrix(colors, prev.selectedSizes, prev.stockMatrix),
     }))
     setValidationErrors((prev) => {
       const next = { ...prev }
@@ -243,7 +370,7 @@ export function ProductFormModal({ show, categories, initialData, saving, onSubm
     setFormData((prev) => ({
       ...prev,
       selectedSizes,
-      stockMatrix: ensureStockMatrix(prev.colors, selectedSizes, prev.stockMatrix),
+      stockMatrix: ensureDynamicStockMatrix(prev.colors, selectedSizes, prev.stockMatrix),
     }))
     setValidationErrors((prev) => {
       const next = { ...prev }
@@ -291,7 +418,7 @@ export function ProductFormModal({ show, categories, initialData, saving, onSubm
   }
 
   const addImageUrlRow = () => {
-    setImageUrlRows((rows) => [...rows, { key: `row-${Date.now()}-${rows.length}`, url: "" }])
+    setImageUrlRows((rows) => [...rows, createImageUrlRow()])
   }
 
   const removeImageUrlRow = (rowKey: string) => {
@@ -328,7 +455,7 @@ export function ProductFormModal({ show, categories, initialData, saving, onSubm
   const resetForm = () => {
     setFormData(initialSnapshot)
     setUploadFiles([])
-    setImageUrlRows([{ key: `row-${Date.now()}`, url: "" }])
+    setImageUrlRows([createImageUrlRow()])
     setManualSlug(Boolean(initialSnapshot.id))
     setValidationErrors({})
   }
@@ -499,17 +626,41 @@ export function ProductFormModal({ show, categories, initialData, saving, onSubm
                     </div>
 
                     <div className="col-md-6">
-                      <SizeSelector
-                        selectedSizes={formData.selectedSizes}
-                        onChange={setSelectedSizes}
-                        error={validationErrors.sizes}
-                      />
+                      <label className="form-label">Sizes</label>
+                      <div className="d-flex flex-wrap gap-2">
+                        {sizeOptions.map((size) => {
+                          const active = formData.selectedSizes.includes(size)
+
+                          return (
+                            <button
+                              key={size}
+                              type="button"
+                              className={`btn btn-sm ${active ? "btn-warning" : "btn-outline-secondary"}`}
+                              onClick={() => {
+                                const nextSizes = active
+                                  ? formData.selectedSizes.filter((item) => item !== size)
+                                  : [...formData.selectedSizes, size]
+                                setSelectedSizes(nextSizes)
+                              }}
+                            >
+                              {size}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <div className="form-text">
+                        Size tự gợi ý theo tên sản phẩm/danh mục: áo-quần dùng S–XXL, dép/giày dùng 36–43,
+                        nhẫn dùng 6–12, mũ dùng Free size/56–58cm, phụ kiện dùng Free size.
+                      </div>
+                      {validationErrors.sizes ? (
+                        <div className="invalid-feedback d-block">{validationErrors.sizes}</div>
+                      ) : null}
                     </div>
 
                     <div className="col-12">
                       <VariantMatrixTable
                         colors={formData.colors}
-                        selectedSizes={formData.selectedSizes}
+                        selectedSizes={formData.selectedSizes as never}
                         stockMatrix={formData.stockMatrix}
                         onStockChange={setStock}
                         error={validationErrors.stockMatrix}
