@@ -74,7 +74,11 @@ export function useInventoryMasterData() {
   }, [])
 
   useEffect(() => {
-    void load()
+    const fetchMasterData = async () => {
+      await load()
+    }
+
+    void fetchMasterData()
   }, [load])
 
   const resolvedWarehouseId = (): number | null => {
