@@ -1,7 +1,11 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios"
 import type { ApiResponse, AuthResult } from "@/types/api"
 
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/canim_ecommerce"
+const PRODUCTION_API_BASE_URL =
+  "https://backend-production-6e50.up.railway.app/canim_ecommerce"
+
+const baseURL =
+  import.meta.env.VITE_API_BASE_URL?.trim() || PRODUCTION_API_BASE_URL
 
 export const api = axios.create({
   baseURL,
@@ -22,7 +26,9 @@ function clearSession() {
 
 function redirectToLogin() {
   clearSession()
+
   const path = window.location.pathname
+
   if (!path.startsWith("/login")) {
     window.location.href = "/login"
   }
@@ -30,17 +36,25 @@ function redirectToLogin() {
 
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = localStorage.getItem("adminRefreshToken")
+
   if (!refreshToken) return null
 
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const { data } = await rawClient.post<ApiResponse<AuthResult>>("/auth/refresh", { refreshToken })
+        const { data } = await rawClient.post<ApiResponse<AuthResult>>(
+          "/auth/refresh",
+          { refreshToken },
+        )
+
         if (!data.success || !data.result) return null
+
         localStorage.setItem("adminAccessToken", data.result.accessToken)
+
         if (data.result.refreshToken) {
           localStorage.setItem("adminRefreshToken", data.result.refreshToken)
         }
+
         return data.result.accessToken
       } catch {
         return null
@@ -49,44 +63,58 @@ async function refreshAccessToken(): Promise<string | null> {
       }
     })()
   }
+
   return refreshPromise
 }
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem("adminAccessToken")
   const url = config.url ?? ""
-  const skipAuth = url.includes("/auth/login") || url.includes("/auth/refresh")
+  const skipAuth =
+    url.includes("/auth/login") || url.includes("/auth/refresh")
+
   if (token && !skipAuth) {
     config.headers.Authorization = `Bearer ${token}`
   } else {
     delete config.headers.Authorization
   }
+
   if (typeof FormData !== "undefined" && config.data instanceof FormData) {
     delete config.headers["Content-Type"]
   }
+
   return config
 })
 
 type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean }
 
 api.interceptors.response.use(
-  (res) => res,
+  (response) => response,
   async (error: AxiosError<ApiResponse<unknown>>) => {
     const original = error.config as RetryConfig | undefined
     const status = error.response?.status
-    if (!original || original._retry) return Promise.reject(error)
+
+    if (!original || original._retry) {
+      return Promise.reject(error)
+    }
 
     const url = original.url ?? ""
-    const isAuthCall = url.includes("/auth/login") || url.includes("/auth/refresh")
+    const isAuthCall =
+      url.includes("/auth/login") || url.includes("/auth/refresh")
+
     if (status === 401 && !isAuthCall) {
       original._retry = true
+
       const token = await refreshAccessToken()
+
       if (token) {
         original.headers.Authorization = `Bearer ${token}`
         return api(original)
       }
+
       redirectToLogin()
     }
+
     return Promise.reject(error)
   },
 )
