@@ -25,3 +25,10 @@ docker-compose.override.yml
 
 # Vite cache
 **/.vite/
+
+# Local database backups
+canim_local_backup*.sql
+*_backup.sql
+*_dump.sql
+backup/
+backups/
