@@ -9,6 +9,7 @@ import java.util.Set;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.canim_ecommerce.dto.request.user.UserCreationRequest;
 import com.example.canim_ecommerce.dto.request.user.UserProfileRequest;
@@ -22,6 +23,7 @@ import com.example.canim_ecommerce.mapper.UserMapper;
 import com.example.canim_ecommerce.repository.RoleRepository;
 import com.example.canim_ecommerce.repository.UserRepository;
 import com.example.canim_ecommerce.service.user.UserService;
+import com.example.canim_ecommerce.utils.SecurityUtils;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -73,12 +75,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public UserResponse getMyProfile() {
-        var context = SecurityContextHolder.getContext();
-        String email = context.getAuthentication().getName();
+        Long userId = SecurityUtils.getCurrentUserId();
 
-        User user = userRepository.findByEmail(email)
-            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "User not found with email: " + email));
+        User user = userRepository.findByIdWithRoles(userId)
+            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "User not found with id: " + userId));
 
         return userMapper.toUserResponse(user);
     }
