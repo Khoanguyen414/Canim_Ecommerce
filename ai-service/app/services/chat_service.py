@@ -15,7 +15,12 @@ class ChatService:
     - NLU decides the first intent.
     - ChatService adds business guardrails for fashion/product domain.
     - Product suggestions are filtered by product family so "giày" does not return "dép".
-    - Size guidance is product-type aware.
+    - Size guidance is product-type aware:
+      + Clothes: S/M/L/XL by height and weight.
+      + Shoes/slippers: foot sizes 36-43.
+      + Rings: ring sizes 6-12.
+      + Hats: Free size / head circumference.
+      + Ties/accessories: usually Free size or no clothing size.
     """
 
     TOPIC_CHANGE_INTENTS = [
@@ -142,14 +147,23 @@ class ChatService:
         if nlu_intent == "SECURITY_BLOCK":
             return "SECURITY_BLOCK"
 
+        # FIX QUAN TRỌNG:
+        # Nếu NLU đã nhận diện chắc chắn là lời chào/cảm ơn,
+        # không cho ChatService ép sang PRODUCT_RECOMMENDATION nữa.
+        # Tránh lỗi "chao ban" bị match nhầm thành "ao".
+        if nlu_intent in ["GREETING", "THANKS"]:
+            return nlu_intent
+
+        # Product-specific size questions must be handled before complaint/handoff.
+        # Example: "đưa size phù hợp cỡ chân của dép" contains "cỡ" but is not a complaint.
         if self._is_product_size_guide_message(message):
             return "SIZE_SUGGESTION"
 
         if nlu_intent == "SIZE_SUGGESTION":
             return "SIZE_SUGGESTION"
 
-        # Chỉ ép PRODUCT_RECOMMENDATION khi có tín hiệu sản phẩm thật.
-        # Đã fix: "chào" -> "chao" không còn match nhầm "ao".
+        # Product search must be handled before unknown.
+        # Đã fix _detect_product_family để không còn check substring kiểu "ao" in "chao".
         if self._has_product_family_signal(message):
             return "PRODUCT_RECOMMENDATION"
 
@@ -161,8 +175,6 @@ class ChatService:
             "PROMOTION",
             "SHIPPING_POLICY",
             "RETURN_POLICY",
-            "THANKS",
-            "GREETING",
         ]:
             return nlu_intent
 
@@ -212,6 +224,14 @@ class ChatService:
         return rule_based_nlu._normalize_text(value or "")
 
     def _contains_term(self, text: str, term: str) -> bool:
+        """
+        Check từ khóa an toàn.
+
+        - Với từ đơn: phải là 1 token riêng.
+          Ví dụ: "ao" không match "chao".
+        - Với cụm từ: cho phép xuất hiện dạng cụm.
+          Ví dụ: "ca vat" match "toi muon tim ca vat".
+        """
         normalized_term = self._normalize_user_text(term)
 
         if not normalized_term:
@@ -249,10 +269,10 @@ class ChatService:
         if self._contains_any_term(text, ["vong co", "day chuyen"]):
             return "NECKLACE"
 
-        if self._contains_term(text, "dong ho"):
+        if self._contains_any_term(text, ["dong ho"]):
             return "WATCH"
 
-        if self._contains_term(text, "vong tay"):
+        if self._contains_any_term(text, ["vong tay"]):
             return "BRACELET"
 
         if self._contains_any_term(text, ["ao", "hoodie", "hoodi", "thun", "so mi", "khoac"]):
@@ -273,6 +293,7 @@ class ChatService:
         if self._contains_any_term(text, self.SIZE_GUIDE_SIGNALS):
             return True
 
+        # "cỡ nhẫn", "cỡ chân", "vòng cổ chọn như thế nào" are size/fit questions.
         if family in [
             "SHOES",
             "SLIPPERS",
@@ -346,10 +367,10 @@ class ChatService:
             return self._contains_any_term(text, ["vong co", "day chuyen"])
 
         if family == "WATCH":
-            return self._contains_term(text, "dong ho")
+            return self._contains_any_term(text, ["dong ho"])
 
         if family == "BRACELET":
-            return self._contains_term(text, "vong tay")
+            return self._contains_any_term(text, ["vong tay"])
 
         if family == "ACCESSORY":
             return self._contains_any_term(
@@ -388,6 +409,8 @@ class ChatService:
             if self._product_matches_family(product, family)
         ]
 
+        # Important: do not refill with unrelated products.
+        # If customer asks for "cà vạt", returning one tie is better than adding slippers.
         return filtered[:limit]
 
     # ---------------------------------------------------------------------
