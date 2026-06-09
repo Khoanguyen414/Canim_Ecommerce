@@ -25,6 +25,11 @@ function flattenCategories(nodes, acc = []) {
   return acc
 }
 
+function extractProductVariants(raw) {
+  const variants = raw?.variants ?? raw?.productVariants ?? raw?.variantResponses
+  return Array.isArray(variants) ? variants : []
+}
+
 function mapProduct(raw) {
   return {
     id: raw.id,
@@ -40,7 +45,7 @@ function mapProduct(raw) {
       id: raw.categoryId || raw.category?.id || null,
       name: raw.categoryName || raw.category?.name || "",
     },
-    variants: Array.isArray(raw.variants) ? raw.variants : [],
+    variants: extractProductVariants(raw),
     images: Array.isArray(raw.images) ? raw.images : [],
   }
 }

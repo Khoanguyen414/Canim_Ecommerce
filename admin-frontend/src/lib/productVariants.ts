@@ -1,5 +1,3 @@
-import { STANDARD_SIZES, type StandardSize } from "@/config/productSizes"
-
 export type ProductColor = {
   id: string
   name: string
@@ -52,6 +50,10 @@ export function normalizeColorName(name: string): string {
   return name.trim().replace(/\s+/g, " ")
 }
 
+export function normalizeSizeValue(size: string): string {
+  return size.trim().replace(/\s+/g, " ")
+}
+
 export function isDuplicateColor(name: string, colors: ProductColor[], excludeId?: string): boolean {
   const key = normalizeColorName(name).toLowerCase()
   if (!key) return false
@@ -64,6 +66,7 @@ export function colorToSkuCode(colorName: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
+    .replace(/Đ/g, "D")
     .replace(/[^A-Z0-9]/g, "")
 
   if (ascii.length >= 3) return ascii.slice(0, 3)
@@ -99,6 +102,7 @@ export function buildSkuPrefix(productName: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
+    .replace(/Đ/g, "D")
     .replace(/[^A-Z0-9]/g, "")
 
   if (slug.length >= 4) return slug.slice(0, 5)
@@ -107,11 +111,22 @@ export function buildSkuPrefix(productName: string): string {
 }
 
 export function buildSkuPreview(productName: string, colorName: string, size: string): string {
-  return `${buildSkuPrefix(productName)}-${colorToSkuCode(colorName)}-${size}`
+  return `${buildSkuPrefix(productName)}-${colorToSkuCode(colorName)}-${normalizeSizeValue(size)}`
 }
 
-export function orderSizes(sizes: string[]): StandardSize[] {
-  return STANDARD_SIZES.filter((s) => sizes.includes(s))
+export function orderSizes(sizes: string[]): string[] {
+  const seen = new Set<string>()
+  const orderedSizes: string[] = []
+
+  for (const rawSize of sizes ?? []) {
+    const size = normalizeSizeValue(rawSize)
+    const key = size.toLowerCase()
+    if (!size || seen.has(key)) continue
+    seen.add(key)
+    orderedSizes.push(size)
+  }
+
+  return orderedSizes
 }
 
 export function ensureStockMatrix(
@@ -181,9 +196,9 @@ export function buildCreateVariantsPayload(form: CreateProductFormSlice): Create
 
   return form.colors.flatMap((color) =>
     sizes.map((size) => ({
-      sku: `${prefix}-${colorToSkuCode(color.name)}-${size}`,
+      sku: `${prefix}-${colorToSkuCode(color.name)}-${normalizeSizeValue(size)}`,
       color: normalizeColorName(color.name),
-      size,
+      size: normalizeSizeValue(size),
       price: safePrice,
     })),
   )
@@ -214,9 +229,35 @@ export function validateCreateProductForm(form: CreateProductFormSlice): Record<
   }
 
   const sizes = orderSizes(form.selectedSizes ?? [])
+  if (!sizes.length) {
+    errors.sizes = "Nhap it nhat mot size hop le."
+  }
+
+  const variantKeys = new Set<string>()
+  const generatedSkuKeys = new Set<string>()
   if (form.colors?.length && sizes.length) {
     for (const color of form.colors) {
+      const colorName = normalizeColorName(color.name)
+      if (!colorName) {
+        errors.colors = "Ten mau khong duoc trong."
+        break
+      }
+
       for (const size of sizes) {
+        const variantKey = `${colorName.toLowerCase()}|${size.toLowerCase()}`
+        if (variantKeys.has(variantKey)) {
+          errors.sizes = "Bien the mau + size khong duoc trung."
+          break
+        }
+        variantKeys.add(variantKey)
+
+        const generatedSkuKey = buildSkuPreview(form.name, colorName, size).toLowerCase()
+        if (generatedSkuKeys.has(generatedSkuKey)) {
+          errors.sizes = "SKU tu sinh bi trung, vui long doi mau hoac size."
+          break
+        }
+        generatedSkuKeys.add(generatedSkuKey)
+
         const raw = form.stockMatrix?.[color.id]?.[size]
         if (raw === undefined || raw === null || Number.isNaN(Number(raw))) {
           errors.stockMatrix = "Nhập tồn kho (>= 0) cho mọi ô màu × size."
@@ -227,7 +268,7 @@ export function validateCreateProductForm(form: CreateProductFormSlice): Record<
           break
         }
       }
-      if (errors.stockMatrix) break
+      if (errors.stockMatrix || errors.sizes || errors.colors) break
     }
   }
 
