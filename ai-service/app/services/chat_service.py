@@ -15,12 +15,7 @@ class ChatService:
     - NLU decides the first intent.
     - ChatService adds business guardrails for fashion/product domain.
     - Product suggestions are filtered by product family so "giày" does not return "dép".
-    - Size guidance is product-type aware:
-      + Clothes: S/M/L/XL by height and weight.
-      + Shoes/slippers: foot sizes 36-43.
-      + Rings: ring sizes 6-12.
-      + Hats: Free size / head circumference.
-      + Ties/accessories: usually Free size or no clothing size.
+    - Size guidance is product-type aware.
     """
 
     TOPIC_CHANGE_INTENTS = [
@@ -38,6 +33,7 @@ class ChatService:
     SIZE_GUIDE_SIGNALS = [
         "size",
         "kich co",
+        "kichco",
         "chon size",
         "tu van size",
         "co chan",
@@ -146,16 +142,14 @@ class ChatService:
         if nlu_intent == "SECURITY_BLOCK":
             return "SECURITY_BLOCK"
 
-        # Product-specific size questions must be handled before complaint/handoff.
-        # Example: "đưa size phù hợp cỡ chân của dép" contains "cỡ" but is not a complaint.
         if self._is_product_size_guide_message(message):
             return "SIZE_SUGGESTION"
 
         if nlu_intent == "SIZE_SUGGESTION":
             return "SIZE_SUGGESTION"
 
-        # Product search must be handled before greeting/unknown.
-        # Example: "tìm cà vạt" and "cà vạt" must not fall back to greeting.
+        # Chỉ ép PRODUCT_RECOMMENDATION khi có tín hiệu sản phẩm thật.
+        # Đã fix: "chào" -> "chao" không còn match nhầm "ao".
         if self._has_product_family_signal(message):
             return "PRODUCT_RECOMMENDATION"
 
@@ -217,42 +211,54 @@ class ChatService:
     def _normalize_user_text(self, value: str) -> str:
         return rule_based_nlu._normalize_text(value or "")
 
+    def _contains_term(self, text: str, term: str) -> bool:
+        normalized_term = self._normalize_user_text(term)
+
+        if not normalized_term:
+            return False
+
+        if " " in normalized_term:
+            return normalized_term in text
+
+        return normalized_term in set(text.split())
+
+    def _contains_any_term(self, text: str, terms: list[str]) -> bool:
+        return any(self._contains_term(text, term) for term in terms)
+
     def _detect_product_family(self, message: str) -> str:
         text = self._normalize_user_text(message)
 
-        # User asks generally for both shoes and slippers.
-        if any(keyword in text for keyword in ["giay dep", "dep giay"]):
+        if self._contains_any_term(text, ["giay dep", "dep giay"]):
             return "FOOTWEAR"
 
-        # Separate shoes and slippers for cleaner recommendations.
-        if "giay" in text:
+        if self._contains_term(text, "giay"):
             return "SHOES"
 
-        if any(keyword in text for keyword in ["dep", "sandal"]):
+        if self._contains_any_term(text, ["dep", "sandal"]):
             return "SLIPPERS"
 
-        if "nhan" in text:
+        if self._contains_term(text, "nhan"):
             return "RING"
 
-        if any(keyword in text for keyword in ["mu", "non", "bucket", "golf"]):
+        if self._contains_any_term(text, ["mu", "non", "bucket", "golf"]):
             return "HAT"
 
-        if any(keyword in text for keyword in ["ca vat", "caravat", "cravat"]):
+        if self._contains_any_term(text, ["ca vat", "caravat", "cravat"]):
             return "TIE"
 
-        if any(keyword in text for keyword in ["vong co", "day chuyen"]):
+        if self._contains_any_term(text, ["vong co", "day chuyen"]):
             return "NECKLACE"
 
-        if "dong ho" in text:
+        if self._contains_term(text, "dong ho"):
             return "WATCH"
 
-        if "vong tay" in text:
+        if self._contains_term(text, "vong tay"):
             return "BRACELET"
 
-        if any(keyword in text for keyword in ["ao", "hoodie", "hoodi", "thun", "so mi", "khoac"]):
+        if self._contains_any_term(text, ["ao", "hoodie", "hoodi", "thun", "so mi", "khoac"]):
             return "TOP"
 
-        if any(keyword in text for keyword in ["quan", "jeans", "jean", "jogger"]):
+        if self._contains_any_term(text, ["quan", "jeans", "jean", "jogger"]):
             return "BOTTOM"
 
         return "GENERAL"
@@ -264,22 +270,31 @@ class ChatService:
         text = self._normalize_user_text(message)
         family = self._detect_product_family(message)
 
-        if any(signal in text for signal in self.SIZE_GUIDE_SIGNALS):
+        if self._contains_any_term(text, self.SIZE_GUIDE_SIGNALS):
             return True
 
-        # "cỡ nhẫn", "cỡ chân", "vòng cổ chọn như thế nào" are size/fit questions.
-        if family in ["SHOES", "SLIPPERS", "FOOTWEAR", "RING", "HAT", "TIE", "NECKLACE", "WATCH", "BRACELET"]:
-            return any(
-                keyword in text
-                for keyword in [
-                    "co ",
+        if family in [
+            "SHOES",
+            "SLIPPERS",
+            "FOOTWEAR",
+            "RING",
+            "HAT",
+            "TIE",
+            "NECKLACE",
+            "WATCH",
+            "BRACELET",
+        ]:
+            return self._contains_any_term(
+                text,
+                [
+                    "co",
                     "chon",
                     "phu hop",
                     "hop",
                     "kich thuoc",
                     "do dai",
                     "duong kinh",
-                ]
+                ],
             )
 
         return False
@@ -297,6 +312,7 @@ class ChatService:
             product.get("short_desc", ""),
             product.get("longDesc", ""),
             product.get("long_desc", ""),
+            product.get("searchableText", ""),
             category,
         ]
 
@@ -309,40 +325,49 @@ class ChatService:
         text = self._product_text(product)
 
         if family == "SHOES":
-            return "giay" in text
+            return self._contains_term(text, "giay")
 
         if family == "SLIPPERS":
-            return any(keyword in text for keyword in ["dep", "sandal"])
+            return self._contains_any_term(text, ["dep", "sandal"])
 
         if family == "FOOTWEAR":
-            return any(keyword in text for keyword in ["giay", "dep", "sandal"])
+            return self._contains_any_term(text, ["giay", "dep", "sandal"])
 
         if family == "RING":
-            return "nhan" in text
+            return self._contains_term(text, "nhan")
 
         if family == "HAT":
-            return any(keyword in text for keyword in ["mu", "non", "bucket", "golf"])
+            return self._contains_any_term(text, ["mu", "non", "bucket", "golf"])
 
         if family == "TIE":
-            return any(keyword in text for keyword in ["ca vat", "caravat", "cravat"])
+            return self._contains_any_term(text, ["ca vat", "caravat", "cravat"])
 
         if family == "NECKLACE":
-            return any(keyword in text for keyword in ["vong co", "day chuyen"])
+            return self._contains_any_term(text, ["vong co", "day chuyen"])
 
         if family == "WATCH":
-            return "dong ho" in text
+            return self._contains_term(text, "dong ho")
 
         if family == "BRACELET":
-            return "vong tay" in text
+            return self._contains_term(text, "vong tay")
 
         if family == "ACCESSORY":
-            return any(keyword in text for keyword in ["dong ho", "vong tay", "vong co", "day chuyen", "ca vat"])
+            return self._contains_any_term(
+                text,
+                ["dong ho", "vong tay", "vong co", "day chuyen", "ca vat"],
+            )
 
         if family == "TOP":
-            return any(keyword in text for keyword in ["ao", "hoodie", "hoodi", "thun", "so mi", "khoac"])
+            return self._contains_any_term(
+                text,
+                ["ao", "hoodie", "hoodi", "thun", "so mi", "khoac"],
+            )
 
         if family == "BOTTOM":
-            return any(keyword in text for keyword in ["quan", "jeans", "jean", "jogger"])
+            return self._contains_any_term(
+                text,
+                ["quan", "jeans", "jean", "jogger"],
+            )
 
         return True
 
@@ -363,8 +388,6 @@ class ChatService:
             if self._product_matches_family(product, family)
         ]
 
-        # Important: do not refill with unrelated products.
-        # If customer asks for "cà vạt", returning one tie is better than adding slippers.
         return filtered[:limit]
 
     # ---------------------------------------------------------------------

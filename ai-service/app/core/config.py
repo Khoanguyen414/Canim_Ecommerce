@@ -15,12 +15,14 @@ class Settings(BaseSettings):
     )
 
     backend_base_url: str = Field(
-        default="http://localhost:8000/canim_ecommerce",
+        default="http://localhost:8080/canim_ecommerce",
         validation_alias=AliasChoices("BACKEND_API_BASE_URL", "BACKEND_BASE_URL"),
     )
 
-    backend_product_context_path: str = "/ai/products/context"
-    backend_products_path: str = "/products?pageNum=1&sizePage=100"
+    # Dùng API public đang chạy ổn giống storefront.
+    # Không gọi /ai/products/context nữa vì endpoint backend đó đang lỗi lazy loading.
+    backend_product_context_path: str = "/products/public"
+    backend_products_path: str = "/products/public"
 
     customer_frontend_url: str = "http://localhost:5173"
     admin_frontend_url: str = "http://localhost:5174"
@@ -55,6 +57,7 @@ class Settings(BaseSettings):
         for origin in (self.customer_frontend_url, self.admin_frontend_url):
             if origin and origin not in origins:
                 origins.append(origin)
+
         return origins
 
 

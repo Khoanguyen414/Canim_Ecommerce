@@ -7,13 +7,12 @@ from app.core.config import get_settings
 
 class BackendClient:
     """
-    BackendClient chỉ gọi API Spring Boot.
+    BackendClient chỉ chịu trách nhiệm gọi API Spring Boot.
 
-    Nhiệm vụ:
-    - Gọi backend lấy product catalog.
-    - Không xử lý AI.
-    - Không tính điểm recommendation.
-    - Log rõ URL/status để debug dễ.
+    Logic mới:
+    - Không gọi /ai/products/context nữa vì endpoint đó đang lỗi lazy loading.
+    - Ưu tiên dùng /products/public, cùng nguồn dữ liệu với storefront.
+    - Hỗ trợ nhiều kiểu response: list, data, data.content, content.
     """
 
     def __init__(self) -> None:
@@ -23,36 +22,43 @@ class BackendClient:
     def build_url(self, path: str) -> str:
         base_url = self.settings.backend_base_url.rstrip("/")
         clean_path = path if path.startswith("/") else f"/{path}"
-
         return f"{base_url}{clean_path}"
 
     def get_product_contexts(self) -> list[dict[str, Any]]:
         """
-        Lấy sản phẩm cho AI.
+        Lấy danh sách sản phẩm cho AI từ API public.
 
-        Ưu tiên:
-        1. /ai/products/context nếu backend có API context riêng.
-        2. /products?pageNum=1&sizePage=100 là API Admin đang dùng.
+        Không gọi:
+        - /ai/products/context
+
+        Chỉ gọi:
+        - /products/public
+        - fallback /products/public có phân trang nếu backend hỗ trợ.
         """
 
         paths = [
             self.settings.backend_product_context_path,
             self.settings.backend_products_path,
-            "/products?pageNum=1&sizePage=100",
-            "/products?pageNum=0&sizePage=100",
-            "/products?page=1&size=100",
-            "/products?page=0&size=100",
-            "/api/products?pageNum=1&sizePage=100",
-            "/api/products?page=1&size=100",
+            "/products/public",
+            "/products/public?pageNum=1&sizePage=100",
+            "/products/public?pageNum=0&sizePage=100",
+            "/products/public?page=1&size=100",
+            "/products/public?page=0&size=100",
         ]
 
-        for path in paths:
-            products = self._get_list_from_path(path)
+        seen_paths: set[str] = set()
 
+        for path in paths:
+            if not path or path in seen_paths:
+                continue
+
+            seen_paths.add(path)
+
+            products = self._get_list_from_path(path)
             if products:
                 return products
 
-        print("[BackendClient] No product data found from all product paths")
+        print("[BackendClient] No product data found from public product paths")
         return []
 
     def get_user_recent_events(self, user_id: int, limit: int = 100) -> list[dict[str, Any]]:
@@ -68,7 +74,6 @@ class BackendClient:
 
         for path in paths:
             events = self._get_list_from_path(path)
-
             if events:
                 return events
 
@@ -84,7 +89,6 @@ class BackendClient:
 
         for path in paths:
             events = self._get_list_from_path(path)
-
             if events:
                 return events
 
@@ -98,9 +102,7 @@ class BackendClient:
 
             response = httpx.get(url, timeout=self.timeout_seconds)
 
-            print(
-                f"[BackendClient] Status: {response.status_code} | URL: {url}"
-            )
+            print(f"[BackendClient] Status: {response.status_code} | URL: {url}")
 
             response.raise_for_status()
 
@@ -116,6 +118,8 @@ class BackendClient:
                 "[BackendClient] HTTP status error:",
                 exception.response.status_code,
                 exception.response.text[:300],
+                "| URL:",
+                url,
             )
             return []
 
@@ -131,27 +135,20 @@ class BackendClient:
         """
         Hỗ trợ nhiều format response:
 
-        List:
-        [
-          {...}
-        ]
+        1. List trực tiếp:
+           [{...}, {...}]
 
-        Page:
-        {
-          "content": [...]
-        }
+        2. Page:
+           {"content": [...]}
 
-        Custom:
-        {
-          "data": [...]
-        }
+        3. Custom:
+           {"data": [...]}
 
-        Nested:
-        {
-          "data": {
-            "content": [...]
-          }
-        }
+        4. Nested:
+           {"data": {"content": [...]}}
+
+        5. Một số backend dùng:
+           {"data": {"items": [...]}}
         """
 
         if isinstance(data, list):

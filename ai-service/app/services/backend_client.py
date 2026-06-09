@@ -9,12 +9,10 @@ class BackendClient:
     """
     BackendClient chỉ chịu trách nhiệm gọi API Spring Boot.
 
-    File này không xử lý AI, không tính điểm recommendation.
-    Nó chỉ:
-    - build URL
-    - gọi HTTP
-    - lấy JSON
-    - normalize response backend thành list sản phẩm
+    Logic mới:
+    - Không gọi /ai/products/context nữa vì endpoint đó đang lỗi lazy loading.
+    - Ưu tiên dùng /products/public, cùng nguồn dữ liệu với storefront.
+    - Hỗ trợ nhiều kiểu response: list, data, data.content, content.
     """
 
     def __init__(self) -> None:
@@ -24,47 +22,43 @@ class BackendClient:
     def build_url(self, path: str) -> str:
         base_url = self.settings.backend_base_url.rstrip("/")
         clean_path = path if path.startswith("/") else f"/{path}"
-
         return f"{base_url}{clean_path}"
 
     def get_product_contexts(self) -> list[dict[str, Any]]:
         """
-        Lấy dữ liệu sản phẩm cho AI.
+        Lấy danh sách sản phẩm cho AI từ API public.
 
-        Ưu tiên:
-        1. API context riêng cho AI: /ai/products/context
-        2. API product mà Admin đang dùng: /products?pageNum=1&sizePage=100
+        Không gọi:
+        - /ai/products/context
+
+        Chỉ gọi:
+        - /products/public
+        - fallback /products/public có phân trang nếu backend hỗ trợ.
         """
 
-        context_path = getattr(
-            self.settings,
-            "backend_product_context_path",
-            "/ai/products/context",
-        )
-
-        context_products = self._get_list_from_path(context_path)
-
-        if context_products:
-            return context_products
-
-        product_paths = [
-            getattr(
-                self.settings,
-                "backend_products_path",
-                "/products?pageNum=1&sizePage=100",
-            ),
-            "/products?pageNum=1&sizePage=100",
-            "/api/products?pageNum=1&sizePage=100",
-            "/products?page=1&size=100",
-            "/api/products?page=1&size=100",
+        paths = [
+            self.settings.backend_product_context_path,
+            self.settings.backend_products_path,
+            "/products/public",
+            "/products/public?pageNum=1&sizePage=100",
+            "/products/public?pageNum=0&sizePage=100",
+            "/products/public?page=1&size=100",
+            "/products/public?page=0&size=100",
         ]
 
-        for path in product_paths:
-            products = self._get_list_from_path(path)
+        seen_paths: set[str] = set()
 
+        for path in paths:
+            if not path or path in seen_paths:
+                continue
+
+            seen_paths.add(path)
+
+            products = self._get_list_from_path(path)
             if products:
                 return products
 
+        print("[BackendClient] No product data found from public product paths")
         return []
 
     def get_user_recent_events(self, user_id: int, limit: int = 100) -> list[dict[str, Any]]:
@@ -80,7 +74,6 @@ class BackendClient:
 
         for path in paths:
             events = self._get_list_from_path(path)
-
             if events:
                 return events
 
@@ -96,7 +89,6 @@ class BackendClient:
 
         for path in paths:
             events = self._get_list_from_path(path)
-
             if events:
                 return events
 
@@ -106,49 +98,57 @@ class BackendClient:
         url = self.build_url(path)
 
         try:
+            print(f"[BackendClient] Calling: {url}")
+
             response = httpx.get(url, timeout=self.timeout_seconds)
+
+            print(f"[BackendClient] Status: {response.status_code} | URL: {url}")
+
             response.raise_for_status()
 
             data = response.json()
             items = self._extract_items(data)
 
-            print(f"[BackendClient] GET {url} -> {len(items)} items")
+            print(f"[BackendClient] Extracted items: {len(items)} | URL: {url}")
 
             return items
 
-        except httpx.HTTPError as exception:
-            print(f"[BackendClient] GET {url} failed: {exception}")
+        except httpx.HTTPStatusError as exception:
+            print(
+                "[BackendClient] HTTP status error:",
+                exception.response.status_code,
+                exception.response.text[:300],
+                "| URL:",
+                url,
+            )
             return []
+
+        except httpx.HTTPError as exception:
+            print(f"[BackendClient] HTTP error: {exception} | URL: {url}")
+            return []
+
         except ValueError as exception:
-            print(f"[BackendClient] GET {url} JSON parse failed: {exception}")
+            print(f"[BackendClient] JSON parse error: {exception} | URL: {url}")
             return []
 
     def _extract_items(self, data: Any) -> list[dict[str, Any]]:
         """
-        Hỗ trợ nhiều kiểu response backend:
+        Hỗ trợ nhiều format response:
 
         1. List trực tiếp:
-        [
-          {...},
-          {...}
-        ]
+           [{...}, {...}]
 
-        2. Page response:
-        {
-          "content": [...]
-        }
+        2. Page:
+           {"content": [...]}
 
-        3. Custom response:
-        {
-          "data": [...]
-        }
+        3. Custom:
+           {"data": [...]}
 
         4. Nested:
-        {
-          "data": {
-            "content": [...]
-          }
-        }
+           {"data": {"content": [...]}}
+
+        5. Một số backend dùng:
+           {"data": {"items": [...]}}
         """
 
         if isinstance(data, list):
@@ -157,7 +157,7 @@ class BackendClient:
         if not isinstance(data, dict):
             return []
 
-        direct_keys = [
+        keys = [
             "items",
             "products",
             "content",
@@ -167,7 +167,7 @@ class BackendClient:
             "records",
         ]
 
-        for key in direct_keys:
+        for key in keys:
             value = data.get(key)
 
             if isinstance(value, list):
