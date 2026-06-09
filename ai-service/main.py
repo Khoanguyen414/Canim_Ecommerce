@@ -25,9 +25,4 @@ app.include_router(chat_router)
 
 @app.get("/health")
 def health_check():
-    return {
-        "status": "ok",
-        "service": settings.app_name,
-        "environment": settings.app_env,
-        "nlu_mode": settings.ai_nlu_mode,
-    }
+    return {"status": "UP"}

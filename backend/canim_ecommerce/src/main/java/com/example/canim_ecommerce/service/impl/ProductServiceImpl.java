@@ -72,6 +72,7 @@ public class ProductServiceImpl implements ProductService {
     ProductReviewService productReviewService;
 
     @Override
+    @Transactional(readOnly = true)
     public PageResponse<ProductResponse> getProducts(ProductFilterRequest filterRequest, int pageNum, int sizePage, String sortBy, String sortDir) {
         if (filterRequest == null) {
             filterRequest = new ProductFilterRequest();
@@ -101,6 +102,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ProductResponse getProductById(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
@@ -115,6 +117,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ProductResponse getPublicProductById(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found"));
@@ -126,6 +129,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ProductResponse getProductBySku(String sku) {
         ProductVariant variant = productVariantRepository.findBySku(sku)
             .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product variant not found with sku: " + sku));
@@ -144,6 +148,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ProductResponse getProductBySlug(String slug) {
         Product product = productRepository.findBySlug(slug)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found with slug: " + slug));

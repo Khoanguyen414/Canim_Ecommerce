@@ -50,35 +50,109 @@ services:
 
       JWT_SECRET: ${JWT_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
 
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:5174,http://localhost:*}
       APP_CORS_ALLOWED_ORIGIN_PATTERNS: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:-http://localhost:*,http://127.0.0.1:*}
+
+      APP_STORAGE_MODE: ${APP_STORAGE_MODE:-cloudinary}
+      APP_STORAGE_PUBLIC_URL: ${APP_STORAGE_PUBLIC_URL:-http://localhost:8080/canim_ecommerce/uploads}
 
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
 
-      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-${GOOGLE_CLIENT_ID:-}}
+      AI_SERVICE_BASE_URL: ${AI_SERVICE_BASE_URL:-http://ai-service:8001}
+
+      PAYMENT_ENV: ${PAYMENT_ENV:-sandbox}
+
+      VNPAY_RETURN_URL: ${VNPAY_RETURN_URL:-http://localhost:5173/payment/vnpay-return}
+      VNPAY_IPN_URL: ${VNPAY_IPN_URL:-http://localhost:8080/canim_ecommerce/payments/vnpay/ipn}
+
+      MOMO_RETURN_URL: ${MOMO_RETURN_URL:-http://localhost:5173/payment/momo-return}
+      MOMO_NOTIFY_URL: ${MOMO_NOTIFY_URL:-http://localhost:8080/canim_ecommerce/payments/momo/notify}
+
+      VIETQR_TEMPLATE: ${VIETQR_TEMPLATE:-compact2}
+
+      MOMO_QR_ENABLED: ${MOMO_QR_ENABLED:-true}
+      MOMO_QR_ACCOUNT_NAME: ${MOMO_QR_ACCOUNT_NAME:-}
+      MOMO_QR_PHONE: ${MOMO_QR_PHONE:-}
+      MOMO_QR_WALLET_ACCOUNT: ${MOMO_QR_WALLET_ACCOUNT:-}
+      MOMO_VIETQR_BANK_BIN: ${MOMO_VIETQR_BANK_BIN:-970454}
+
+      VNPAY_QR_ENABLED: ${VNPAY_QR_ENABLED:-true}
+      VNPAY_QR_ACCOUNT_NAME: ${VNPAY_QR_ACCOUNT_NAME:-}
+      VNPAY_QR_BANK_NAME: ${VNPAY_QR_BANK_NAME:-}
+      VNPAY_QR_ACCOUNT_NUMBER: ${VNPAY_QR_ACCOUNT_NUMBER:-}
+      VNPAY_VIETQR_ACQ_ID: ${VNPAY_VIETQR_ACQ_ID:-970436}
+
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
-
-      PAYMENT_PERSONAL_QR_VIETQR_TEMPLATE: ${PAYMENT_PERSONAL_QR_VIETQR_TEMPLATE:-compact2}
-
-      PAYMENT_PERSONAL_QR_MOMO_ENABLED: ${PAYMENT_PERSONAL_QR_MOMO_ENABLED:-true}
-      PAYMENT_PERSONAL_QR_MOMO_ACCOUNT_NAME: ${PAYMENT_PERSONAL_QR_MOMO_ACCOUNT_NAME:-}
-      PAYMENT_PERSONAL_QR_MOMO_PHONE: ${PAYMENT_PERSONAL_QR_MOMO_PHONE:-}
-      PAYMENT_PERSONAL_QR_MOMO_WALLET_ACCOUNT_NUMBER: ${PAYMENT_PERSONAL_QR_MOMO_WALLET_ACCOUNT_NUMBER:-}
-      PAYMENT_PERSONAL_QR_MOMO_VIETQR_BANK_BIN: ${PAYMENT_PERSONAL_QR_MOMO_VIETQR_BANK_BIN:-970454}
-
-      PAYMENT_PERSONAL_QR_VNPAY_ENABLED: ${PAYMENT_PERSONAL_QR_VNPAY_ENABLED:-true}
-      PAYMENT_PERSONAL_QR_VNPAY_ACCOUNT_NAME: ${PAYMENT_PERSONAL_QR_VNPAY_ACCOUNT_NAME:-}
-      PAYMENT_PERSONAL_QR_VNPAY_BANK_NAME: ${PAYMENT_PERSONAL_QR_VNPAY_BANK_NAME:-}
-      PAYMENT_PERSONAL_QR_VNPAY_ACCOUNT_NUMBER: ${PAYMENT_PERSONAL_QR_VNPAY_ACCOUNT_NUMBER:-}
-      PAYMENT_PERSONAL_QR_VNPAY_VIETQR_ACQUIRER_ID: ${PAYMENT_PERSONAL_QR_VNPAY_VIETQR_ACQUIRER_ID:-970436}
+      PASSWORD_RESET_BASE_URL: ${PASSWORD_RESET_BASE_URL:-http://localhost:5173/reset-password}
     ports:
       - "${BACKEND_HOST_PORT:-8080}:8080"
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_started
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: canim_ai_service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      APP_ENV: docker
+      AI_SERVICE_HOST: 0.0.0.0
+      AI_PORT: 8001
+      AI_SERVICE_PORT: 8001
+      PORT: 8001
+
+      BACKEND_API_BASE_URL: http://backend:8080/canim_ecommerce
+
+      AI_CORS_ALLOWED_ORIGINS: ${AI_CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:5174,http://localhost:8080}
+      AI_NLU_MODE: ${AI_NLU_MODE:-rule_based}
+      AI_DEBUG: ${AI_DEBUG:-false}
+    ports:
+      - "${AI_HOST_PORT:-8001}:8001"
+    depends_on:
+      backend:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${FRONTEND_VITE_API_BASE_URL:-http://localhost:8080/canim_ecommerce}
+        VITE_AI_API_BASE_URL: ${FRONTEND_VITE_AI_API_BASE_URL:-http://localhost:8001}
+        VITE_AI_CHAT_MOCK: ${VITE_AI_CHAT_MOCK:-false}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
+    container_name: canim_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_HOST_PORT:-5173}:80"
+    depends_on:
+      backend:
+        condition: service_started
+      ai-service:
+        condition: service_healthy
+
+  admin-frontend:
+    build:
+      context: ./admin-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${ADMIN_VITE_API_BASE_URL:-http://localhost:8080/canim_ecommerce}
+        VITE_STOREFRONT_URL: ${ADMIN_VITE_STOREFRONT_URL:-http://localhost:5173}
+    container_name: canim_admin_frontend
+    restart: unless-stopped
+    ports:
+      - "${ADMIN_FRONTEND_HOST_PORT:-5174}:80"
+    depends_on:
+      backend:
         condition: service_started
 
 volumes:

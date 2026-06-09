@@ -26,35 +26,42 @@ import lombok.experimental.FieldDefaults;
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class CategoryServiceImpl implements CategoryService{
+public class CategoryServiceImpl implements CategoryService {
+
     CategoryRepository categoryRepository;
     CategoryMapper categoryMapper;
 
     @Override
+    @Transactional(readOnly = true)
     public List<CategoryResponse> getRootCategories() {
         return categoryRepository.findByParentIsNull().stream()
-            .map(categoryMapper::toCategoryResponse)
-            .toList();
+                .map(categoryMapper::toCategoryResponse)
+                .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<CategoryResponse> getAllCategories() {
         return categoryRepository.findAll().stream()
-            .map(categoryMapper::toCategoryResponse)
-            .toList();
+                .map(categoryMapper::toCategoryResponse)
+                .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public CategoryResponse getCategoryById(int id) {
         Category category = categoryRepository.findById(id)
-            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
+
         return categoryMapper.toCategoryResponse(category);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public CategoryResponse getCategoryBySlug(String slug) {
         Category category = categoryRepository.findBySlug(slug)
-            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found with slug: " + slug));
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found with slug: " + slug));
+
         return categoryMapper.toCategoryResponse(category);
     }
 
@@ -64,7 +71,7 @@ public class CategoryServiceImpl implements CategoryService{
         String slug = SlugUtils.toSlug(request.getName());
 
         if (categoryRepository.existsBySlug(slug)) {
-            throw new ApiException(ApiStatus.NOT_FOUND, "Category already exists");
+            throw new ApiException(ApiStatus.BAD_REQUEST, "Category already exists");
         }
 
         Category category = categoryMapper.toCategory(request);
@@ -72,19 +79,20 @@ public class CategoryServiceImpl implements CategoryService{
 
         if (request.getParentId() != null) {
             Category parent = categoryRepository.findById(request.getParentId())
-                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Parent category not found"));
+                    .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Parent category not found"));
+
             category.setParent(parent);
         }
 
-        Category saveCategory = categoryRepository.save(category);
-        return categoryMapper.toCategoryResponse(saveCategory);
+        Category savedCategory = categoryRepository.save(category);
+        return categoryMapper.toCategoryResponse(savedCategory);
     }
 
     @Override
     @Transactional
     public CategoryResponse updateCategory(int id, CategoryUpdateRequest request) {
         Category category = categoryRepository.findById(id)
-            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
 
         categoryMapper.updateCategory(category, request);
 
@@ -94,40 +102,48 @@ public class CategoryServiceImpl implements CategoryService{
             }
 
             Category parent = categoryRepository.findById(request.getParentId())
-                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Parent category not found"));
+                    .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Parent category not found"));
 
             category.setParent(parent);
-        } 
+        }
 
-        Category saveCategory = categoryRepository.save(category);
-        return categoryMapper.toCategoryResponse(saveCategory);
+        Category savedCategory = categoryRepository.save(category);
+        return categoryMapper.toCategoryResponse(savedCategory);
     }
 
     @Override
+    @Transactional
     public void deleteCategory(int id) {
         Category category = categoryRepository.findById(id)
-            .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
+                .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Category not found"));
+
         categoryRepository.delete(category);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Integer> collectDescendantIds(int rootId) {
         List<Category> all = categoryRepository.findAll();
+
         Map<Integer, List<Category>> childrenByParent = all.stream()
-                .filter(c -> c.getParent() != null)
-                .collect(Collectors.groupingBy(c -> c.getParent().getId()));
+                .filter(category -> category.getParent() != null)
+                .collect(Collectors.groupingBy(category -> category.getParent().getId()));
 
         List<Integer> ids = new ArrayList<>();
         collectDescendantIdsRecursive(rootId, childrenByParent, ids);
+
         return ids;
     }
 
     private void collectDescendantIdsRecursive(
             int currentId,
             Map<Integer, List<Category>> childrenByParent,
-            List<Integer> ids) {
+            List<Integer> ids
+    ) {
         ids.add(currentId);
+
         List<Category> children = childrenByParent.getOrDefault(currentId, List.of());
+
         for (Category child : children) {
             collectDescendantIdsRecursive(child.getId(), childrenByParent, ids);
         }
