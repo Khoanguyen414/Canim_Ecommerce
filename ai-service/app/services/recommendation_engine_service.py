@@ -1,158 +1,1126 @@
 from typing import Any
 
-import httpx
-
-from app.core.config import get_settings
+from app.clients.backend_client import backend_client
 
 
-class BackendClient:
+DEFAULT_LIMIT = 8
+
+SCORING_STOPWORDS = frozenset(
+    {
+        "goi",
+        "y",
+        "tim",
+        "mua",
+        "chon",
+        "loc",
+        "shop",
+        "co",
+        "ban",
+        "san",
+        "pham",
+        "can",
+        "toi",
+        "tooi",
+        "em",
+        "minh",
+        "muon",
+        "cho",
+        "nao",
+        "gi",
+        "the",
+        "mot",
+        "vai",
+        "nhu",
+        "cua",
+        "trong",
+        "hay",
+        "la",
+        "se",
+        "ma",
+        "dang",
+        "recommend",
+        "suggest",
+        "ve",
+        "xin",
+        "oi",
+        "ak",
+        "product",
+        "hang",
+        "item",
+        "outfit",
+        "phoi",
+        "thoi",
+        "mau",
+    }
+)
+
+GENDER_TOKENS = frozenset({"nam", "nu", "unisex"})
+
+PRODUCT_ANCHOR_TOKENS = frozenset(
+    {
+        "giay",
+        "sneaker",
+        "dep",
+        "sandal",
+        "boot",
+        "ao",
+        "polo",
+        "thun",
+        "hoodie",
+        "blazer",
+        "khoac",
+        "quan",
+        "jean",
+        "vay",
+        "dam",
+        "tui",
+        "balo",
+        "non",
+        "mu",
+        "basic",
+        "local",
+        "chuyen",
+        "day",
+        "lac",
+        "nhan",
+        "vong",
+        "bong",
+        "tai",
+        "mat",
+        "khan",
+        "kinh",
+    }
+)
+
+
+class RecommendationEngineService:
     """
-    BackendClient chỉ chịu trách nhiệm gọi API Spring Boot.
+    RecommendationEngineService là nơi tính gợi ý sản phẩm.
 
-    Logic mới:
-    - Không gọi /ai/products/context nữa vì endpoint đó đang lỗi lazy loading.
-    - Ưu tiên dùng /products/public, cùng nguồn dữ liệu với storefront.
-    - Hỗ trợ nhiều kiểu response: list, data, data.content, content.
+    Logic chính:
+    - Lấy sản phẩm từ backend thông qua BackendClient.
+    - BackendClient hiện dùng /products/public thay vì /ai/products/context.
+    - Nếu product có variants thì bung từng variant thành 1 item AI.
+    - Normalize field để frontend đọc được cả snake_case và camelCase.
+    - Match query khách theo name, slug, category, color, size, searchableText.
+    - Không fallback sản phẩm không liên quan khi query cụ thể không match.
     """
 
     def __init__(self) -> None:
-        self.settings = get_settings()
-        self.timeout_seconds = 10.0
+        self.backend_client = backend_client
 
-    def build_url(self, path: str) -> str:
-        base_url = self.settings.backend_base_url.rstrip("/")
-        clean_path = path if path.startswith("/") else f"/{path}"
-        return f"{base_url}{clean_path}"
+    def recommend_contextual(
+        self,
+        message: str,
+        user_id: int | None = None,
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        products = self._get_recommendable_products()
 
-    def get_product_contexts(self) -> list[dict[str, Any]]:
-        paths = [
-            self.settings.backend_product_context_path,
-            self.settings.backend_products_path,
-            "/products/public",
-            "/products/public?pageNum=1&sizePage=100",
-            "/products/public?pageNum=0&sizePage=100",
-            "/products/public?page=1&size=100",
-            "/products/public?page=0&size=100",
-        ]
+        if not products:
+            print("[RecommendationEngine] No products from backend")
+            return []
 
-        seen_paths: set[str] = set()
+        query = self._normalize_text(message)
+        scored_products: list[dict[str, Any]] = []
 
-        for path in paths:
-            if not path or path in seen_paths:
+        for product in products:
+            score, reasons = self._score_by_query(product, query)
+
+            if score <= 0:
                 continue
 
-            seen_paths.add(path)
+            product_with_score = dict(product)
+            product_with_score["recommendationScore"] = round(score, 2)
+            product_with_score["recommendationReasons"] = reasons
+            product_with_score["score"] = round(score)
 
-            products = self._get_list_from_path(path)
-            if products:
-                return products
+            scored_products.append(product_with_score)
 
-        print("[BackendClient] No product data found from public product paths")
-        return []
+        scored_products.sort(
+            key=lambda item: item.get("recommendationScore", 0),
+            reverse=True,
+        )
 
-    def get_user_recent_events(self, user_id: int, limit: int = 100) -> list[dict[str, Any]]:
-        if not user_id:
+        if scored_products:
+            return self._dedupe_by_product_id(scored_products, limit, query=query)
+
+        if self._tokenize(query):
+            print("[RecommendationEngine] Query no match, returning empty:", query)
             return []
 
-        paths = [
-            f"/ai/user-events/users/{user_id}/recent?limit={limit}",
-            f"/api/ai/user-events/users/{user_id}/recent?limit={limit}",
-            f"/user-events/users/{user_id}/recent?limit={limit}",
-            f"/api/user-events/users/{user_id}/recent?limit={limit}",
+        fallback_products = self._fallback_products(products, limit=limit)
+
+        print(
+            "[RecommendationEngine] Empty query, fallback products:",
+            len(fallback_products),
+        )
+
+        return fallback_products
+
+    def recommend_for_user(
+        self,
+        user_id: int,
+        limit: int = DEFAULT_LIMIT,
+    ) -> list[dict[str, Any]]:
+        products = self._get_recommendable_products()
+
+        if not products:
+            return []
+
+        return self._fallback_products(products, limit=limit)
+
+    def recommend_trending(
+        self,
+        limit: int = DEFAULT_LIMIT,
+        days: int = 30,
+    ) -> list[dict[str, Any]]:
+        products = self._get_recommendable_products()
+
+        if not products:
+            return []
+
+        events = self.backend_client.get_trending_events(days=days)
+        event_scores = self._build_event_score_map(events)
+
+        if not event_scores:
+            return self._fallback_products(products, limit=limit)
+
+        scored_products: list[dict[str, Any]] = []
+
+        for product in products:
+            product_id = self._safe_int(product.get("product_id"))
+            score = float(event_scores.get(product_id, 0))
+
+            if score <= 0:
+                continue
+
+            product_with_score = dict(product)
+            product_with_score["recommendationScore"] = round(score, 2)
+            product_with_score["recommendationReasons"] = [
+                "Sản phẩm đang được nhiều khách quan tâm hoặc mua gần đây"
+            ]
+            product_with_score["score"] = round(score)
+
+            scored_products.append(product_with_score)
+
+        scored_products.sort(
+            key=lambda item: item.get("recommendationScore", 0),
+            reverse=True,
+        )
+
+        if scored_products:
+            return self._dedupe_by_product_id(scored_products, limit)
+
+        return self._fallback_products(products, limit=limit)
+
+    def recommend_similar(
+        self,
+        product_id: int,
+        limit: int = DEFAULT_LIMIT,
+    ) -> list[dict[str, Any]]:
+        products = self._get_recommendable_products()
+
+        if not products:
+            return []
+
+        target_product = None
+
+        for product in products:
+            if self._safe_int(product.get("product_id")) == product_id:
+                target_product = product
+                break
+
+        if not target_product:
+            return self._fallback_products(products, limit=limit)
+
+        target_text = self._build_search_text(target_product)
+        scored_products: list[dict[str, Any]] = []
+
+        for product in products:
+            current_product_id = self._safe_int(product.get("product_id"))
+
+            if current_product_id == product_id:
+                continue
+
+            score, reasons = self._score_similarity(product, target_text, target_product)
+
+            if score <= 0:
+                continue
+
+            product_with_score = dict(product)
+            product_with_score["recommendationScore"] = round(score, 2)
+            product_with_score["recommendationReasons"] = reasons
+            product_with_score["score"] = round(score)
+
+            scored_products.append(product_with_score)
+
+        scored_products.sort(
+            key=lambda item: item.get("recommendationScore", 0),
+            reverse=True,
+        )
+
+        if scored_products:
+            return self._dedupe_by_product_id(scored_products, limit)
+
+        return self._fallback_products(products, limit=limit)
+
+    def recommend_also_viewed(
+        self,
+        product_id: int,
+        limit: int = DEFAULT_LIMIT,
+    ) -> list[dict[str, Any]]:
+        return self.recommend_similar(product_id=product_id, limit=limit)
+
+    def _get_recommendable_products(self) -> list[dict[str, Any]]:
+        raw_products = self.backend_client.get_product_contexts()
+        normalized_products: list[dict[str, Any]] = []
+
+        for raw_product in raw_products:
+            raw_items = self._expand_public_product(raw_product)
+
+            for raw_item in raw_items:
+                product = self._normalize_product(raw_item)
+
+                if not self._is_recommendable_product(product):
+                    continue
+
+                normalized_products.append(product)
+
+        print("[RecommendationEngine] recommendable products:", len(normalized_products))
+
+        return normalized_products
+
+    def _expand_public_product(self, raw: dict[str, Any]) -> list[dict[str, Any]]:
+        """
+        /products/public thường trả product kèm variants/images/category.
+        Hàm này bung product thành nhiều item theo từng variant để AI lọc màu/size/giá.
+        Nếu backend đã trả dạng AI context phẳng thì giữ nguyên.
+        """
+
+        if not isinstance(raw, dict):
+            return []
+
+        variants = (
+            raw.get("variants")
+            or raw.get("productVariants")
+            or raw.get("variantResponses")
+            or raw.get("productVariantResponses")
+            or raw.get("productVariantList")
+            or []
+        )
+
+        if not isinstance(variants, list) or not variants:
+            item = dict(raw)
+            item["categoryName"] = self._extract_category_name(raw)
+            item["imageUrl"] = self._extract_image_url(raw)
+            item["searchableText"] = self._build_raw_searchable_text(item)
+            return [item]
+
+        expanded_items: list[dict[str, Any]] = []
+
+        for variant in variants:
+            if not isinstance(variant, dict):
+                continue
+
+            item = dict(raw)
+
+            item["productId"] = self._first_value(raw, ["productId", "id", "product_id"])
+            item["variantId"] = self._first_value(
+                variant,
+                ["variantId", "id", "variant_id", "defaultVariantId"],
+            )
+            item["sku"] = self._first_value(variant, ["sku", "variantSku"])
+            item["color"] = self._first_value(variant, ["color", "variantColor"])
+            item["size"] = self._first_value(variant, ["size", "variantSize"])
+            item["price"] = self._first_value(
+                variant,
+                ["price", "salePrice", "finalPrice", "minPrice"],
+            )
+            item["availableQuantity"] = self._first_value(
+                variant,
+                [
+                    "availableQuantity",
+                    "available_quantity",
+                    "availableStock",
+                    "stock",
+                    "totalStock",
+                    "inventoryQuantity",
+                    "quantity",
+                ],
+            )
+
+            item["categoryName"] = self._extract_category_name(raw)
+            item["imageUrl"] = self._extract_image_url(raw, variant)
+            item["variantActive"] = self._first_value(
+                variant,
+                ["variantActive", "isActive", "active"],
+            )
+            item["searchableText"] = self._build_raw_searchable_text(item)
+
+            expanded_items.append(item)
+
+        return expanded_items or [raw]
+
+    def _extract_category_name(self, raw: dict[str, Any]) -> Any:
+        category = (
+            raw.get("category")
+            or raw.get("categoryResponse")
+            or raw.get("categoryDto")
+            or raw.get("categoryInfo")
+        )
+
+        if isinstance(category, dict):
+            return (
+                category.get("name")
+                or category.get("categoryName")
+                or category.get("slug")
+            )
+
+        return self._first_value(raw, ["categoryName", "category_name", "category"])
+
+    def _extract_image_url(
+        self,
+        raw: dict[str, Any],
+        variant: dict[str, Any] | None = None,
+    ) -> Any:
+        if variant:
+            variant_image = self._first_value(
+                variant,
+                [
+                    "imageUrl",
+                    "image_url",
+                    "thumbnailUrl",
+                    "thumbnail",
+                    "image",
+                    "mainImageUrl",
+                ],
+            )
+
+            if variant_image:
+                return variant_image
+
+        direct_image = self._first_value(
+            raw,
+            [
+                "image_url",
+                "imageUrl",
+                "mainImageUrl",
+                "thumbnail",
+                "thumbnailUrl",
+                "image",
+            ],
+        )
+
+        if direct_image:
+            return direct_image
+
+        images = (
+            raw.get("images")
+            or raw.get("productImages")
+            or raw.get("imageResponses")
+            or raw.get("productImageResponses")
+            or []
+        )
+
+        if isinstance(images, list):
+            for image in images:
+                if not isinstance(image, dict):
+                    continue
+
+                is_main = image.get("isMain") or image.get("main") or image.get("is_main")
+
+                if is_main:
+                    return image.get("url") or image.get("imageUrl") or image.get("image_url")
+
+            for image in images:
+                if not isinstance(image, dict):
+                    continue
+
+                url = image.get("url") or image.get("imageUrl") or image.get("image_url")
+
+                if url:
+                    return url
+
+        return None
+
+    def _build_raw_searchable_text(self, raw: dict[str, Any]) -> str:
+        parts = [
+            raw.get("name"),
+            raw.get("productName"),
+            raw.get("title"),
+            raw.get("slug"),
+            raw.get("shortDesc"),
+            raw.get("short_desc"),
+            raw.get("description"),
+            raw.get("longDesc"),
+            raw.get("long_desc"),
+            raw.get("brand"),
+            raw.get("brandName"),
+            raw.get("categoryName"),
+            raw.get("category_name"),
+            raw.get("color"),
+            raw.get("size"),
+            raw.get("sku"),
         ]
 
-        for path in paths:
-            events = self._get_list_from_path(path)
-            if events:
-                return events
+        return self._normalize_text(" ".join(str(part) for part in parts if part))
 
-        return []
+    def _normalize_product(self, raw: dict[str, Any]) -> dict[str, Any]:
+        product_id = self._first_value(
+            raw,
+            ["product_id", "productId", "id"],
+        )
 
-    def get_trending_events(self, days: int = 30) -> list[dict[str, Any]]:
-        paths = [
-            f"/ai/user-events/trending?days={days}",
-            f"/api/ai/user-events/trending?days={days}",
-            f"/user-events/trending?days={days}",
-            f"/api/user-events/trending?days={days}",
+        variant_id = self._first_value(
+            raw,
+            ["variant_id", "variantId", "defaultVariantId"],
+        )
+
+        name = self._first_value(
+            raw,
+            ["name", "productName", "title"],
+        )
+
+        slug = self._first_value(
+            raw,
+            ["slug", "productSlug"],
+        )
+
+        brand = self._first_value(
+            raw,
+            ["brand", "brandName"],
+        )
+
+        category_name = self._first_value(
+            raw,
+            ["category_name", "categoryName", "category"],
+        )
+
+        color = self._first_value(
+            raw,
+            ["color", "variantColor"],
+        )
+
+        size = self._first_value(
+            raw,
+            ["size", "variantSize"],
+        )
+
+        price = self._first_value(
+            raw,
+            ["price", "salePrice", "finalPrice", "minPrice"],
+        )
+
+        available_quantity = self._first_value(
+            raw,
+            [
+                "available_quantity",
+                "availableQuantity",
+                "availableStock",
+                "stock",
+                "totalStock",
+                "inventoryQuantity",
+                "quantity",
+            ],
+        )
+
+        image_url = self._first_value(
+            raw,
+            [
+                "image_url",
+                "imageUrl",
+                "mainImageUrl",
+                "thumbnail",
+                "thumbnailUrl",
+                "image",
+            ],
+        )
+
+        status = self._first_value(
+            raw,
+            ["status", "productStatus"],
+        )
+
+        short_desc = self._first_value(
+            raw,
+            ["shortDesc", "short_desc", "description"],
+        )
+
+        long_desc = self._first_value(
+            raw,
+            ["longDesc", "long_desc"],
+        )
+
+        variant_active = self._first_value(
+            raw,
+            ["variantActive", "isActive", "active"],
+        )
+
+        searchable_text = self._first_value(
+            raw,
+            ["searchableText", "searchable_text", "description"],
+        )
+
+        normalized = {
+            "id": self._safe_int(product_id),
+            "product_id": self._safe_int(product_id),
+            "variant_id": self._safe_int(variant_id),
+            "name": self._safe_str(name),
+            "slug": self._safe_str(slug),
+            "brand": self._safe_str(brand),
+            "category_name": self._safe_str(category_name),
+            "color": self._safe_str(color),
+            "size": self._safe_str(size),
+            "price": self._safe_number(price),
+            "available_quantity": self._safe_int(available_quantity),
+            "image_url": self._safe_str(image_url),
+            "status": self._safe_str(status),
+            "shortDesc": self._safe_str(short_desc),
+            "longDesc": self._safe_str(long_desc),
+            "variantActive": variant_active,
+            "searchableText": self._safe_str(searchable_text),
+        }
+
+        normalized["searchText"] = self._build_search_text(normalized)
+
+        # Alias camelCase để frontend render card dễ hơn.
+        normalized["productId"] = normalized.get("product_id")
+        normalized["variantId"] = normalized.get("variant_id")
+        normalized["imageUrl"] = normalized.get("image_url")
+        normalized["availableQuantity"] = normalized.get("available_quantity")
+        normalized["categoryName"] = normalized.get("category_name")
+        normalized["productName"] = normalized.get("name")
+        normalized["thumbnailUrl"] = normalized.get("image_url")
+        normalized["mainImageUrl"] = normalized.get("image_url")
+
+        return normalized
+
+    def _is_recommendable_product(self, product: dict[str, Any]) -> bool:
+        product_id = self._safe_int(product.get("product_id"))
+
+        if product_id is None:
+            return False
+
+        status = self._normalize_text(product.get("status"))
+
+        if status and status not in [
+            "active",
+            "available",
+            "dang hien thi",
+            "published",
+            "visible",
+        ]:
+            return False
+
+        variant_active = product.get("variantActive")
+
+        if isinstance(variant_active, bool) and not variant_active:
+            return False
+
+        quantity = product.get("available_quantity")
+
+        if isinstance(quantity, int) and quantity <= 0:
+            return False
+
+        return True
+
+    def extract_product_query_label(self, message: str) -> str | None:
+        query = self._normalize_text(message)
+        meaningful_tokens = self._meaningful_query_tokens(query)
+
+        if not meaningful_tokens:
+            return None
+
+        return " ".join(meaningful_tokens)
+
+    def _meaningful_query_tokens(self, query: str) -> list[str]:
+        return [
+            token
+            for token in self._tokenize(query)
+            if token not in SCORING_STOPWORDS and len(token) >= 2
         ]
 
-        for path in paths:
-            events = self._get_list_from_path(path)
-            if events:
-                return events
+    def _required_anchor_tokens(self, query_tokens: list[str]) -> list[str]:
+        return [token for token in query_tokens if token in PRODUCT_ANCHOR_TOKENS]
 
-        return []
+    def _as_token_set(self, text: str) -> set[str]:
+        return set(self._tokenize(text))
 
-    def _get_list_from_path(self, path: str) -> list[dict[str, Any]]:
-        url = self.build_url(path)
+    def _text_has_token(self, text: str, token: str) -> bool:
+        if not text or not token:
+            return False
+
+        if " " in token:
+            return token in self._normalize_text(text)
+
+        return token in self._as_token_set(text)
+
+    def _product_matches_required_anchors(
+        self,
+        product_name: str,
+        search_text: str,
+        required_anchors: list[str],
+    ) -> bool:
+        if not required_anchors:
+            return True
+
+        product_tokens = self._as_token_set(product_name)
+        search_tokens = self._as_token_set(search_text)
+        combined_tokens = product_tokens | search_tokens
+
+        return any(anchor in combined_tokens for anchor in required_anchors)
+
+    def _score_by_query(
+        self,
+        product: dict[str, Any],
+        query: str,
+    ) -> tuple[float, list[str]]:
+        if not query:
+            return 1.0, ["Sản phẩm đang bán trong shop"]
+
+        search_text = self._build_search_text(product)
+        product_name = self._normalize_text(product.get("name"))
+        slug = self._normalize_text(product.get("slug"))
+        category = self._normalize_text(product.get("category_name"))
+        color = self._normalize_text(product.get("color"))
+        size = self._normalize_text(product.get("size"))
+
+        query_tokens = self._tokenize(query)
+        meaningful_tokens = self._meaningful_query_tokens(query)
+        required_anchors = self._required_anchor_tokens(meaningful_tokens)
+
+        product_tokens = self._as_token_set(product_name)
+        category_tokens = self._as_token_set(category)
+        color_tokens = self._as_token_set(color)
+        size_tokens = self._as_token_set(size)
+        search_tokens = self._as_token_set(search_text)
+
+        if not self._product_matches_required_anchors(
+            product_name=product_name,
+            search_text=search_text,
+            required_anchors=required_anchors,
+        ):
+            return 0.0, []
+
+        score = 0.0
+        reasons: list[str] = []
+        has_strong_match = False
+
+        meaningful_phrase = " ".join(meaningful_tokens)
+
+        if meaningful_phrase and len(meaningful_tokens) >= 2 and meaningful_phrase in product_name:
+            score += 12
+            has_strong_match = True
+            reasons.append("Tên sản phẩm khớp cụm từ khách tìm")
+
+        if product_name and product_name in query:
+            score += 10
+            has_strong_match = True
+            reasons.append("Tên sản phẩm khớp trực tiếp với nhu cầu")
+
+        if slug and slug.replace("-", " ") in query:
+            score += 8
+            has_strong_match = True
+            reasons.append("Slug sản phẩm khớp với từ khóa tìm kiếm")
+
+        for token in meaningful_tokens:
+            if token in GENDER_TOKENS:
+                if token in product_tokens:
+                    score += 2
+                    reasons.append(f"Khớp phân loại: {token}")
+                continue
+
+            if token in product_tokens:
+                score += 4
+                has_strong_match = True
+                reasons.append(f"Khớp tên sản phẩm: {token}")
+                continue
+
+            if token in category_tokens:
+                score += 3
+                has_strong_match = True
+                reasons.append(f"Khớp danh mục: {token}")
+                continue
+
+            if token in color_tokens:
+                score += 3
+                reasons.append(f"Khớp màu sắc: {token}")
+                continue
+
+            if token in size_tokens:
+                score += 2
+                reasons.append(f"Khớp size: {token}")
+                continue
+
+            if token in search_tokens and token in PRODUCT_ANCHOR_TOKENS:
+                score += 2
+                has_strong_match = True
+                reasons.append(f"Khớp loại sản phẩm: {token}")
+
+        if (
+            "outfit" in query_tokens
+            or "phoi" in query_tokens
+            or "di" in query_tokens
+        ):
+            score += self._score_outfit_product(product, meaningful_tokens)
+
+            if score > 0:
+                reasons.append("Phù hợp để phối outfit")
+
+        if score <= 0 or not has_strong_match:
+            return 0.0, []
+
+        if not reasons:
+            reasons.append("Sản phẩm phù hợp với nhu cầu tìm kiếm")
+
+        return score, self._deduplicate_reasons(reasons)
+
+    def _score_outfit_product(
+        self,
+        product: dict[str, Any],
+        query_tokens: list[str],
+    ) -> float:
+        search_text = self._build_search_text(product)
+        search_tokens = self._as_token_set(search_text)
+        score = 0.0
+
+        outfit_keywords = [
+            "ao",
+            "quan",
+            "vay",
+            "dam",
+            "giay",
+            "blazer",
+            "so",
+            "mi",
+            "thun",
+        ]
+
+        if any(keyword in search_tokens for keyword in outfit_keywords):
+            score += 2
+
+        if "lam" in query_tokens and any(
+            keyword in search_text
+            for keyword in ["so mi", "blazer", "quan", "giay", "basic"]
+        ):
+            score += 3
+
+        if "choi" in query_tokens and any(
+            keyword in search_text
+            for keyword in ["thun", "giay", "jean", "basic"]
+        ):
+            score += 3
+
+        if "be" in query_tokens and any(
+            keyword in search_text for keyword in ["be", "kem", "nau"]
+        ):
+            score += 4
+
+        return score
+
+    def _score_similarity(
+        self,
+        product: dict[str, Any],
+        target_text: str,
+        target_product: dict[str, Any],
+    ) -> tuple[float, list[str]]:
+        product_text = self._build_search_text(product)
+        product_tokens = self._as_token_set(product_text)
+        target_tokens = self._tokenize(target_text)
+
+        score = 0.0
+        reasons: list[str] = []
+
+        for token in target_tokens:
+            if len(token) >= 2 and token in product_tokens:
+                score += 1
+
+        if product.get("category_name") and product.get("category_name") == target_product.get("category_name"):
+            score += 5
+            reasons.append("Cùng danh mục sản phẩm")
+
+        if product.get("color") and product.get("color") == target_product.get("color"):
+            score += 2
+            reasons.append("Cùng màu sắc")
+
+        if product.get("brand") and product.get("brand") == target_product.get("brand"):
+            score += 2
+            reasons.append("Cùng thương hiệu")
+
+        if score > 0 and not reasons:
+            reasons.append("Có nhiều đặc điểm tương tự")
+
+        return score, reasons
+
+    def _dedupe_by_product_id(
+        self,
+        products: list[dict[str, Any]],
+        limit: int,
+        query: str = "",
+    ) -> list[dict[str, Any]]:
+        query_tokens = self._tokenize(query)
+        grouped: dict[int | None, list[dict[str, Any]]] = {}
+
+        for product in products:
+            product_id = self._safe_int(product.get("product_id"))
+            grouped.setdefault(product_id, []).append(product)
+
+        ranked_groups = sorted(
+            grouped.values(),
+            key=lambda variants: max(
+                self._variant_selection_score(variant, query_tokens)
+                for variant in variants
+            ),
+            reverse=True,
+        )
+
+        deduped: list[dict[str, Any]] = []
+
+        for variants in ranked_groups:
+            best_variant = max(
+                variants,
+                key=lambda variant: self._variant_selection_score(variant, query_tokens),
+            )
+            deduped.append(best_variant)
+
+            if len(deduped) >= limit:
+                break
+
+        return deduped
+
+    def _variant_selection_score(
+        self,
+        product: dict[str, Any],
+        query_tokens: list[str],
+    ) -> float:
+        score = float(product.get("recommendationScore") or 0)
+        color = self._normalize_text(product.get("color"))
+        size = self._normalize_text(product.get("size"))
+        stock = float(product.get("available_quantity") or 0)
+
+        color_tokens = self._as_token_set(color)
+        size_tokens = self._as_token_set(size)
+
+        for token in query_tokens:
+            if len(token) < 2:
+                continue
+
+            if token in color_tokens:
+                score += 3
+
+            if token == size or token in size_tokens:
+                score += 3
+
+        score += min(stock, 100) / 100
+
+        return score
+
+    def _fallback_products(
+        self,
+        products: list[dict[str, Any]],
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        fallback_products: list[dict[str, Any]] = []
+
+        for product in products:
+            product_with_score = dict(product)
+            product_with_score["recommendationScore"] = 1.0
+            product_with_score["recommendationReasons"] = [
+                "Sản phẩm đang hiển thị và còn hàng trong shop"
+            ]
+            product_with_score["score"] = 1
+
+            fallback_products.append(product_with_score)
+
+        fallback_products.sort(
+            key=lambda item: (
+                item.get("available_quantity") or 0,
+                item.get("product_id") or 0,
+            ),
+            reverse=True,
+        )
+
+        return self._dedupe_by_product_id(fallback_products, limit)
+
+    def _build_event_score_map(self, events: list[dict[str, Any]]) -> dict[int, float]:
+        event_weights = {
+            "VIEW": 1,
+            "CLICK": 2,
+            "SEARCH": 3,
+            "ADD_TO_CART": 5,
+            "PURCHASE": 10,
+        }
+
+        scores: dict[int, float] = {}
+
+        for event in events:
+            product_id = self._safe_int(
+                self._first_value(event, ["productId", "product_id", "id"])
+            )
+
+            if product_id is None:
+                continue
+
+            event_type = self._safe_str(
+                self._first_value(event, ["eventType", "event_type", "type"])
+            ) or ""
+
+            event_type = event_type.upper()
+
+            scores[product_id] = scores.get(product_id, 0) + event_weights.get(event_type, 1)
+
+        return scores
+
+    def _build_search_text(self, product: dict[str, Any]) -> str:
+        parts = [
+            product.get("name"),
+            product.get("slug"),
+            product.get("brand"),
+            product.get("category_name"),
+            product.get("color"),
+            product.get("size"),
+            product.get("shortDesc"),
+            product.get("longDesc"),
+            product.get("searchableText"),
+        ]
+
+        return self._normalize_text(" ".join(str(part) for part in parts if part))
+
+    def _tokenize(self, text: str) -> list[str]:
+        normalized = self._normalize_text(text)
+        return [token for token in normalized.split() if token]
+
+    def _normalize_text(self, value: Any) -> str:
+        text = str(value or "").lower().strip()
+
+        replacements = {
+            "á": "a",
+            "à": "a",
+            "ả": "a",
+            "ã": "a",
+            "ạ": "a",
+            "ă": "a",
+            "ắ": "a",
+            "ằ": "a",
+            "ẳ": "a",
+            "ẵ": "a",
+            "ặ": "a",
+            "â": "a",
+            "ấ": "a",
+            "ầ": "a",
+            "ẩ": "a",
+            "ẫ": "a",
+            "ậ": "a",
+            "đ": "d",
+            "é": "e",
+            "è": "e",
+            "ẻ": "e",
+            "ẽ": "e",
+            "ẹ": "e",
+            "ê": "e",
+            "ế": "e",
+            "ề": "e",
+            "ể": "e",
+            "ễ": "e",
+            "ệ": "e",
+            "í": "i",
+            "ì": "i",
+            "ỉ": "i",
+            "ĩ": "i",
+            "ị": "i",
+            "ó": "o",
+            "ò": "o",
+            "ỏ": "o",
+            "õ": "o",
+            "ọ": "o",
+            "ô": "o",
+            "ố": "o",
+            "ồ": "o",
+            "ổ": "o",
+            "ỗ": "o",
+            "ộ": "o",
+            "ơ": "o",
+            "ớ": "o",
+            "ờ": "o",
+            "ở": "o",
+            "ỡ": "o",
+            "ợ": "o",
+            "ú": "u",
+            "ù": "u",
+            "ủ": "u",
+            "ũ": "u",
+            "ụ": "u",
+            "ư": "u",
+            "ứ": "u",
+            "ừ": "u",
+            "ử": "u",
+            "ữ": "u",
+            "ự": "u",
+            "ý": "y",
+            "ỳ": "y",
+            "ỷ": "y",
+            "ỹ": "y",
+            "ỵ": "y",
+        }
+
+        for source, target in replacements.items():
+            text = text.replace(source, target)
+
+        separators = [",", ".", ";", ":", "/", "\\", "-", "_", "(", ")", "[", "]"]
+
+        for separator in separators:
+            text = text.replace(separator, " ")
+
+        return " ".join(text.split())
+
+    def _first_value(self, source: dict[str, Any], keys: list[str]) -> Any:
+        for key in keys:
+            value = source.get(key)
+
+            if value is not None:
+                return value
+
+        return None
+
+    def _safe_str(self, value: Any) -> str | None:
+        if value is None:
+            return None
+
+        text = str(value).strip()
+
+        return text or None
+
+    def _safe_int(self, value: Any) -> int | None:
+        if value is None:
+            return None
 
         try:
-            print(f"[BackendClient] Calling: {url}")
+            return int(value)
+        except (TypeError, ValueError):
+            return None
 
-            response = httpx.get(url, timeout=self.timeout_seconds)
+    def _safe_number(self, value: Any) -> float | None:
+        if value is None:
+            return None
 
-            print(f"[BackendClient] Status: {response.status_code} | URL: {url}")
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
-            response.raise_for_status()
+    def _deduplicate_reasons(self, reasons: list[str]) -> list[str]:
+        result: list[str] = []
+        seen: set[str] = set()
 
-            data = response.json()
-            items = self._extract_items(data)
+        for reason in reasons:
+            if reason in seen:
+                continue
 
-            print(f"[BackendClient] Extracted items: {len(items)} | URL: {url}")
+            seen.add(reason)
+            result.append(reason)
 
-            return items
-
-        except httpx.HTTPStatusError as exception:
-            print(
-                "[BackendClient] HTTP status error:",
-                exception.response.status_code,
-                exception.response.text[:300],
-                "| URL:",
-                url,
-            )
-            return []
-
-        except httpx.HTTPError as exception:
-            print(f"[BackendClient] HTTP error: {exception} | URL: {url}")
-            return []
-
-        except ValueError as exception:
-            print(f"[BackendClient] JSON parse error: {exception} | URL: {url}")
-            return []
-
-    def _extract_items(self, data: Any) -> list[dict[str, Any]]:
-        if isinstance(data, list):
-            return self._only_dict_items(data)
-
-        if not isinstance(data, dict):
-            return []
-
-        keys = [
-            "items",
-            "products",
-            "content",
-            "data",
-            "result",
-            "results",
-            "records",
-        ]
-
-        for key in keys:
-            value = data.get(key)
-
-            if isinstance(value, list):
-                return self._only_dict_items(value)
-
-            if isinstance(value, dict):
-                nested_items = self._extract_items(value)
-
-                if nested_items:
-                    return nested_items
-
-        return []
-
-    def _only_dict_items(self, items: list[Any]) -> list[dict[str, Any]]:
-        return [item for item in items if isinstance(item, dict)]
+        return result[:4]
 
 
-backend_client = BackendClient()
+recommendation_engine_service = RecommendationEngineService()
