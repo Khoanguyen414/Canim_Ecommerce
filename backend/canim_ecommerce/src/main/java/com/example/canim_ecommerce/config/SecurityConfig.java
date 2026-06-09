@@ -74,6 +74,11 @@ public class SecurityConfig {
             "/payments/personal-qr/config"
     };
 
+    String[] PUBLIC_AI_PRODUCT_CONTEXT_ENDPOINTS = {
+            "/ai/products/context",
+            "/ai/product-contexts/available"
+    };
+
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder(10);
@@ -192,8 +197,10 @@ public class SecurityConfig {
 
                         /*
                          * Public endpoint cho Python AI lấy dữ liệu sản phẩm.
+                         * Endpoint cũ: /ai/products/context
+                         * Endpoint alias mới: /ai/product-contexts/available
                          */
-                        .requestMatchers(HttpMethod.GET, "/ai/products/context").permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_AI_PRODUCT_CONTEXT_ENDPOINTS).permitAll()
 
                         /*
                          * Các endpoint public cho khách xem shop, login, sản phẩm, danh mục.
