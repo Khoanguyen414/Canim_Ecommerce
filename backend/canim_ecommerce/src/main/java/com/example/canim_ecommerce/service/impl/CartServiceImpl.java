@@ -1,13 +1,5 @@
 package com.example.canim_ecommerce.service.impl;
 
-import java.math.BigDecimal;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.example.canim_ecommerce.dto.request.cart.AddToCartRequest;
 import com.example.canim_ecommerce.dto.request.cart.ToggleSelectionRequest;
 import com.example.canim_ecommerce.dto.request.cart.UpdateCartItemRequest;
@@ -31,11 +23,16 @@ import com.example.canim_ecommerce.service.user.UserEventService;
 import com.example.canim_ecommerce.utils.SecurityUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
+import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -54,20 +51,16 @@ public class CartServiceImpl implements CartService {
     ObjectMapper objectMapper;
 
     @Override
+    @Transactional(readOnly = true)
     public CartResponse getMyCart() {
         Long userId = SecurityUtils.getCurrentUserId();
-        Optional<Cart> cached = cartRedisCache.get(userId);
-        Cart cart;
-        if (cached.isPresent()) {
-            log.debug("Cart cache hit for user {}", userId);
-            cart = cached.get();
-        } else {
-            log.debug("Cart cache miss for user {}, loading MySQL", userId);
-            cart = cartRepository.findByUserId(userId).orElse(null);
-            if (cart == null) {
-                return CartResponse.builder().userId(userId).totalAmount(BigDecimal.ZERO).build();
-            }
-            cartRedisCache.put(userId, cart);
+
+        Cart cart = cartRepository.findByUserIdWithItems(userId).orElse(null);
+        if (cart == null) {
+            return CartResponse.builder()
+                    .userId(userId)
+                    .totalAmount(BigDecimal.ZERO)
+                    .build();
         }
 
         CartResponse response = cartMapper.toCartResponse(cart);
@@ -83,7 +76,8 @@ public class CartServiceImpl implements CartService {
         }
 
         Long userId = SecurityUtils.getCurrentUserId();
-        Cart cart = cartRepository.findByUserId(userId)
+
+        Cart cart = cartRepository.findByUserIdWithItems(userId)
                 .orElseGet(() -> cartRepository.save(Cart.builder().userId(userId).build()));
 
         ProductVariant variant = productVariantRepository.findById(request.getVariantId())
@@ -94,7 +88,7 @@ public class CartServiceImpl implements CartService {
         }
 
         int currentQtyInCart = cart.getItems().stream()
-                .filter(i -> i.getVariant().getId().equals(variant.getId()))
+                .filter(item -> item.getVariant().getId().equals(variant.getId()))
                 .mapToInt(CartItem::getQuantity)
                 .sum();
 
@@ -104,16 +98,21 @@ public class CartServiceImpl implements CartService {
         }
 
         Optional<CartItem> existingItem = cart.getItems().stream()
-                .filter(i -> i.getVariant().getId().equals(variant.getId()))
+                .filter(item -> item.getVariant().getId().equals(variant.getId()))
                 .findFirst();
 
         if (existingItem.isPresent()) {
             CartItem item = existingItem.get();
             item.setQuantity(item.getQuantity() + request.getQuantity());
         } else {
-            cart.getItems().add(CartItem.builder()
-                    .variant(variant).quantity(request.getQuantity())
-                    .isSelected(false).cart(cart).build());
+            CartItem newItem = CartItem.builder()
+                    .variant(variant)
+                    .quantity(request.getQuantity())
+                    .isSelected(false)
+                    .cart(cart)
+                    .build();
+
+            cart.getItems().add(newItem);
         }
 
         cart = cartRepository.save(cart);
@@ -134,19 +133,22 @@ public class CartServiceImpl implements CartService {
         }
 
         Long userId = SecurityUtils.getCurrentUserId();
-        Cart cart = cartRepository.findByUserId(userId)
+
+        Cart cart = cartRepository.findByUserIdWithItems(userId)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Cart is empty"));
 
         CartItem item = cart.getItems().stream()
-                .filter(i -> i.getVariant().getId().equals(request.getVariantId()))
+                .filter(cartItem -> cartItem.getVariant().getId().equals(request.getVariantId()))
                 .findFirst()
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Product not found in cart"));
 
         if (request.getQuantity() > 0) {
             int availableQty = inventoryService.getAvailableQuantityForVariant(request.getVariantId());
+
             if (request.getQuantity() > availableQty && Boolean.TRUE.equals(request.getIsSelected())) {
                 throw new ApiException(ApiStatus.BAD_REQUEST, "Not enough stock.");
             }
+
             item.setQuantity(request.getQuantity());
             item.setIsSelected(request.getIsSelected());
         } else {
@@ -163,14 +165,15 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public CartResponse toggleItemSelection(ToggleSelectionRequest request) {
         Long userId = SecurityUtils.getCurrentUserId();
 
-        Cart cart = cartRepository.findByUserId(userId)
+        Cart cart = cartRepository.findByUserIdWithItems(userId)
                 .orElseThrow(() -> new ApiException(ApiStatus.NOT_FOUND, "Không tìm thấy giỏ hàng"));
 
         boolean isUpdated = false;
+
         for (CartItem item : cart.getItems()) {
             if (request.getVariantIds().contains(item.getVariant().getId())) {
                 item.setIsSelected(request.getIsSelected());
@@ -183,18 +186,21 @@ public class CartServiceImpl implements CartService {
             cartRedisCache.put(userId, cart);
         }
 
-        return getMyCart();
+        CartResponse response = cartMapper.toCartResponse(cart);
+        enrichCartData(response);
+        return response;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void clearCart() {
         Long userId = SecurityUtils.getCurrentUserId();
-        cartRepository.findByUserId(userId).ifPresent(cart -> {
+
+        cartRepository.findByUserIdWithItems(userId).ifPresent(cart -> {
             cartItemRepository.deleteAllByCartId(cart.getId());
-            log.info("User {} cleared cart", userId);
             cart.getItems().clear();
             cartRedisCache.evict(userId);
+            log.info("User {} cleared cart", userId);
         });
     }
 
@@ -207,7 +213,8 @@ public class CartServiceImpl implements CartService {
                 userId,
                 variant.getProduct().getId(),
                 EventType.ADD_TO_CART,
-                buildAddToCartMeta(variant, quantity));
+                buildAddToCartMeta(variant, quantity)
+        );
     }
 
     private String buildAddToCartMeta(ProductVariant variant, Integer quantity) {
@@ -228,7 +235,6 @@ public class CartServiceImpl implements CartService {
             return objectMapper.writeValueAsString(meta);
         } catch (JsonProcessingException exception) {
             log.warn("Không thể build ADD_TO_CART eventMeta JSON: {}", exception.getMessage());
-
             return "{\"source\":\"CART_ADD\"}";
         }
     }
@@ -244,20 +250,21 @@ public class CartServiceImpl implements CartService {
         for (var item : response.getItems()) {
             ProductVariant variant = productVariantRepository.findById(item.getVariantId()).orElse(null);
             int availableQty = inventoryService.getAvailableQuantityForVariant(item.getVariantId());
-            if (variant != null) {
+
+            if (variant != null && variant.getProduct() != null) {
                 productImageRepository.findByProductIdAndIsMainTrue(variant.getProduct().getId())
-                    .ifPresent(img -> item.setImageUrl(img.getUrl()));
+                        .ifPresent(image -> item.setImageUrl(image.getUrl()));
             }
 
             item.setAvailableStock(availableQty);
             item.setIsAvailable(true);
             item.setWarningMessage(null);
 
-            if (variant == null || variant.getProduct().getStatus() != ProductStatus.ACTIVE) {
+            if (variant == null || variant.getProduct() == null
+                    || variant.getProduct().getStatus() != ProductStatus.ACTIVE) {
                 item.setIsAvailable(false);
                 item.setWarningMessage("Product is no longer active");
-            }
-            else if (item.getQuantity() > availableQty) {
+            } else if (item.getQuantity() > availableQty) {
                 item.setIsAvailable(false);
                 item.setWarningMessage("Quantity exceeds available stock (" + availableQty + ")");
             }
@@ -266,6 +273,7 @@ public class CartServiceImpl implements CartService {
                 calculatedTotal = calculatedTotal.add(item.getSubTotal());
             }
         }
+
         response.setTotalAmount(calculatedTotal);
     }
 }
